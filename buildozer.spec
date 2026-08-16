@@ -1,13 +1,13 @@
 [app]
 
 # (str) Title of your application
-title = ExpiryApp
+title = Date-Detector
 
 # (str) Package name
-package.name = expiryapp
+package.name = datedetector
 
 # (str) Package domain (needed for android/ios packaging)
-package.domain = org.expiryapp
+package.domain = org.datedetector
 
 # (str) Source code where the main.py live
 source.dir = .
