@@ -1,70 +1,55 @@
 [app]
 
 # (str) Title of your application
-title = Pyton Detect
+title = ExpiryApp
 
 # (str) Package name
-package.name = pytondetect
+package.name = expiryapp
 
 # (str) Package domain (needed for android/ios packaging)
-package.domain = org.pytondetect
+package.domain = org.expiryapp
 
 # (str) Source code where the main.py live
 source.dir = .
 
-# (list) Source files to include
-source.include_exts = py,png,jpg,kv,atlas,db
+# (list) Source files to include (let empty to include all the files)
+source.include_exts = py,png,jpg,kv,atlas,db,json
 
-# (str) Application versioning
+# (str) Application versioning (method 1)
 version = 0.1
 
 # (list) Application requirements
-requirements = python3,kivy,kivymd,camera4kivy,gestures4kivy,pyjnius,android,pillow,pyzbar
+# comma separated e.g. requirements = sqlite3,kivy
+requirements = python3,kivy==2.3.0,kivymd,camera4kivy,gestures,pyjnius,android,pillow,zbarlight
 
-# (str) Icon of the application
-icon.filename = %(source.dir)s/icon.png
-
-# (str) Supported orientation
+# (str) Supported orientations (one of landscape, sensorLandscape, portrait or all)
 orientation = portrait
-
-#
-# Android specific
-#
 
 # (bool) Indicate if the application should be fullscreen or not
 fullscreen = 0
 
 # (list) Permissions
-android.permissions = CAMERA, INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
+android.permissions = CAMERA, INTERNET, READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE
 
-# (list) Features
-android.features = android.hardware.camera, android.hardware.camera.autofocus
-
-# (int) Target Android API
+# (int) Target Android API, should be as high as possible.
 android.api = 33
 
-# (int) Minimum API support
+# (int) Minimum API required.
 android.minapi = 21
 
-# (str) Android NDK version (фиксирует версию для стабильной сборки C-библиотек)
+# (str) Android NDK version to use
 android.ndk = 25b
 
-# (str) Bootstrap to use for android build
-p4a.bootstrap = sdl2
+# (list) List of architectures to build for
+android.archs = arm64-v8a, armeabi-v7a
 
-# (list) Android application architectures
-android.archs = arm64-v8a
-
-# (bool) Enable AndroidX support
-android.enable_androidx = True
-
-# (bool) Accept SDK license agreement automatically
-android.accept_sdk_license = True
+# (bool) Enable Android auto backup
+android.allow_backup = True
 
 [buildozer]
 
-# (int) Log level (0 = error only, 1 = info, 2 = debug)
+# (int) Log level (0 = error only, 1 = info, 2 = debug (with command output))
 log_level = 2
 
-# (int) Display warning if buildozer is run as root
+# (int) Display warning if buildozer is run as root (0 = false, 1 = true)
 warn_on_root = 1
