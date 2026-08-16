@@ -13,12 +13,12 @@ package.domain = org.pytondetect
 source.dir = .
 
 # (list) Source files to include
-source.include_exts = py,png,jpg,kv,atlas,db,xz
+source.include_exts = py,png,jpg,kv,atlas,db
 
 # (str) Application versioning
 version = 0.1
 
-# (list) Application requirements (указан правильный gestures4kivy)
+# (list) Application requirements
 requirements = python3,kivy,kivymd,camera4kivy,gestures4kivy,pyjnius,android,pillow,pyzbar
 
 # (str) Icon of the application
@@ -45,6 +45,9 @@ android.api = 33
 
 # (int) Minimum API support
 android.minapi = 21
+
+# (str) Android NDK version (фиксирует версию для стабильной сборки C-библиотек)
+android.ndk = 25b
 
 # (str) Bootstrap to use for android build
 p4a.bootstrap = sdl2
