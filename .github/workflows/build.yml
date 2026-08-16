@@ -38,7 +38,14 @@ jobs:
             python3-dev \
             ccache \
             zip \
-            unzip
+            unzip \
+            gettext \
+            autopoint \
+            pkg-config \
+            autoconf \
+            automake \
+            libtool \
+            m4
 
       - name: Install Buildozer and Cython
         run: |
