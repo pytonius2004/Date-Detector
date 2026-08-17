@@ -19,8 +19,8 @@ source.include_exts = py,png,jpg,kv,atlas,db,json
 version = 0.1
 
 # (list) Application requirements
-# comma separated e.g. requirements = sqlite3,kivy
-requirements = python3,kivy==2.3.0,kivymd,camera4kivy,gestures,pyjnius,android,pillow,zbarlight
+# Чистый список без C-библиотек zbar, вызывавших сбой NDK
+requirements = python3,kivy==2.3.0,kivymd,camera4kivy,gestures,pyjnius,android,pillow
 
 # (str) Supported orientations (one of landscape, sensorLandscape, portrait or all)
 orientation = portrait
@@ -31,17 +31,17 @@ fullscreen = 0
 # (list) Permissions
 android.permissions = CAMERA, INTERNET, READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE
 
-# (int) Target Android API, should be as high as possible.
+# (int) Target Android API
 android.api = 33
 
-# (int) Minimum API required.
+# (int) Minimum API required
 android.minapi = 21
 
 # (str) Android NDK version to use
 android.ndk = 25b
 
-# (list) List of architectures to build for
-android.archs = arm64-v8a, armeabi-v7a
+# (list) List of architectures to build for (только arm64-v8a для стабильности)
+android.archs = arm64-v8a
 
 # (bool) Enable Android auto backup
 android.allow_backup = True
