@@ -12,17 +12,19 @@ package.domain = org.datedetector
 # (str) Source code where the main.py live
 source.dir = .
 
-# (list) Source files to include (let empty to include all the files)
+# (list) Source files to include
 source.include_exts = py,png,jpg,kv,atlas,db,json
 
-# (str) Application versioning (method 1)
+# (str) Application versioning
 version = 0.1
 
 # (list) Application requirements
-# Чистый список без C-библиотек zbar, вызывавших сбой NDK
 requirements = python3,kivy==2.3.0,kivymd,camera4kivy,gestures,pyjnius,android,pillow
 
-# (str) Supported orientations (one of landscape, sensorLandscape, portrait or all)
+# (str) Custom branch for python-for-android (исправляет сбой компиляции Python)
+p4a.branch = master
+
+# (str) Supported orientations
 orientation = portrait
 
 # (bool) Indicate if the application should be fullscreen or not
@@ -40,7 +42,7 @@ android.minapi = 21
 # (str) Android NDK version to use
 android.ndk = 25b
 
-# (list) List of architectures to build for (только arm64-v8a для стабильности)
+# (list) List of architectures to build for
 android.archs = arm64-v8a
 
 # (bool) Enable Android auto backup
@@ -48,8 +50,8 @@ android.allow_backup = True
 
 [buildozer]
 
-# (int) Log level (0 = error only, 1 = info, 2 = debug (with command output))
+# (int) Log level
 log_level = 2
 
-# (int) Display warning if buildozer is run as root (0 = false, 1 = true)
+# (int) Display warning if buildozer is run as root
 warn_on_root = 1
