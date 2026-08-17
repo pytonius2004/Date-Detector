@@ -33,19 +33,14 @@ jobs:
             ffmpeg \
             libffi-dev \
             libssl-dev \
-            libzbar0 \
-            libzbar-dev \
             python3-dev \
             ccache \
             zip \
             unzip \
-            gettext \
-            autopoint \
             pkg-config \
             autoconf \
             automake \
-            libtool \
-            m4
+            libtool
 
       - name: Install Buildozer and Cython
         run: |
