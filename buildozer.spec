@@ -19,7 +19,6 @@ source.include_exts = py,png,jpg,kv,atlas,db,json
 version = 0.1
 
 # (list) Application requirements
-# ВАЖНО: cython сюда НЕ ПИСАТЬ!
 requirements = python3,kivy==2.3.0,kivymd,camera4kivy,gestures,pyjnius,android,pillow,pyzbar,sqlite3
 
 # (str) Supported orientation (landscape, sensorLandscape, portrait or all)
