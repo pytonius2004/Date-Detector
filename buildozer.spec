@@ -5,7 +5,8 @@ package.name = expiringgoods
 package.domain = org.example
 
 source.dir = .
-source.include_exts = py,png,jpg,jpeg,webp,kv,atlas
+
+source.include_exts = py,png,jpg,jpeg,webp,kv,atlas,json
 
 source.exclude_dirs = .git,.github,.buildozer,bin,venv,__pycache__
 
