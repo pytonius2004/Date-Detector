@@ -22,28 +22,15 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.mlkit.vision.barcode.BarcodeScanner;
 import com.google.mlkit.vision.barcode.BarcodeScanning;
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions;
-
 import com.google.mlkit.vision.barcode.common.Barcode;
-
 import com.google.mlkit.vision.common.InputImage;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
 import java.util.concurrent.atomic.AtomicBoolean;
 
 
-/**
- * Native Android barcode scanner.
- *
- * CameraX provides the camera preview and frames.
- * Google ML Kit detects the barcode.
- *
- * The detected barcode is returned to Kivy:
- *
- *     intent.getStringExtra("barcode")
- */
 public class BarcodeScannerActivity
         extends ComponentActivity {
 
@@ -68,7 +55,6 @@ public class BarcodeScannerActivity
                 savedInstanceState
         );
 
-
         previewView =
                 new PreviewView(this);
 
@@ -80,10 +66,8 @@ public class BarcodeScannerActivity
                 previewView
         );
 
-
         cameraExecutor =
                 Executors.newSingleThreadExecutor();
-
 
         BarcodeScannerOptions options =
                 new BarcodeScannerOptions.Builder()
@@ -98,12 +82,16 @@ public class BarcodeScannerActivity
                         )
                         .build();
 
-
         barcodeScanner =
                 BarcodeScanning.getClient(
                         options
                 );
 
+        checkCameraPermission();
+    }
+
+
+    private void checkCameraPermission() {
 
         if (
                 ContextCompat.checkSelfPermission(
@@ -142,7 +130,6 @@ public class BarcodeScannerActivity
                 grantResults
         );
 
-
         if (
                 requestCode
                 ==
@@ -163,7 +150,7 @@ public class BarcodeScannerActivity
 
                 Toast.makeText(
                         this,
-                        "Разрешение камеры не предоставлено",
+                        "Для сканирования нужен доступ к камере.",
                         Toast.LENGTH_LONG
                 ).show();
 
@@ -185,7 +172,6 @@ public class BarcodeScannerActivity
                         this
                 );
 
-
         cameraProviderFuture.addListener(
                 () -> {
 
@@ -195,17 +181,14 @@ public class BarcodeScannerActivity
                                 cameraProvider =
                                 cameraProviderFuture.get();
 
-
                         Preview preview =
                                 new Preview.Builder()
                                         .build();
-
 
                         preview.setSurfaceProvider(
                                 previewView
                                         .getSurfaceProvider()
                         );
-
 
                         ImageAnalysis imageAnalysis =
                                 new ImageAnalysis.Builder()
@@ -215,31 +198,26 @@ public class BarcodeScannerActivity
                                         )
                                         .build();
 
-
                         imageAnalysis.setAnalyzer(
                                 cameraExecutor,
                                 this::analyzeFrame
                         );
 
-
-                        CameraSelector
-                                cameraSelector =
+                        CameraSelector selector =
                                 CameraSelector
                                         .DEFAULT_BACK_CAMERA;
 
-
                         cameraProvider.unbindAll();
-
 
                         cameraProvider.bindToLifecycle(
                                 this,
-                                cameraSelector,
+                                selector,
                                 preview,
                                 imageAnalysis
                         );
 
-
-                    } catch (
+                    }
+                    catch (
                             ExecutionException
                                     |
                             InterruptedException e
@@ -247,7 +225,7 @@ public class BarcodeScannerActivity
 
                         Toast.makeText(
                                 this,
-                                "Не удалось запустить камеру: "
+                                "Не удалось запустить камеру:\n"
                                         +
                                         e.getMessage(),
                                 Toast.LENGTH_LONG
@@ -281,7 +259,6 @@ public class BarcodeScannerActivity
             return;
         }
 
-
         if (
                 imageProxy.getImage()
                 ==
@@ -293,7 +270,6 @@ public class BarcodeScannerActivity
             return;
         }
 
-
         InputImage image =
                 InputImage.fromMediaImage(
                         imageProxy.getImage(),
@@ -301,7 +277,6 @@ public class BarcodeScannerActivity
                                 .getImageInfo()
                                 .getRotationDegrees()
                 );
-
 
         barcodeScanner
                 .process(image)
@@ -316,7 +291,6 @@ public class BarcodeScannerActivity
                                 return;
                             }
 
-
                             for (
                                     Barcode barcode
                                     :
@@ -325,7 +299,6 @@ public class BarcodeScannerActivity
 
                                 String rawValue =
                                         barcode.getRawValue();
-
 
                                 if (
                                         rawValue != null
@@ -344,8 +317,7 @@ public class BarcodeScannerActivity
                                     ) {
 
                                         returnResult(
-                                                rawValue
-                                                        .trim()
+                                                rawValue.trim()
                                         );
                                     }
 
@@ -356,7 +328,7 @@ public class BarcodeScannerActivity
                 )
 
                 .addOnFailureListener(
-                        e -> {
+                        error -> {
                             // Keep scanning.
                         }
                 )
@@ -375,18 +347,15 @@ public class BarcodeScannerActivity
         Intent result =
                 new Intent();
 
-
         result.putExtra(
                 "barcode",
                 barcode
         );
 
-
         setResult(
                 RESULT_OK,
                 result
         );
-
 
         finish();
     }
@@ -397,14 +366,12 @@ public class BarcodeScannerActivity
 
         super.onDestroy();
 
-
         if (
                 barcodeScanner != null
         ) {
 
             barcodeScanner.close();
         }
-
 
         if (
                 cameraExecutor != null
