@@ -49,35 +49,34 @@ jobs:
           yes | sdkmanager --licenses > /dev/null || true
 
 
-      - name: Prepare Android SDK for Buildozer
+      - name: Prepare Android SDK
         run: |
 
           echo "ANDROID_HOME=$ANDROID_HOME"
+
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
 
-          echo "Checking sdkmanager:"
-          which sdkmanager
+          echo "SDK manager:"
           sdkmanager --version
 
-          echo "Checking Android 35:"
+          echo "Android 35:"
           sdkmanager --list_installed | grep "platforms;android-35" || true
 
-          echo "Checking Build Tools:"
+          echo "Build Tools:"
           ls -la "$ANDROID_SDK_ROOT/build-tools/35.0.0"
 
-          echo "Checking AIDL:"
-          ls -la "$ANDROID_SDK_ROOT/build-tools/35.0.0/aidl"
-
+          echo "AIDL:"
           "$ANDROID_SDK_ROOT/build-tools/35.0.0/aidl" \
             --help > /dev/null
 
-          echo "AIDL is working."
+          echo "AIDL works."
 
 
       - name: Prepare legacy sdkmanager path
         run: |
 
-          mkdir -p "$ANDROID_SDK_ROOT/tools/bin"
+          mkdir -p \
+            "$ANDROID_SDK_ROOT/tools/bin"
 
           rm -f \
             "$ANDROID_SDK_ROOT/tools/bin/sdkmanager"
@@ -86,12 +85,9 @@ jobs:
             "$(command -v sdkmanager)" \
             "$ANDROID_SDK_ROOT/tools/bin/sdkmanager"
 
-          echo "Legacy sdkmanager path:"
-          ls -la \
-            "$ANDROID_SDK_ROOT/tools/bin/sdkmanager"
-
-          echo "Legacy sdkmanager version:"
-          "$ANDROID_SDK_ROOT/tools/bin/sdkmanager" --version
+          echo "Legacy sdkmanager:"
+          "$ANDROID_SDK_ROOT/tools/bin/sdkmanager" \
+            --version
 
 
       - name: Install system packages
@@ -136,24 +132,21 @@ jobs:
       - name: Show versions
         run: |
 
-          echo "Python:"
           python --version
 
-          echo "Buildozer:"
           buildozer --version
 
-          echo "Java:"
           java -version
 
           echo "Android SDK:"
           echo "$ANDROID_SDK_ROOT"
 
-          echo "SDK Manager:"
+          echo "sdkmanager:"
           "$ANDROID_SDK_ROOT/tools/bin/sdkmanager" \
             --version
 
 
-      - name: Clean old Buildozer files
+      - name: Clean Buildozer
         run: |
 
           rm -rf .buildozer
@@ -173,13 +166,6 @@ jobs:
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
 
         run: |
-
-          echo "Using Android SDK:"
-          echo "$ANDROID_SDK_ROOT"
-
-          echo "Using AIDL:"
-          "$ANDROID_SDK_ROOT/build-tools/35.0.0/aidl" \
-            --help > /dev/null
 
           echo "Starting Buildozer..."
 
