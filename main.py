@@ -1,6 +1,7 @@
 import os
 import shutil
 import sqlite3
+import time
 from datetime import datetime
 from PIL import Image
 from pyzbar.pyzbar import decode
@@ -22,6 +23,26 @@ if platform == 'android':
     from android.permissions import request_permissions, Permission
 
 
+class BarcodeAnalyzer:
+    """Анализатор потока кадров камеры для camera4kivy"""
+    def __init__(self, callback):
+        self.callback = callback
+
+    def analyze_pixels_callback(self, pixels, size, image_format, orientation, mirror):
+        try:
+            # size передает кортеж (ширина, высота)
+            img = Image.frombytes('RGBA', size, pixels)
+            barcodes = decode(img)
+
+            if barcodes:
+                for barcode in barcodes:
+                    code_data = barcode.data.decode('utf-8')
+                    Clock.schedule_once(lambda dt: self.callback(code_data), 0)
+                    break
+        except Exception:
+            pass
+
+
 class ExpiryApp(MDApp):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -30,12 +51,14 @@ class ExpiryApp(MDApp):
             select_path=self.import_db_file,
             ext=['.db']
         )
+        self.is_scanning = True
+        self.last_scanned_code = None
+        self.last_scanned_time = 0
 
     def build(self):
         self.title = "Pyton Detect"
         self.theme_cls.primary_palette = "Blue"
         self.init_db()
-        self.is_scanning = True
 
         self.layout = MDBoxLayout(
             orientation='vertical',
@@ -121,34 +144,31 @@ class ExpiryApp(MDApp):
 
     def start_camera(self):
         try:
+            self.analyzer = BarcodeAnalyzer(self.on_barcode_scanned)
             self.preview.connect_camera(
-                enable_analyze_pixels=True,
-                analyze_pixels_cb=self.process_frame
+                enable_analyzer=True,
+                analyzer=self.analyzer
             )
             self.status_label.text = "Наведите камеру на штрихкод"
         except Exception as err:
             self.status_label.text = f"Ошибка камеры: {err}"
 
-    def process_frame(self, pixels, width, height, image_format, rotation):
+    def on_barcode_scanned(self, barcode_data):
+        now = time.time()
+        
         if not self.is_scanning:
             return
 
-        try:
-            img = Image.frombytes('RGBA', (width, height), pixels)
-            barcodes = decode(img)
+        # Игнорируем повторные сканы одного кода чаще чем раз в 2 секунды
+        if barcode_data == self.last_scanned_code and (now - self.last_scanned_time) < 2.0:
+            return
 
-            if barcodes:
-                for barcode in barcodes:
-                    barcode_data = barcode.data.decode('utf-8')
-                    Clock.schedule_once(lambda dt: self.update_barcode_ui(barcode_data), 0)
-                    break
-        except Exception:
-            pass
+        self.last_scanned_code = barcode_data
+        self.last_scanned_time = now
+        self.is_scanning = False
 
-    def update_barcode_ui(self, barcode_data):
         self.barcode_input.text = barcode_data
         self.status_label.text = f"Сосканировано: {barcode_data}"
-        self.is_scanning = False
         Clock.schedule_once(self.resume_scanning, 3.0)
 
     def resume_scanning(self, dt):
