@@ -1,28 +1,33 @@
 [app]
-title = Expiry Tracker
-package.name = expirytracker
-package.domain = org.pytonius
+title = Сроки товаров
+package.name = expiringgoods
+package.domain = org.example
 
 source.dir = .
-source.include_exts = py,png,jpg,kv,atlas,db
+source.include_exts = py,png,jpg,jpeg,webp,kv,atlas,db,txt,xz
+source.exclude_dirs = .git,.github,.buildozer,bin,venv,__pycache__
 
-version = 1.0
+version = 0.2.0
 
-requirements = python3,kivy==2.3.0,kivymd,camera4kivy,pyjnius,android,pillow,pyzbar
+requirements = python3==3.10.12,android,Kivy==2.3.1,libiconv,libzbar,Pillow==8.4.0,pyzbar==0.1.8,xcamera==2019.928,zbarcam,androidstorage4kivy
 
 orientation = portrait
 fullscreen = 0
 
-android.permissions = CAMERA,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,INTERNET
+presplash.filename = icon.png
+icon.filename = icon.png
 
-android.api = 33
-android.minapi = 21
+android.permissions = CAMERA
+android.api = 34
+android.minapi = 23
 android.ndk = 25b
-android.archs = arm64-v8a, armeabi-v7a
-
+android.ndk_api = 23
 android.accept_sdk_license = True
-android.build_tools_version = 33.0.2
-android.allow_backup = True
+android.private_storage = True
+android.archs = arm64-v8a
+
+# zbarcam's Android stack is based on xcamera + pyzbar + libzbar.
+p4a.branch = v2024.01.21
 
 [buildozer]
 log_level = 2
