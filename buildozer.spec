@@ -1,7 +1,7 @@
 [app]
 
 # (str) Title of your application
-title = My App
+title = Pyton Detect
 
 # (str) Package name
 package.name = myapp
@@ -19,7 +19,7 @@ source.include_exts = py,png,jpg,kv,atlas,db,json
 version = 0.1
 
 # (list) Application requirements
-requirements = python3,kivy==2.3.0,kivymd,camera4kivy,gestures,pyjnius,android,pillow,pyzbar,sqlite3
+requirements = python3,kivy==2.3.0,kivymd,camera4kivy,pyjnius,android,pillow,pyzbar
 
 # (str) Supported orientation (landscape, sensorLandscape, portrait or all)
 orientation = portrait
@@ -28,7 +28,7 @@ orientation = portrait
 fullscreen = 0
 
 # (list) Permissions
-permissions = CAMERA,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,INTERNET
+permissions = CAMERA,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,INTERNET,VIBRATE
 
 # (int) Target Android API
 android.api = 33
