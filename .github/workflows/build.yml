@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android APK - stable test
 
 on:
   workflow_dispatch:
@@ -45,11 +45,12 @@ jobs:
           BUILDOZER_ALLOW_ORG_TEST_DOMAIN: "1"
           PYTHONFORANDROID_PREREQUISITES_INSTALL_INTERACTIVE: "0"
         run: |
+          buildozer android clean
           buildozer android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: expiring-goods-apk
+          name: expiring-goods-stable-test-apk
           path: bin/*.apk
           if-no-files-found: error
