@@ -38,13 +38,14 @@ jobs:
         run: |
           yes | sdkmanager --licenses > /dev/null || true
 
-      - name: Check Android SDK
+      - name: Prepare Android SDK for Buildozer
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
 
-          echo "Installed SDK packages:"
-          sdkmanager --list_installed
+          echo "Checking modern sdkmanager:"
+          which sdkmanager || true
+          sdkmanager --version
 
           echo "Checking AIDL:"
           ls -la "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl"
@@ -53,6 +54,24 @@ jobs:
           "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl" --help > /dev/null
 
           echo "AIDL is working."
+
+          echo "Creating legacy SDK tools path required by old python-for-android..."
+
+          mkdir -p "$ANDROID_SDK_ROOT/tools/bin"
+
+          rm -f "$ANDROID_SDK_ROOT/tools/bin/sdkmanager"
+
+          ln -s \
+            "$ANDROID_SDK_ROOT/cmdline-tools/20.0/bin/sdkmanager" \
+            "$ANDROID_SDK_ROOT/tools/bin/sdkmanager"
+
+          echo "Checking legacy sdkmanager path:"
+          ls -la "$ANDROID_SDK_ROOT/tools/bin/sdkmanager"
+
+          echo "Testing legacy sdkmanager:"
+          "$ANDROID_SDK_ROOT/tools/bin/sdkmanager" --version
+
+          echo "Buildozer-compatible Android SDK is ready."
 
       - name: Install system packages
         run: |
@@ -88,6 +107,12 @@ jobs:
         run: |
           python --version
           buildozer --version
+          echo "Java:"
+          java -version
+          echo "SDK:"
+          echo "$ANDROID_SDK_ROOT"
+          echo "sdkmanager:"
+          "$ANDROID_SDK_ROOT/tools/bin/sdkmanager" --version
 
       - name: Clean old Buildozer files
         run: |
@@ -106,10 +131,12 @@ jobs:
           echo "Using Android SDK:"
           echo "$ANDROID_SDK_ROOT"
 
-          echo "Checking AIDL before build:"
+          echo "Checking Buildozer sdkmanager:"
+          "$ANDROID_SDK_ROOT/tools/bin/sdkmanager" --version
+
+          echo "Checking AIDL:"
           "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl" --help > /dev/null
 
-          echo "AIDL is ready."
           echo "Starting Buildozer..."
 
           buildozer android debug
