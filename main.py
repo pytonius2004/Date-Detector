@@ -33,29 +33,42 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.popup import Popup
-from kivy.uix.screenmanager import Screen, ScreenManager, FadeTransition
+from kivy.uix.screenmanager import Screen
+from kivy.uix.screenmanager import ScreenManager
+from kivy.uix.screenmanager import FadeTransition
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.textinput import TextInput
 from kivy.uix.widget import Widget
 from kivy.utils import platform
 
 # ---------------------------------------------------------
-# Android
+# Android detection
+#
+# IMPORTANT:
+# Do NOT put platform detection and Android imports into
+# one try/except. One failed import must not make Android
+# look like desktop.
 # ---------------------------------------------------------
 
-try:
-    from android import activity
-    from jnius import autoclass, jarray
+ANDROID_API_AVAILABLE = platform == "android"
 
-    ANDROID_API_AVAILABLE = platform == "android"
+activity = None
+autoclass = None
+jarray = None
 
-except Exception:
-    activity = None
-    autoclass = None
-    jarray = None
+if ANDROID_API_AVAILABLE:
 
-    ANDROID_API_AVAILABLE = False
+    try:
+        from android import activity
+    except Exception:
+        activity = None
 
+    try:
+        from jnius import autoclass
+        from jnius import jarray
+    except Exception:
+        autoclass = None
+        jarray = None
 
 # ---------------------------------------------------------
 # Android permissions
@@ -73,9 +86,9 @@ except Exception:
     Permission = None
 
 
-# ---------------------------------------------------------
+# =========================================================
 # Constants
-# ---------------------------------------------------------
+# =========================================================
 
 APP_TITLE = "Сроки товаров"
 
@@ -84,11 +97,7 @@ DB_NAME = "inventory.db"
 DATE_DB_FORMAT = "%Y-%m-%d"
 DATE_USER_FORMAT = "%d.%m.%Y"
 
-# Python-side request code.
-# Java-side camera permission uses a different number.
 REQUEST_SCAN_BARCODE = 7001
-
-# Existing import/export request code.
 REQUEST_IMPORT_DB = 4102
 
 
@@ -97,6 +106,7 @@ REQUEST_IMPORT_DB = 4102
 # =========================================================
 
 def parse_user_date(value):
+
     value = value.strip()
 
     for fmt in (
@@ -105,11 +115,15 @@ def parse_user_date(value):
         "%d/%m/%Y",
         "%d-%m-%Y",
     ):
+
         try:
+
             return datetime.strptime(
                 value,
                 fmt
-            ).strftime(DATE_DB_FORMAT)
+            ).strftime(
+                DATE_DB_FORMAT
+            )
 
         except ValueError:
             pass
@@ -123,12 +137,16 @@ def format_date(value):
         return "—"
 
     try:
+
         return datetime.strptime(
             value,
             DATE_DB_FORMAT
-        ).strftime(DATE_USER_FORMAT)
+        ).strftime(
+            DATE_USER_FORMAT
+        )
 
     except ValueError:
+
         return value
 
 
@@ -153,10 +171,6 @@ class Database:
         )
 
         self.create_schema()
-
-    # -----------------------------------------------------
-    # Schema
-    # -----------------------------------------------------
 
     def create_schema(self):
 
@@ -196,21 +210,12 @@ class Database:
 
         self.conn.commit()
 
-    # -----------------------------------------------------
-    # Close
-    # -----------------------------------------------------
-
     def close(self):
 
         try:
             self.conn.close()
-
         except Exception:
             pass
-
-    # -----------------------------------------------------
-    # Clear
-    # -----------------------------------------------------
 
     def clear_all(self):
 
@@ -224,10 +229,6 @@ class Database:
 
         self.conn.commit()
 
-    # -----------------------------------------------------
-    # Product
-    # -----------------------------------------------------
-
     def get_product(self, barcode):
 
         return self.conn.execute(
@@ -239,11 +240,7 @@ class Database:
             (barcode,),
         ).fetchone()
 
-    def save_product(
-        self,
-        barcode,
-        name
-    ):
+    def save_product(self, barcode, name):
 
         barcode = barcode.strip()
         name = name.strip()
@@ -288,10 +285,6 @@ class Database:
 
         self.conn.commit()
 
-    # -----------------------------------------------------
-    # Expiration
-    # -----------------------------------------------------
-
     def add_expiration(
         self,
         barcode,
@@ -327,10 +320,6 @@ class Database:
 
             return False
 
-    # -----------------------------------------------------
-    # Active dates
-    # -----------------------------------------------------
-
     def get_active_expirations(
         self,
         barcode
@@ -346,10 +335,6 @@ class Database:
             """,
             (barcode,),
         ).fetchall()
-
-    # -----------------------------------------------------
-    # All dates
-    # -----------------------------------------------------
 
     def get_all_expirations(
         self,
@@ -369,10 +354,6 @@ class Database:
             (barcode,),
         ).fetchall()
 
-    # -----------------------------------------------------
-    # Nearest
-    # -----------------------------------------------------
-
     def get_next_expiration(
         self,
         barcode
@@ -391,10 +372,6 @@ class Database:
             """,
             (barcode,),
         ).fetchone()
-
-    # -----------------------------------------------------
-    # Write off
-    # -----------------------------------------------------
 
     def write_off_next(
         self,
@@ -420,10 +397,6 @@ class Database:
         self.conn.commit()
 
         return True
-
-    # -----------------------------------------------------
-    # Product list
-    # -----------------------------------------------------
 
     def get_product_list(self):
 
@@ -469,14 +442,7 @@ class Database:
             """
         ).fetchall()
 
-    # -----------------------------------------------------
-    # Backup
-    # -----------------------------------------------------
-
-    def backup_to(
-        self,
-        target
-    ):
+    def backup_to(self, target):
 
         target = Path(target)
 
@@ -504,10 +470,6 @@ class Database:
         finally:
 
             target_conn.close()
-
-    # -----------------------------------------------------
-    # Validate DB
-    # -----------------------------------------------------
 
     @staticmethod
     def validate(path):
@@ -544,7 +506,7 @@ class Database:
 
 
 # =========================================================
-# Base Screen
+# Base screen
 # =========================================================
 
 class BaseScreen(Screen):
@@ -588,25 +550,21 @@ class HomeScreen(BaseScreen):
             self.app.db.get_product_list()
         ):
 
-            next_exp = product["next_exp"]
-
-            if not next_exp:
+            if not product["next_exp"]:
 
                 empty.append(product)
-
                 continue
 
             try:
 
                 exp = datetime.strptime(
-                    next_exp,
+                    product["next_exp"],
                     DATE_DB_FORMAT
                 ).date()
 
             except ValueError:
 
                 empty.append(product)
-
                 continue
 
             active.append(
@@ -637,17 +595,17 @@ class HomeScreen(BaseScreen):
                 ),
                 markup=True,
                 size_hint_y=None,
-                height=dp(40),
+                height=dp(36),
                 halign="center",
                 valign="middle",
             )
 
             separator.bind(
-                size=lambda i, v:
+                size=lambda instance, value:
                 setattr(
-                    i,
+                    instance,
                     "text_size",
-                    v
+                    value
                 )
             )
 
@@ -675,21 +633,21 @@ class HomeScreen(BaseScreen):
             label = Label(
                 text=(
                     "База пока пустая.\n\n"
-                    "Нажми «+ Добавить срок».\n\n"
-                    "Настройки находятся в ⚙."
+                    "Нажми «Добавить срок».\n\n"
+                    "Настройки — в кнопке «Настройки»."
                 ),
                 size_hint_y=None,
-                height=dp(140),
+                height=dp(160),
                 halign="center",
                 valign="middle",
             )
 
             label.bind(
-                size=lambda i, v:
+                size=lambda instance, value:
                 setattr(
-                    i,
+                    instance,
                     "text_size",
-                    v
+                    value
                 )
             )
 
@@ -715,15 +673,13 @@ class HomeScreen(BaseScreen):
             )
 
             fg = (
-                0.25,
-                0.25,
-                0.25,
+                0.20,
+                0.20,
+                0.20,
                 1
             )
 
-            status = (
-                "ВСЕ СРОКИ СПИСАНЫ"
-            )
+            status = "ВСЕ СРОКИ СПИСАНЫ"
 
         elif exp_date == today:
 
@@ -741,9 +697,7 @@ class HomeScreen(BaseScreen):
                 1
             )
 
-            status = (
-                "УЦЕНКА СЕГОДНЯ"
-            )
+            status = "УЦЕНКА СЕГОДНЯ"
 
         elif exp_date == yesterday:
 
@@ -761,9 +715,7 @@ class HomeScreen(BaseScreen):
                 1
             )
 
-            status = (
-                "ИСТЁК ВЧЕРА — СПИСАНИЕ"
-            )
+            status = "ИСТЁК ВЧЕРА — СПИСАНИЕ"
 
         else:
 
@@ -806,13 +758,13 @@ class HomeScreen(BaseScreen):
         )
 
         button.bind(
-            size=lambda i, v:
+            size=lambda instance, value:
             setattr(
-                i,
+                instance,
                 "text_size",
                 (
-                    v[0] - dp(25),
-                    v[1]
+                    value[0] - dp(28),
+                    value[1]
                 )
             )
         )
@@ -832,12 +784,6 @@ class HomeScreen(BaseScreen):
 # =========================================================
 
 class AddProductScreen(BaseScreen):
-
-    def on_pre_enter(self, *_):
-
-        # The screen is cleared only when explicitly
-        # opened without a barcode.
-        pass
 
     def clear_form(self):
 
@@ -865,9 +811,7 @@ class AddProductScreen(BaseScreen):
 
         if barcode is None:
 
-            barcode = (
-                self.barcode_input.text
-            )
+            barcode = self.barcode_input.text
 
         barcode = barcode.strip()
 
@@ -882,7 +826,8 @@ class AddProductScreen(BaseScreen):
         if product:
 
             saved_name = (
-                product["name"] or ""
+                product["name"]
+                or ""
             )
 
             if saved_name:
@@ -936,8 +881,6 @@ class AddProductScreen(BaseScreen):
 
             return
 
-        # This also updates the existing
-        # product name when needed.
         self.app.db.save_product(
             barcode,
             name
@@ -956,9 +899,7 @@ class AddProductScreen(BaseScreen):
             return
 
         self.app.message(
-            "Срок успешно добавлен.\n\n"
-            "В списке показывается только "
-            "ближайший активный срок."
+            "Срок успешно добавлен."
         )
 
         self.app.open_home()
@@ -972,10 +913,7 @@ class ProductScreen(BaseScreen):
 
     barcode = StringProperty("")
 
-    def load(
-        self,
-        barcode
-    ):
+    def load(self, barcode):
 
         self.barcode = barcode
 
@@ -1098,12 +1036,11 @@ class ProductScreen(BaseScreen):
 # =========================================================
 
 class SettingsScreen(BaseScreen):
-
     pass
 
 
 # =========================================================
-# Application
+# Main app
 # =========================================================
 
 class MainApp(App):
@@ -1122,9 +1059,10 @@ class MainApp(App):
             self.db_path
         )
 
-        self._pending_import_path = None
+        # -------------------------------------------------
+        # Android activity-result callback
+        # -------------------------------------------------
 
-        # Android activity-result callback.
         if (
             ANDROID_API_AVAILABLE
             and
@@ -1139,6 +1077,7 @@ class MainApp(App):
                 )
 
             except Exception:
+
                 pass
 
         Window.bind(
@@ -1197,7 +1136,7 @@ class MainApp(App):
         return False
 
     # =====================================================
-    # HOME SCREEN
+    # HOME
     # =====================================================
 
     def create_home_screen(self):
@@ -1208,37 +1147,45 @@ class MainApp(App):
 
         root = BoxLayout(
             orientation="vertical",
-            padding=dp(10),
+            padding=(
+                dp(12),
+                dp(10),
+                dp(12),
+                dp(10)
+            ),
             spacing=dp(8)
         )
 
         header = BoxLayout(
             size_hint_y=None,
-            height=dp(58),
+            height=dp(54),
             spacing=dp(7)
         )
 
         title = Label(
             text=APP_TITLE,
-            font_size="22sp",
+            font_size="21sp",
             bold=True,
             halign="left",
             valign="middle",
+            shorten=True,
+            shorten_from="right",
         )
 
         title.bind(
-            size=lambda i, v:
+            size=lambda instance, value:
             setattr(
-                i,
+                instance,
                 "text_size",
-                v
+                value
             )
         )
 
         add_button = Button(
-            text="+ Добавить срок",
+            text="Добавить срок",
             size_hint_x=None,
-            width=dp(175),
+            width=dp(145),
+            font_size="15sp",
         )
 
         add_button.bind(
@@ -1247,10 +1194,10 @@ class MainApp(App):
         )
 
         settings_button = Button(
-            text="⚙",
-            font_size="24sp",
+            text="Настройки",
             size_hint_x=None,
-            width=dp(58),
+            width=dp(92),
+            font_size="13sp",
         )
 
         settings_button.bind(
@@ -1274,12 +1221,14 @@ class MainApp(App):
             header
         )
 
-        scroll = ScrollView()
+        scroll = ScrollView(
+            do_scroll_x=False
+        )
 
         product_list = BoxLayout(
             orientation="vertical",
             spacing=dp(7),
-            size_hint_y=None,
+            size_hint_y=None
         )
 
         product_list.bind(
@@ -1308,7 +1257,7 @@ class MainApp(App):
         return screen
 
     # =====================================================
-    # ADD SCREEN
+    # ADD
     # =====================================================
 
     def create_add_screen(self):
@@ -1344,7 +1293,7 @@ class MainApp(App):
                 font_size="23sp",
                 bold=True,
                 size_hint_y=None,
-                height=dp(45),
+                height=dp(46),
             )
         )
 
@@ -1353,7 +1302,6 @@ class MainApp(App):
             multiline=False,
             size_hint_y=None,
             height=dp(52),
-            input_type="text",
         )
 
         barcode.bind(
@@ -1382,12 +1330,12 @@ class MainApp(App):
             Label(
                 text=(
                     "Штрихкод можно отсканировать "
-                    "или изменить вручную.\n"
+                    "или ввести вручную.\n"
                     "Если товар уже есть в базе, "
-                    "название заполнится автоматически."
+                    "название подставится автоматически."
                 ),
                 size_hint_y=None,
-                height=dp(70),
+                height=dp(72),
                 halign="center",
                 valign="middle",
             )
@@ -1431,17 +1379,9 @@ class MainApp(App):
             save
         )
 
-        screen.barcode_input = (
-            barcode
-        )
-
-        screen.name_input = (
-            name
-        )
-
-        screen.date_input = (
-            exp_date
-        )
+        screen.barcode_input = barcode
+        screen.name_input = name
+        screen.date_input = exp_date
 
         screen.add_widget(
             root
@@ -1486,12 +1426,14 @@ class MainApp(App):
             bold=True,
             size_hint_y=None,
             height=dp(50),
+            halign="center",
+            valign="middle"
         )
 
         product_barcode = Label(
             text="Штрихкод: —",
             size_hint_y=None,
-            height=dp(30),
+            height=dp(30)
         )
 
         nearest_date = Label(
@@ -1499,7 +1441,7 @@ class MainApp(App):
             font_size="19sp",
             bold=True,
             size_hint_y=None,
-            height=dp(40),
+            height=dp(40)
         )
 
         root.add_widget(
@@ -1523,7 +1465,9 @@ class MainApp(App):
             )
         )
 
-        history_scroll = ScrollView()
+        history_scroll = ScrollView(
+            do_scroll_x=False
+        )
 
         history = Label(
             text="История пока пустая.",
@@ -1533,13 +1477,13 @@ class MainApp(App):
         )
 
         history.bind(
-            texture_size=lambda i, v:
+            texture_size=lambda instance, value:
             setattr(
-                i,
+                instance,
                 "height",
                 max(
                     dp(90),
-                    v[1]
+                    value[1]
                 )
             )
         )
@@ -1562,7 +1506,7 @@ class MainApp(App):
                 0.18,
                 0.16,
                 1
-            ),
+            )
         )
 
         writeoff.bind(
@@ -1633,31 +1577,33 @@ class MainApp(App):
 
         root.add_widget(
             Label(
-                text="Настройки базы",
+                text="Настройки",
                 font_size="23sp",
                 bold=True,
                 size_hint_y=None,
-                height=dp(55),
+                height=dp(50),
             )
         )
 
         root.add_widget(
             Label(
                 text=(
-                    "База хранится локально на телефоне.\n\n"
-                    "Экспорт будет сохраняться в папку Downloads."
+                    "База хранится локально "
+                    "на телефоне.\n\n"
+                    "Экспорт БД сохраняется "
+                    "в папку Downloads."
                 ),
                 halign="center",
                 valign="middle",
                 size_hint_y=None,
-                height=dp(90),
+                height=dp(95),
             )
         )
 
         export_btn = Button(
             text="Экспортировать БД",
             size_hint_y=None,
-            height=dp(58),
+            height=dp(58)
         )
 
         export_btn.bind(
@@ -1672,7 +1618,7 @@ class MainApp(App):
         import_btn = Button(
             text="Импортировать БД",
             size_hint_y=None,
-            height=dp(58),
+            height=dp(58)
         )
 
         import_btn.bind(
@@ -1735,8 +1681,8 @@ class MainApp(App):
 
         self.sm.current = "add"
 
-        screen = self.sm.get_screen(
-            "add"
+        screen = (
+            self.sm.get_screen("add")
         )
 
         screen.clear_form()
@@ -1765,7 +1711,7 @@ class MainApp(App):
         self.sm.current = "settings"
 
     # =====================================================
-    # NATIVE BARCODE SCANNER
+    # BARCODE SCANNER
     # =====================================================
 
     def start_barcode_scanner(self):
@@ -1773,8 +1719,21 @@ class MainApp(App):
         if not ANDROID_API_AVAILABLE:
 
             self.message(
-                "Сканер штрихкода доступен "
-                "только на Android."
+                "Внутренняя ошибка:\n"
+                "Kivy не определил Android."
+            )
+
+            return
+
+        if (
+            autoclass is None
+            or
+            activity is None
+        ):
+
+            self.message(
+                "Не удалось получить "
+                "Android Activity."
             )
 
             return
@@ -1806,11 +1765,12 @@ class MainApp(App):
 
             self.message(
                 "Не удалось открыть сканер:\n\n"
-                + str(exc)
+                +
+                str(exc)
             )
 
     # =====================================================
-    # Android activity result
+    # Activity result
     # =====================================================
 
     def _on_activity_result(
@@ -1820,7 +1780,6 @@ class MainApp(App):
         intent
     ):
 
-        # RESULT_OK == -1
         if (
             request_code
             ==
@@ -1828,11 +1787,9 @@ class MainApp(App):
         ):
 
             if result_code != -1:
-
                 return
 
             if intent is None:
-
                 return
 
             try:
@@ -1866,11 +1823,9 @@ class MainApp(App):
         ):
 
             if result_code != -1:
-
                 return
 
             if intent is None:
-
                 return
 
             try:
@@ -1887,11 +1842,12 @@ class MainApp(App):
 
                 self.message(
                     "Ошибка импорта:\n"
-                    + str(exc)
+                    +
+                    str(exc)
                 )
 
     # =====================================================
-    # EXPORT DATABASE TO DOWNLOADS
+    # EXPORT DB -> Downloads
     # =====================================================
 
     def export_database(self):
@@ -1899,7 +1855,6 @@ class MainApp(App):
         if not ANDROID_API_AVAILABLE:
 
             self._desktop_export()
-
             return
 
         try:
@@ -1938,10 +1893,6 @@ class MainApp(App):
                 ".db"
             )
 
-            # Android 10+:
-            # MediaStore can create files directly
-            # in public Downloads without asking for
-            # broad storage permission.
             if sdk_int >= 29:
 
                 self._export_to_downloads_media_store(
@@ -1960,7 +1911,8 @@ class MainApp(App):
 
             self.message(
                 "Не удалось экспортировать БД:\n\n"
-                + str(exc)
+                +
+                str(exc)
             )
 
     def _export_to_downloads_media_store(
@@ -1989,6 +1941,9 @@ class MainApp(App):
             "application/octet-stream"
         )
 
+        # IMPORTANT:
+        # Android's public Downloads directory is
+        # represented by the "Download/" relative path.
         values.put(
             "relative_path",
             "Download/"
@@ -2016,8 +1971,8 @@ class MainApp(App):
         if uri is None:
 
             raise RuntimeError(
-                "Android не смог создать файл "
-                "в папке Downloads."
+                "Android не смог создать "
+                "файл в Downloads."
             )
 
         output_stream = (
@@ -2049,19 +2004,16 @@ class MainApp(App):
 
             output_stream.close()
 
-        # Mark the file as ready/public.
-        completed_values = (
-            ContentValues()
-        )
+        completed = ContentValues()
 
-        completed_values.put(
+        completed.put(
             "is_pending",
             0
         )
 
         resolver.update(
             uri,
-            completed_values,
+            completed,
             None,
             None
         )
@@ -2076,7 +2028,7 @@ class MainApp(App):
 
         self.message(
             "База экспортирована.\n\n"
-            f"Файл:\n{filename}\n\n"
+            f"{filename}\n\n"
             "Папка: Downloads"
         )
 
@@ -2131,14 +2083,17 @@ class MainApp(App):
         )
 
     # =====================================================
-    # IMPORT DATABASE
+    # IMPORT DB
     # =====================================================
 
     def import_database(self):
 
         if not ANDROID_API_AVAILABLE:
 
-            self._desktop_import_message()
+            self.message(
+                "Импорт через системный "
+                "выбор файла доступен на Android."
+            )
 
             return
 
@@ -2170,7 +2125,8 @@ class MainApp(App):
             self.message(
                 "Не удалось открыть "
                 "выбор файла:\n"
-                + str(exc)
+                +
+                str(exc)
             )
 
     def _read_database_from_uri(
@@ -2226,7 +2182,6 @@ class MainApp(App):
                     )
 
                     if count <= 0:
-
                         break
 
                     output.write(
@@ -2257,7 +2212,8 @@ class MainApp(App):
 
             self.message(
                 "Ошибка импорта:\n"
-                + str(exc)
+                +
+                str(exc)
             )
 
     def _replace_database(
@@ -2336,73 +2292,11 @@ class MainApp(App):
 
         except Exception as exc:
 
-            try:
-
-                if backup.exists():
-
-                    shutil.copy2(
-                        backup,
-                        destination
-                    )
-
-                    self.db = Database(
-                        destination
-                    )
-
-            except Exception:
-                pass
-
             self.message(
                 "Импорт не удался:\n"
-                + str(exc)
-            )
-
-    # =====================================================
-    # Desktop fallback
-    # =====================================================
-
-    def _desktop_export(self):
-
-        destination = (
-            Path.cwd()
-            /
-            (
-                "inventory_"
                 +
-                date.today().strftime(
-                    "%Y%m%d"
-                )
-                +
-                ".db"
+                str(exc)
             )
-        )
-
-        try:
-
-            self.db.backup_to(
-                destination
-            )
-
-            self.message(
-                "База сохранена:\n"
-                +
-                str(destination)
-            )
-
-        except Exception as exc:
-
-            self.message(
-                "Ошибка экспорта:\n"
-                + str(exc)
-            )
-
-    def _desktop_import_message(self):
-
-        self.message(
-            "Импорт через системный "
-            "выбор файла настроен "
-            "для Android."
-        )
 
     # =====================================================
     # Clear database
@@ -2430,11 +2324,11 @@ class MainApp(App):
         )
 
         label.bind(
-            size=lambda i, v:
+            size=lambda instance, value:
             setattr(
-                i,
+                instance,
                 "text_size",
-                v
+                value
             )
         )
 
@@ -2476,18 +2370,14 @@ class MainApp(App):
         )
 
         popup = Popup(
-            title="Очистить БД",
+            title=APP_TITLE,
             content=content,
-            size_hint=(
-                0.9,
-                0.55
-            ),
+            size_hint=(0.90, 0.55),
             auto_dismiss=False,
         )
 
         cancel.bind(
-            on_release=
-            popup.dismiss
+            on_release=popup.dismiss
         )
 
         def do_clear(*_):
@@ -2530,11 +2420,11 @@ class MainApp(App):
         )
 
         label.bind(
-            size=lambda i, v:
+            size=lambda instance, value:
             setattr(
-                i,
+                instance,
                 "text_size",
-                v
+                value
             )
         )
 
@@ -2555,16 +2445,12 @@ class MainApp(App):
         popup = Popup(
             title=APP_TITLE,
             content=content,
-            size_hint=(
-                0.9,
-                0.55
-            ),
+            size_hint=(0.90, 0.55),
             auto_dismiss=False,
         )
 
         ok.bind(
-            on_release=
-            popup.dismiss
+            on_release=popup.dismiss
         )
 
         popup.open()
@@ -2589,6 +2475,7 @@ class MainApp(App):
                 )
 
             except Exception:
+
                 pass
 
         try:
@@ -2599,6 +2486,7 @@ class MainApp(App):
             )
 
         except Exception:
+
             pass
 
         if hasattr(
