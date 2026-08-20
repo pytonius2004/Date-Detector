@@ -10,9 +10,9 @@ source.include_exts = py,png,jpg,jpeg,webp,kv,atlas,json
 
 source.exclude_dirs = .git,.github,.buildozer,bin,venv,__pycache__
 
-version = 0.0.1
+version = 0.0.2
 
-requirements = python3==3.11.6,hostpython3==3.11.6,kivy==2.3.1,plyer,pyjnius
+requirements = python3==3.11.6,hostpython3==3.11.6,kivy==2.3.1,plyer,pyjnius,filetype
 
 orientation = portrait
 fullscreen = 0
