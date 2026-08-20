@@ -32,7 +32,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
-          packages: "platform-tools platforms;android-33 build-tools;34.0.0"
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
 
       - name: Accept Android licenses
         run: |
@@ -43,35 +43,29 @@ jobs:
           echo "ANDROID_HOME=$ANDROID_HOME"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
 
-          echo "Checking modern sdkmanager:"
+          echo "Checking sdkmanager:"
           which sdkmanager || true
           sdkmanager --version
 
           echo "Checking AIDL:"
-          ls -la "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl"
-
-          echo "Testing AIDL:"
-          "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl" --help > /dev/null
-
+          ls -la "$ANDROID_SDK_ROOT/build-tools/35.0.0/aidl"
+          "$ANDROID_SDK_ROOT/build-tools/35.0.0/aidl" --help > /dev/null
           echo "AIDL is working."
 
-          echo "Creating legacy SDK tools path required by old python-for-android..."
-
+          echo "Creating legacy SDK tools path required by the selected python-for-android build..."
           mkdir -p "$ANDROID_SDK_ROOT/tools/bin"
-
           rm -f "$ANDROID_SDK_ROOT/tools/bin/sdkmanager"
 
-          ln -s \
-            "$ANDROID_SDK_ROOT/cmdline-tools/20.0/bin/sdkmanager" \
-            "$ANDROID_SDK_ROOT/tools/bin/sdkmanager"
+          if [ -x "$ANDROID_SDK_ROOT/cmdline-tools/20.0/bin/sdkmanager" ]; then
+            ln -s "$ANDROID_SDK_ROOT/cmdline-tools/20.0/bin/sdkmanager" \
+                  "$ANDROID_SDK_ROOT/tools/bin/sdkmanager"
+          else
+            ln -s "$(command -v sdkmanager)" \
+                  "$ANDROID_SDK_ROOT/tools/bin/sdkmanager"
+          fi
 
           echo "Checking legacy sdkmanager path:"
-          ls -la "$ANDROID_SDK_ROOT/tools/bin/sdkmanager"
-
-          echo "Testing legacy sdkmanager:"
           "$ANDROID_SDK_ROOT/tools/bin/sdkmanager" --version
-
-          echo "Buildozer-compatible Android SDK is ready."
 
       - name: Install system packages
         run: |
@@ -107,11 +101,8 @@ jobs:
         run: |
           python --version
           buildozer --version
-          echo "Java:"
           java -version
-          echo "SDK:"
-          echo "$ANDROID_SDK_ROOT"
-          echo "sdkmanager:"
+          echo "SDK: $ANDROID_SDK_ROOT"
           "$ANDROID_SDK_ROOT/tools/bin/sdkmanager" --version
 
       - name: Clean old Buildozer files
@@ -123,27 +114,15 @@ jobs:
         env:
           BUILDOZER_ALLOW_ORG_TEST_DOMAIN: "1"
           PYTHONFORANDROID_PREREQUISITES_INSTALL_INTERACTIVE: "0"
-
           ANDROIDSDK: ${{ env.ANDROID_SDK_ROOT }}
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
 
         run: |
-          echo "Using Android SDK:"
-          echo "$ANDROID_SDK_ROOT"
-
-          echo "Checking Buildozer sdkmanager:"
-          "$ANDROID_SDK_ROOT/tools/bin/sdkmanager" --version
-
-          echo "Checking AIDL:"
-          "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl" --help > /dev/null
-
-          echo "Starting Buildozer..."
-
           buildozer android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: expiring-goods-debug
+          name: expiring-goods-mlkit-debug
           path: bin/*.apk
           if-no-files-found: error
