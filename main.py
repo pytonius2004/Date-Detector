@@ -30,7 +30,6 @@ class BarcodeAnalyzer:
 
     def analyze_pixels_callback(self, pixels, size, image_format, orientation, mirror):
         try:
-            # size передает кортеж (ширина, высота)
             img = Image.frombytes('RGBA', size, pixels)
             barcodes = decode(img)
 
@@ -159,7 +158,6 @@ class ExpiryApp(MDApp):
         if not self.is_scanning:
             return
 
-        # Игнорируем повторные сканы одного кода чаще чем раз в 2 секунды
         if barcode_data == self.last_scanned_code and (now - self.last_scanned_time) < 2.0:
             return
 
