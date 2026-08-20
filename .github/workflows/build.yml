@@ -34,10 +34,12 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           pip install "cython==0.29.36" buildozer
 
-      - name: Pre-download FreeType package
+      - name: Pre-download FreeType package and marker
         run: |
-          mkdir -p .buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/freetype
-          curl -L "https://downloads.sourceforge.net/project/freetype/freetype2/2.14.1/freetype-2.14.1.tar.gz" -o .buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/freetype/freetype-2.14.1.tar.gz
+          DIR=".buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/freetype"
+          mkdir -p "$DIR"
+          curl -L "https://downloads.sourceforge.net/project/freetype/freetype2/2.14.1/freetype-2.14.1.tar.gz" -o "$DIR/freetype-2.14.1.tar.gz"
+          touch "$DIR/.mark-freetype-2.14.1.tar.gz"
 
       - name: Build APK with NDK 25b
         env:
