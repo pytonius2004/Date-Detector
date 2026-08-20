@@ -2,7 +2,6 @@ name: Build Android APK
 
 on:
   workflow_dispatch:
-
   push:
     branches:
       - main
@@ -11,11 +10,7 @@ permissions:
   contents: read
 
 jobs:
-
   build:
-
-    name: Build APK
-
     runs-on: ubuntu-22.04
 
     steps:
@@ -23,25 +18,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-
       - name: Setup Python
         uses: actions/setup-python@v5
-
         with:
           python-version: "3.10"
 
-
       - name: Setup Java
         uses: actions/setup-java@v4
-
         with:
           distribution: temurin
           java-version: "17"
 
-
       - name: Install system packages
         run: |
-
           sudo apt-get update
 
           sudo apt-get install -y \
@@ -63,45 +52,34 @@ jobs:
             libncursesw5-dev \
             libtinfo5
 
-
-      - name: Install Python build tools
+      - name: Install Buildozer
         run: |
-
           python -m pip install --upgrade pip
+          python -m pip install buildozer==1.5.0
+          python -m pip install setuptools
+          python -m pip install "cython==0.29.34"
 
-          python -m pip install \
-            buildozer \
-            setuptools \
-            "cython==0.29.34"
-
-
-      - name: Prepare clean workspace
+      - name: Show versions
         run: |
+          python --version
+          buildozer --version
 
+      - name: Remove old build files
+        run: |
           rm -rf .buildozer
-
           rm -rf bin
-
 
       - name: Build APK
         env:
-
           BUILDOZER_ALLOW_ORG_TEST_DOMAIN: "1"
-
           PYTHONFORANDROID_PREREQUISITES_INSTALL_INTERACTIVE: "0"
 
         run: |
-
           buildozer android debug
-
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
-
         with:
-
-          name: expiring-goods-apk
-
+          name: expiring-goods-debug
           path: bin/*.apk
-
           if-no-files-found: error
