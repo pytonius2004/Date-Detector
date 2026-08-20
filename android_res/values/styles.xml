@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <style
+        name="AppTheme"
+        parent="@android:style/Theme.Material.NoActionBar">
+
+        <item name="android:windowNoTitle">true</item>
+
+        <item name="android:windowActionModeOverlay">true</item>
+
+        <item
+            name="android:windowOptOutEdgeToEdgeEnforcement"
+            tools:targetApi="35"
+            >true</item>
+
+        <item name="android:fontFamily">sans</item>
+
+        <item name="android:colorAccent">#2196F3</item>
+
+    </style>
+
+</resources>
