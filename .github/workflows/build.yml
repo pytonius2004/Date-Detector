@@ -49,8 +49,10 @@ jobs:
           echo "Checking AIDL:"
           ls -la "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl"
 
-          echo "AIDL version:"
-          "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl" --version
+          echo "Testing AIDL:"
+          "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl" --help > /dev/null
+
+          echo "AIDL is working."
 
       - name: Install system packages
         run: |
@@ -104,8 +106,11 @@ jobs:
           echo "Using Android SDK:"
           echo "$ANDROID_SDK_ROOT"
 
-          echo "AIDL:"
-          "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl" --version
+          echo "Checking AIDL before build:"
+          "$ANDROID_SDK_ROOT/build-tools/34.0.0/aidl" --help > /dev/null
+
+          echo "AIDL is ready."
+          echo "Starting Buildozer..."
 
           buildozer android debug
 
