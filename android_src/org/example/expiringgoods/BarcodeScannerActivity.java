@@ -266,11 +266,10 @@ public class BarcodeScannerActivity
 
         manualButton.setBackground(
                 createRoundedBackground(
-                        Color.argb(
-                                235,
-                                48,
-                                50,
-                                57
+                        Color.rgb(
+                                131,
+                                18,
+                                30
                         ),
                         18
                 )
