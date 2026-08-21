@@ -35,6 +35,7 @@ from kivy.metrics import dp
 from kivy.properties import ListProperty, StringProperty
 
 from kivy.uix.behaviors import ButtonBehavior
+from kivy.uix.modalview import ModalView
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.image import Image
@@ -506,6 +507,46 @@ class RoundedButton(Button):
 # =========================================================
 # PRODUCT CARD
 # =========================================================
+
+class RoundedImageButton(ButtonBehavior, BoxLayout):
+
+    image_source = StringProperty("")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.padding = dp(13)
+
+        with self.canvas.before:
+            self._bg_color = Color(*BUTTON_BG)
+            self._bg_rect = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(18)]
+            )
+
+        self.bind(
+            pos=self._update_bg,
+            size=self._update_bg,
+            state=self._update_state,
+        )
+
+        self._icon = Image(
+            source=self.image_source,
+            fit_mode="contain",
+        )
+        self.add_widget(self._icon)
+
+    def _update_bg(self, *_):
+        self._bg_rect.pos = self.pos
+        self._bg_rect.size = self.size
+
+    def _update_state(self, *_):
+        self._bg_color.rgba = (
+            BUTTON_BG_DOWN
+            if self.state == "down"
+            else BUTTON_BG
+        )
+
 
 class ProductCard(
     ButtonBehavior,
@@ -2210,9 +2251,8 @@ class MainApp(App):
             self.open_settings()
         )
 
-        sort_button = RoundedButton(
-            text="≡",
-            font_size="25sp",
+        sort_button = RoundedImageButton(
+            image_source="sort.png",
             size_hint_x=0.14,
         )
 
@@ -2744,50 +2784,111 @@ class MainApp(App):
 
     def open_sort_popup(self):
 
-        content = BoxLayout(
-            orientation="vertical",
-            padding=dp(12),
-            spacing=dp(9),
-        )
-
-        popup = Popup(
-            title="Сортировка",
-            content=content,
-            size_hint=(
-                0.88,
-                0.52,
-            ),
+        overlay = ModalView(
+            size_hint=(1, 1),
+            background_color=(0, 0, 0, 0.62),
             auto_dismiss=True,
         )
 
-        options = (
-            ("Все товары", "all"),
-            ("Просроченный товар", "expired"),
-            ("Истекающий товар", "expiring"),
-            ("Без даты", "no_date"),
+        card = BoxLayout(
+            orientation="vertical",
+            size_hint=(0.88, None),
+            height=dp(326),
+            padding=dp(16),
+            spacing=dp(9),
         )
+
+        with card.canvas.before:
+            card_bg = Color(
+                0.12,
+                0.13,
+                0.15,
+                1,
+            )
+            card_rect = RoundedRectangle(
+                pos=card.pos,
+                size=card.size,
+                radius=[dp(24)],
+            )
+
+        def update_card(*_):
+            card_rect.pos = card.pos
+            card_rect.size = card.size
+
+        card.bind(
+            pos=update_card,
+            size=update_card,
+        )
+
+        title = Label(
+            text="[b]Сортировка[/b]",
+            markup=True,
+            size_hint_y=None,
+            height=dp(38),
+            font_size="20sp",
+            halign="left",
+            valign="middle",
+            color=WHITE,
+        )
+        title.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+        card.add_widget(title)
 
         home = self.sm.get_screen(
             "home"
         )
 
-        for title, mode in options:
+        options = (
+            (
+                "Все товары",
+                "all",
+                BUTTON_BG,
+                BUTTON_BG_DOWN,
+                WHITE,
+            ),
+            (
+                "Просроченный товар",
+                "expired",
+                ACCENT_RED,
+                ACCENT_RED_DOWN,
+                WHITE,
+            ),
+            (
+                "Истекающий товар",
+                "expiring",
+                (1.0, 0.78, 0.12, 1),
+                (0.90, 0.66, 0.06, 1),
+                (0.08, 0.08, 0.08, 1),
+            ),
+            (
+                "Без даты",
+                "no_date",
+                (0.12, 0.62, 0.30, 1),
+                (0.08, 0.50, 0.23, 1),
+                WHITE,
+            ),
+        )
+
+        for title_text, mode, normal, down, text_color in options:
 
             button = RoundedButton(
-                text=title,
+                text=(
+                    "✓  " + title_text
+                    if home.filter_mode == mode
+                    else title_text
+                ),
                 size_hint_y=None,
-                height=dp(52),
+                height=dp(55),
                 font_size="15sp",
-                normal_color=(
-                    ACCENT_RED
-                    if home.filter_mode == mode
-                    else BUTTON_BG
-                ),
-                down_color=(
-                    ACCENT_RED_DOWN
-                    if home.filter_mode == mode
-                    else BUTTON_BG_DOWN
-                ),
+                normal_color=normal,
+                down_color=down,
+                color=text_color,
             )
 
             def choose(
@@ -2797,17 +2898,20 @@ class MainApp(App):
                 home.set_filter(
                     selected_mode
                 )
-                popup.dismiss()
+                overlay.dismiss()
 
             button.bind(
                 on_release=choose
             )
+            card.add_widget(button)
 
-            content.add_widget(
-                button
-            )
-
-        popup.open()
+        wrapper = AnchorLayout(
+            anchor_x="center",
+            anchor_y="center",
+        )
+        wrapper.add_widget(card)
+        overlay.add_widget(wrapper)
+        overlay.open()
 
 
     # =====================================================
