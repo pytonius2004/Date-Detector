@@ -42,7 +42,7 @@ android.add_src = android_src
 
 android.add_activities = org.example.expiringgoods.BarcodeScannerActivity
 
-android.gradle_dependencies = androidx.activity:activity:1.8.2,androidx.camera:camera-core:1.3.4,androidx.camera:camera-camera2:1.3.4,androidx.camera:camera-lifecycle:1.3.4,androidx.camera:camera-view:1.3.4,com.google.mlkit:barcode-scanning:17.2.0
+android.gradle_dependencies = androidx.activity:activity:1.10.1,androidx.camera:camera-core:1.4.2,androidx.camera:camera-camera2:1.4.2,androidx.camera:camera-lifecycle:1.4.2,androidx.camera:camera-view:1.4.2,com.google.mlkit:barcode-scanning:17.3.0
 
 p4a.branch = master
 p4a.commit = v2024.01.21
