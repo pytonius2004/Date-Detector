@@ -7,10 +7,6 @@ import sqlite3
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-# =========================================================
-# KIVY
-# =========================================================
-
 os.environ.setdefault("KIVY_GL_BACKEND", "sdl2")
 os.environ.setdefault("KIVY_GRAPHICS", "gles")
 os.environ.setdefault("KIVY_NO_ARGS", "1")
@@ -22,6 +18,7 @@ Config.set("graphics", "resizable", "1")
 Config.set("kivy", "exit_on_escape", "0")
 
 from kivy.app import App
+from kivy.clock import mainthread
 from kivy.core.window import Window
 from kivy.metrics import dp
 from kivy.properties import StringProperty
@@ -38,10 +35,6 @@ from kivy.uix.widget import Widget
 from kivy.utils import platform
 
 
-# =========================================================
-# ANDROID / PYJNIUS
-# =========================================================
-
 ANDROID = platform == "android"
 
 PYJNIUS_AVAILABLE = False
@@ -51,14 +44,8 @@ autoclass = None
 jarray = None
 activity_helper = None
 
-if ANDROID:
 
-    # -----------------------------------------------------
-    # Import PyJNIus.
-    #
-    # IMPORTANT:
-    # Keep the actual exception so we can show it.
-    # -----------------------------------------------------
+if ANDROID:
 
     try:
 
@@ -73,32 +60,22 @@ if ANDROID:
 
     except Exception as exc:
 
-        PYJNIUS_AVAILABLE = False
-
         PYJNIUS_ERROR = (
             type(exc).__name__
-            +
-            ": "
-            +
-            str(exc)
+            + ": "
+            + str(exc)
         )
-
-    # -----------------------------------------------------
-    # android.activity is optional for the scanner itself.
-    # -----------------------------------------------------
 
     try:
 
-        from android import activity as activity_helper
+        from android import activity
+
+        activity_helper = activity
 
     except Exception:
 
         activity_helper = None
 
-
-# =========================================================
-# CONSTANTS
-# =========================================================
 
 APP_TITLE = "Сроки товаров"
 
@@ -110,10 +87,6 @@ DATE_USER_FORMAT = "%d.%m.%Y"
 REQUEST_SCAN_BARCODE = 7001
 REQUEST_IMPORT_DB = 4102
 
-
-# =========================================================
-# DATE HELPERS
-# =========================================================
 
 def parse_user_date(value):
 
@@ -136,6 +109,7 @@ def parse_user_date(value):
             )
 
         except ValueError:
+
             pass
 
     return None
@@ -144,7 +118,6 @@ def parse_user_date(value):
 def format_date(value):
 
     if not value:
-
         return "—"
 
     try:
@@ -160,10 +133,6 @@ def format_date(value):
 
         return value
 
-
-# =========================================================
-# DATABASE
-# =========================================================
 
 class Database:
 
@@ -272,10 +241,7 @@ class Database:
                 SET name = ?
                 WHERE barcode = ?
                 """,
-                (
-                    name,
-                    barcode,
-                ),
+                (name, barcode),
             )
 
         else:
@@ -431,6 +397,7 @@ class Database:
             FROM products p
 
             ORDER BY
+
                 CASE
                     WHEN (
                         SELECT e2.exp_date
@@ -450,10 +417,7 @@ class Database:
             """
         ).fetchall()
 
-    def backup_to(
-        self,
-        target
-    ):
+    def backup_to(self, target):
 
         target = Path(target)
 
@@ -463,7 +427,6 @@ class Database:
         )
 
         if target.exists():
-
             target.unlink()
 
         target_conn = sqlite3.connect(
@@ -493,7 +456,6 @@ class Database:
 
             tables = {
                 row[0]
-
                 for row in con.execute(
                     """
                     SELECT name
@@ -516,10 +478,6 @@ class Database:
             return False
 
 
-# =========================================================
-# BASE SCREEN
-# =========================================================
-
 class BaseScreen(Screen):
 
     def __init__(self, **kwargs):
@@ -530,10 +488,6 @@ class BaseScreen(Screen):
 
         self.app = App.get_running_app()
 
-
-# =========================================================
-# HOME
-# =========================================================
 
 class HomeScreen(BaseScreen):
 
@@ -637,7 +591,7 @@ class HomeScreen(BaseScreen):
 
         if not active and not completed:
 
-            empty_label = Label(
+            empty = Label(
                 text=(
                     "База пока пустая.\n\n"
                     "Нажми «Добавить срок»."
@@ -648,7 +602,7 @@ class HomeScreen(BaseScreen):
                 valign="middle"
             )
 
-            empty_label.bind(
+            empty.bind(
                 size=lambda instance, value:
                 setattr(
                     instance,
@@ -658,7 +612,7 @@ class HomeScreen(BaseScreen):
             )
 
             self.product_list.add_widget(
-                empty_label
+                empty
             )
 
     def make_product_button(
@@ -757,10 +711,7 @@ class HomeScreen(BaseScreen):
             color=foreground,
             halign="left",
             valign="middle",
-            padding=(
-                dp(12),
-                dp(8)
-            ),
+            padding=(dp(12), dp(8)),
             font_size="14sp"
         )
 
@@ -785,10 +736,6 @@ class HomeScreen(BaseScreen):
 
         return button
 
-
-# =========================================================
-# ADD PRODUCT
-# =========================================================
 
 class AddProductScreen(BaseScreen):
 
@@ -818,7 +765,9 @@ class AddProductScreen(BaseScreen):
 
         if barcode is None:
 
-            barcode = self.barcode_input.text
+            barcode = (
+                self.barcode_input.text
+            )
 
         barcode = barcode.strip()
 
@@ -843,18 +792,15 @@ class AddProductScreen(BaseScreen):
     def save(self):
 
         barcode = (
-            self.barcode_input.text
-            .strip()
+            self.barcode_input.text.strip()
         )
 
         name = (
-            self.name_input.text
-            .strip()
+            self.name_input.text.strip()
         )
 
         date_text = (
-            self.date_input.text
-            .strip()
+            self.date_input.text.strip()
         )
 
         if not barcode:
@@ -908,10 +854,6 @@ class AddProductScreen(BaseScreen):
         self.app.open_home()
 
 
-# =========================================================
-# PRODUCT
-# =========================================================
-
 class ProductScreen(BaseScreen):
 
     barcode = StringProperty("")
@@ -923,14 +865,11 @@ class ProductScreen(BaseScreen):
 
         self.barcode = barcode
 
-        product = (
-            self.app.db.get_product(
-                barcode
-            )
+        product = self.app.db.get_product(
+            barcode
         )
 
         if not product:
-
             return
 
         self.product_name_label.text = (
@@ -1040,24 +979,14 @@ class ProductScreen(BaseScreen):
                 "Товар станет серым."
             )
 
-        self.app.message(
-            message
-        )
+        self.app.message(message)
 
         self.app.open_home()
 
 
-# =========================================================
-# SETTINGS
-# =========================================================
-
 class SettingsScreen(BaseScreen):
     pass
 
-
-# =========================================================
-# MAIN APP
-# =========================================================
 
 class MainApp(App):
 
@@ -1075,10 +1004,6 @@ class MainApp(App):
             self.db_path
         )
 
-        # -------------------------------------------------
-        # Android result callback
-        # -------------------------------------------------
-
         if (
             ANDROID
             and
@@ -1092,12 +1017,8 @@ class MainApp(App):
                     self._on_activity_result
                 )
 
-            except Exception as exc:
-
-                print(
-                    "activity.bind error:",
-                    exc
-                )
+            except Exception:
+                pass
 
         Window.bind(
             on_keyboard=self._on_keyboard
@@ -1129,9 +1050,6 @@ class MainApp(App):
 
         return manager
 
-    # =====================================================
-    # BACK
-    # =====================================================
 
     def _on_keyboard(
         self,
@@ -1154,9 +1072,6 @@ class MainApp(App):
 
         return False
 
-    # =====================================================
-    # HOME
-    # =====================================================
 
     def create_home_screen(self):
 
@@ -1197,9 +1112,7 @@ class MainApp(App):
             )
         )
 
-        title_row.add_widget(
-            title
-        )
+        title_row.add_widget(title)
 
         root.add_widget(
             title_row
@@ -1276,9 +1189,6 @@ class MainApp(App):
 
         return screen
 
-    # =====================================================
-    # ADD
-    # =====================================================
 
     def create_add_screen(self):
 
@@ -1303,9 +1213,7 @@ class MainApp(App):
             self.open_home()
         )
 
-        root.add_widget(
-            back
-        )
+        root.add_widget(back)
 
         root.add_widget(
             Label(
@@ -1326,9 +1234,7 @@ class MainApp(App):
 
         barcode.bind(
             text=lambda instance, value:
-            screen.autofill_product(
-                value
-            )
+            screen.autofill_product(value)
         )
 
         name = TextInput(
@@ -1361,21 +1267,10 @@ class MainApp(App):
             )
         )
 
-        root.add_widget(
-            barcode
-        )
-
-        root.add_widget(
-            name
-        )
-
-        root.add_widget(
-            exp_date
-        )
-
-        root.add_widget(
-            Widget()
-        )
+        root.add_widget(barcode)
+        root.add_widget(name)
+        root.add_widget(exp_date)
+        root.add_widget(Widget())
 
         save = Button(
             text="Сохранить срок",
@@ -1395,23 +1290,16 @@ class MainApp(App):
             screen.save()
         )
 
-        root.add_widget(
-            save
-        )
+        root.add_widget(save)
 
         screen.barcode_input = barcode
         screen.name_input = name
         screen.date_input = exp_date
 
-        screen.add_widget(
-            root
-        )
+        screen.add_widget(root)
 
         return screen
 
-    # =====================================================
-    # PRODUCT
-    # =====================================================
 
     def create_product_screen(self):
 
@@ -1436,9 +1324,7 @@ class MainApp(App):
             self.open_home()
         )
 
-        root.add_widget(
-            back
-        )
+        root.add_widget(back)
 
         product_name = Label(
             text="Товар",
@@ -1464,17 +1350,9 @@ class MainApp(App):
             height=dp(40)
         )
 
-        root.add_widget(
-            product_name
-        )
-
-        root.add_widget(
-            product_barcode
-        )
-
-        root.add_widget(
-            nearest_date
-        )
+        root.add_widget(product_name)
+        root.add_widget(product_barcode)
+        root.add_widget(nearest_date)
 
         root.add_widget(
             Label(
@@ -1508,13 +1386,9 @@ class MainApp(App):
             )
         )
 
-        history_scroll.add_widget(
-            history
-        )
+        history_scroll.add_widget(history)
 
-        root.add_widget(
-            history_scroll
-        )
+        root.add_widget(history_scroll)
 
         writeoff = Button(
             text="Списано",
@@ -1534,9 +1408,7 @@ class MainApp(App):
             screen.write_off()
         )
 
-        root.add_widget(
-            writeoff
-        )
+        root.add_widget(writeoff)
 
         screen.product_name_label = product_name
         screen.product_barcode_label = product_barcode
@@ -1544,15 +1416,10 @@ class MainApp(App):
         screen.history_label = history
         screen.writeoff_button = writeoff
 
-        screen.add_widget(
-            root
-        )
+        screen.add_widget(root)
 
         return screen
 
-    # =====================================================
-    # SETTINGS
-    # =====================================================
 
     def create_settings_screen(self):
 
@@ -1577,9 +1444,7 @@ class MainApp(App):
             self.open_home()
         )
 
-        root.add_widget(
-            back
-        )
+        root.add_widget(back)
 
         root.add_widget(
             Label(
@@ -1616,9 +1481,7 @@ class MainApp(App):
             self.export_database()
         )
 
-        root.add_widget(
-            export_button
-        )
+        root.add_widget(export_button)
 
         import_button = Button(
             text="Импортировать БД",
@@ -1631,9 +1494,7 @@ class MainApp(App):
             self.import_database()
         )
 
-        root.add_widget(
-            import_button
-        )
+        root.add_widget(import_button)
 
         clear_button = Button(
             text="Очистить БД",
@@ -1653,23 +1514,14 @@ class MainApp(App):
             self.confirm_clear_database()
         )
 
-        root.add_widget(
-            clear_button
-        )
+        root.add_widget(clear_button)
 
-        root.add_widget(
-            Widget()
-        )
+        root.add_widget(Widget())
 
-        screen.add_widget(
-            root
-        )
+        screen.add_widget(root)
 
         return screen
 
-    # =====================================================
-    # NAVIGATION
-    # =====================================================
 
     def open_home(self):
 
@@ -1679,6 +1531,7 @@ class MainApp(App):
             "home"
         ).refresh()
 
+
     def open_add(
         self,
         barcode=""
@@ -1687,9 +1540,7 @@ class MainApp(App):
         self.sm.current = "add"
 
         screen = (
-            self.sm.get_screen(
-                "add"
-            )
+            self.sm.get_screen("add")
         )
 
         screen.clear_form()
@@ -1700,6 +1551,7 @@ class MainApp(App):
                 barcode
             )
 
+
     def open_product(
         self,
         barcode
@@ -1709,16 +1561,16 @@ class MainApp(App):
 
         self.sm.get_screen(
             "product"
-        ).load(
-            barcode
-        )
+        ).load(barcode)
+
 
     def open_settings(self):
 
         self.sm.current = "settings"
 
+
     # =====================================================
-    # SCANNER
+    # START NATIVE SCANNER
     # =====================================================
 
     def start_barcode_scanner(self):
@@ -1727,8 +1579,7 @@ class MainApp(App):
 
             self.message(
                 "Внутренняя ошибка: "
-                "Kivy определил устройство "
-                "как не-Android."
+                "устройство определено не как Android."
             )
 
             return
@@ -1737,62 +1588,30 @@ class MainApp(App):
 
             self.message(
                 "PyJNIus не загрузился.\n\n"
-                "Реальная ошибка:\n"
                 +
-                (
-                    PYJNIUS_ERROR
-                    or
-                    "Неизвестная ошибка."
-                )
+                PYJNIUS_ERROR
             )
 
             return
 
         try:
 
-            # ---------------------------------------------
-            # Test a Java class first.
-            # ---------------------------------------------
-
-            PythonActivity = (
-                autoclass(
-                    "org.kivy.android.PythonActivity"
-                )
+            PythonActivity = autoclass(
+                "org.kivy.android.PythonActivity"
             )
 
-            Intent = (
-                autoclass(
-                    "android.content.Intent"
-                )
+            Intent = autoclass(
+                "android.content.Intent"
             )
 
-            ScannerActivity = (
-                autoclass(
-                    "org.example.expiringgoods."
-                    "BarcodeScannerActivity"
-                )
+            ScannerActivity = autoclass(
+                "org.example.expiringgoods."
+                "BarcodeScannerActivity"
             )
-
-            # ---------------------------------------------
-            # Current Kivy Activity.
-            # ---------------------------------------------
 
             current_activity = (
                 PythonActivity.mActivity
             )
-
-            if current_activity is None:
-
-                self.message(
-                    "PythonActivity.mActivity "
-                    "вернул None."
-                )
-
-                return
-
-            # ---------------------------------------------
-            # Start native scanner.
-            # ---------------------------------------------
 
             intent = Intent(
                 current_activity,
@@ -1816,8 +1635,11 @@ class MainApp(App):
                 str(exc)
             )
 
+
     # =====================================================
-    # ACTIVITY RESULT
+    # RESULT CALLBACK
+    #
+    # Important: return to Kivy main thread.
     # =====================================================
 
     def _on_activity_result(
@@ -1833,34 +1655,10 @@ class MainApp(App):
             REQUEST_SCAN_BARCODE
         ):
 
-            if result_code != -1:
-                return
-
-            if intent is None:
-                return
-
-            try:
-
-                barcode = (
-                    intent.getStringExtra(
-                        "barcode"
-                    )
-                )
-
-            except Exception as exc:
-
-                print(
-                    "Barcode result error:",
-                    exc
-                )
-
-                barcode = None
-
-            if barcode:
-
-                self.open_add(
-                    str(barcode).strip()
-                )
+            self.handle_scanner_result(
+                result_code,
+                intent
+            )
 
             return
 
@@ -1870,29 +1668,112 @@ class MainApp(App):
             REQUEST_IMPORT_DB
         ):
 
-            if result_code != -1:
-                return
+            self.handle_import_result(
+                result_code,
+                intent
+            )
 
-            if intent is None:
-                return
 
-            try:
+    @mainthread
+    def handle_scanner_result(
+        self,
+        result_code,
+        intent
+    ):
 
-                uri = intent.getData()
+        if result_code != -1:
 
-                if uri is not None:
+            # User pressed Android back.
+            self.open_home()
 
-                    self._read_database_from_uri(
-                        uri
-                    )
+            return
 
-            except Exception as exc:
+        if intent is None:
 
-                self.message(
-                    "Ошибка импорта:\n"
-                    +
-                    str(exc)
+            self.open_home()
+
+            return
+
+        try:
+
+            manual = bool(
+                intent.getBooleanExtra(
+                    "manual",
+                    False
                 )
+            )
+
+        except Exception:
+
+            manual = False
+
+        # -------------------------------------------------
+        # Manual input requested.
+        # -------------------------------------------------
+
+        if manual:
+
+            self.open_add("")
+
+            return
+
+        # -------------------------------------------------
+        # Barcode returned.
+        # -------------------------------------------------
+
+        try:
+
+            barcode = (
+                intent.getStringExtra(
+                    "barcode"
+                )
+            )
+
+        except Exception:
+
+            barcode = None
+
+        if barcode:
+
+            self.open_add(
+                str(barcode).strip()
+            )
+
+        else:
+
+            self.open_home()
+
+
+    def handle_import_result(
+        self,
+        result_code,
+        intent
+    ):
+
+        if result_code != -1:
+            return
+
+        if intent is None:
+            return
+
+        try:
+
+            uri = intent.getData()
+
+            if uri is not None:
+
+                self._read_database_from_uri(
+                    uri
+                )
+
+        except Exception as exc:
+
+            self.message(
+                "Ошибка импорта:\n"
+                +
+                str(exc)
+            )
+
 
     # =====================================================
     # EXPORT
@@ -1928,9 +1809,15 @@ class MainApp(App):
                 ".db"
             )
 
-            sdk_int = get_android_sdk_int()
+            Build = autoclass(
+                "android.os.Build"
+            )
 
-            if sdk_int >= 29:
+            sdk = int(
+                Build.VERSION.SDK_INT
+            )
+
+            if sdk >= 29:
 
                 self._export_to_downloads(
                     temp_db,
@@ -1952,32 +1839,27 @@ class MainApp(App):
                 str(exc)
             )
 
+
     def _export_to_downloads(
         self,
         source,
         filename
     ):
 
-        PythonActivity = (
-            autoclass(
-                "org.kivy.android.PythonActivity"
-            )
+        PythonActivity = autoclass(
+            "org.kivy.android.PythonActivity"
         )
 
         current_activity = (
             PythonActivity.mActivity
         )
 
-        ContentValues = (
-            autoclass(
-                "android.content.ContentValues"
-            )
+        ContentValues = autoclass(
+            "android.content.ContentValues"
         )
 
-        MediaStore = (
-            autoclass(
-                "android.provider.MediaStore"
-            )
+        MediaStore = autoclass(
+            "android.provider.MediaStore"
         )
 
         values = ContentValues()
@@ -2043,19 +1925,11 @@ class MainApp(App):
                 source
             ).read_bytes()
 
-            if android_jarray is not None:
-
-                output_stream.write(
-                    android_jarray("b")(
-                        data
-                    )
+            output_stream.write(
+                jarray("b")(
+                    data
                 )
-
-            else:
-
-                raise RuntimeError(
-                    "PyJNIus jarray недоступен."
-                )
+            )
 
             output_stream.flush()
 
@@ -2078,9 +1952,7 @@ class MainApp(App):
         )
 
         try:
-
             Path(source).unlink()
-
         except OSError:
             pass
 
@@ -2089,10 +1961,9 @@ class MainApp(App):
             +
             filename
             +
-            "\n\n"
-            +
-            "Папка: Downloads"
+            "\n\nПапка: Downloads"
         )
+
 
     def _export_to_legacy_downloads(
         self,
@@ -2100,10 +1971,8 @@ class MainApp(App):
         filename
     ):
 
-        Environment = (
-            autoclass(
-                "android.os.Environment"
-            )
+        Environment = autoclass(
+            "android.os.Environment"
         )
 
         downloads = (
@@ -2139,6 +2008,7 @@ class MainApp(App):
             "Папка: Downloads"
         )
 
+
     # =====================================================
     # IMPORT
     # =====================================================
@@ -2165,16 +2035,12 @@ class MainApp(App):
 
         try:
 
-            PythonActivity = (
-                autoclass(
-                    "org.kivy.android.PythonActivity"
-                )
+            PythonActivity = autoclass(
+                "org.kivy.android.PythonActivity"
             )
 
-            Intent = (
-                autoclass(
-                    "android.content.Intent"
-                )
+            Intent = autoclass(
+                "android.content.Intent"
             )
 
             current_activity = (
@@ -2201,79 +2067,50 @@ class MainApp(App):
         except Exception as exc:
 
             self.message(
-                "Не удалось открыть "
-                "выбор файла:\n\n"
-                +
-                type(exc).__name__
-                +
-                "\n\n"
+                "Ошибка открытия файла:\n\n"
                 +
                 str(exc)
             )
+
 
     def _read_database_from_uri(
         self,
         uri
     ):
 
-        if not PYJNIUS_AVAILABLE:
-
-            self.message(
-                "PyJNIus недоступен:\n"
-                +
-                PYJNIUS_ERROR
-            )
-
-            return
-
-        PythonActivity = (
-            autoclass(
-                "org.kivy.android.PythonActivity"
-            )
-        )
-
-        current_activity = (
-            PythonActivity.mActivity
-        )
-
-        resolver = (
-            current_activity
-            .getContentResolver()
-        )
-
-        input_stream = (
-            resolver.openInputStream(
-                uri
-            )
-        )
-
-        if input_stream is None:
-
-            self.message(
-                "Android не смог открыть "
-                "выбранный файл."
-            )
-
-            return
-
-        temp = (
-            Path(self.user_data_dir)
-            /
-            "imported_inventory.db"
-        )
-
         try:
 
-            output = temp.open(
-                "wb"
+            PythonActivity = autoclass(
+                "org.kivy.android.PythonActivity"
             )
+
+            current_activity = (
+                PythonActivity.mActivity
+            )
+
+            resolver = (
+                current_activity
+                .getContentResolver()
+            )
+
+            input_stream = (
+                resolver.openInputStream(
+                    uri
+                )
+            )
+
+            temp = (
+                Path(self.user_data_dir)
+                /
+                "imported_inventory.db"
+            )
+
+            output = temp.open("wb")
 
             try:
 
                 buffer = (
-                    android_jarray(
-                        "b"
-                    )(
+                    jarray("b")(
                         [0] * 8192
                     )
                 )
@@ -2291,9 +2128,7 @@ class MainApp(App):
 
                     output.write(
                         bytes(
-                            (
-                                value & 0xFF
-                            )
+                            value & 0xFF
                             for value
                             in buffer[:count]
                         )
@@ -2310,25 +2145,19 @@ class MainApp(App):
 
         except Exception as exc:
 
-            try:
-                temp.unlink()
-            except OSError:
-                pass
-
             self.message(
                 "Ошибка импорта:\n"
                 +
                 str(exc)
             )
 
+
     def _replace_database(
         self,
         source
     ):
 
-        source = Path(
-            source
-        )
+        source = Path(source)
 
         if not source.exists():
 
@@ -2346,11 +2175,6 @@ class MainApp(App):
                 "Файл не является "
                 "базой приложения."
             )
-
-            try:
-                source.unlink()
-            except OSError:
-                pass
 
             return
 
@@ -2381,13 +2205,14 @@ class MainApp(App):
         except Exception as exc:
 
             self.message(
-                "Импорт не удался:\n"
+                "Ошибка импорта:\n"
                 +
                 str(exc)
             )
 
+
     # =====================================================
-    # CLEAR DB
+    # CLEAR DATABASE
     # =====================================================
 
     def confirm_clear_database(self):
@@ -2474,6 +2299,7 @@ class MainApp(App):
 
         popup.open()
 
+
     # =====================================================
     # MESSAGE
     # =====================================================
@@ -2526,6 +2352,7 @@ class MainApp(App):
 
         popup.open()
 
+
     # =====================================================
     # DESKTOP
     # =====================================================
@@ -2566,6 +2393,7 @@ class MainApp(App):
                 str(exc)
             )
 
+
     # =====================================================
     # STOP
     # =====================================================
@@ -2605,10 +2433,6 @@ class MainApp(App):
 
             self.db.close()
 
-
-# =========================================================
-# START
-# =========================================================
 
 if __name__ == "__main__":
 
