@@ -24,7 +24,7 @@ Config.set("kivy", "exit_on_escape", "0")
 
 
 # =========================================================
-# KIVY
+# KIVY IMPORTS
 # =========================================================
 
 from kivy.app import App
@@ -66,6 +66,7 @@ activity_helper = None
 if ANDROID:
 
     try:
+
         from jnius import autoclass, cast
 
         PYJNIUS_AVAILABLE = True
@@ -81,11 +82,13 @@ if ANDROID:
         )
 
     try:
+
         from android import activity
 
         activity_helper = activity
 
     except Exception:
+
         activity_helper = None
 
 
@@ -93,7 +96,7 @@ if ANDROID:
 # CONSTANTS
 # =========================================================
 
-APP_TITLE = "Сроки товаров"
+APP_TITLE = "Pyton Date Detect"
 
 DB_NAME = "inventory.db"
 
@@ -129,13 +132,13 @@ def barcode_variants(barcode):
         barcode
     ]
 
-    # Иногда UPC/EAN может отличаться
-    # только ведущим нулём.
+    # Иногда EAN / UPC отличаются ведущим нулём.
     if (
         barcode.startswith("0")
         and
         len(barcode) > 1
     ):
+
         result.append(
             barcode[1:]
         )
@@ -145,6 +148,7 @@ def barcode_variants(barcode):
         and
         barcode.isdigit()
     ):
+
         result.append(
             "0" + barcode
         )
@@ -154,6 +158,7 @@ def barcode_variants(barcode):
     for item in result:
 
         if item not in unique:
+
             unique.append(
                 item
             )
@@ -171,7 +176,7 @@ def parse_user_date(value):
 
         280826
 
-    Поле показывает:
+    Поле отображает:
 
         28.08.26
 
@@ -190,7 +195,6 @@ def parse_user_date(value):
         if char.isdigit()
     )
 
-    # ДДММГГ
     if len(digits) == 6:
 
         try:
@@ -227,7 +231,6 @@ def parse_user_date(value):
 
             return None
 
-    # На всякий случай понимаем и ДДММГГГГ.
     if len(digits) == 8:
 
         try:
@@ -286,20 +289,15 @@ def format_date(value):
 
 class DateInput(TextInput):
     """
-    Пользователь вводит:
+    Ввод:
 
-        2
-        8
-        0
-        8
-        2
-        6
+        280826
 
-    Получается:
+    Отображение:
 
         28.08.26
 
-    Точки вводить вручную не нужно.
+    Точки вводятся автоматически.
     """
 
     def _format_digits(
@@ -339,7 +337,10 @@ class DateInput(TextInput):
             digits[4:6]
         )
 
-    def _move_cursor_to_end(self, *_):
+    def _move_cursor_to_end(
+        self,
+        *_
+    ):
 
         self.cursor = (
             len(self.text),
@@ -376,9 +377,11 @@ class DateInput(TextInput):
         if free_space <= 0:
             return
 
-        new_digits = new_digits[
-            :free_space
-        ]
+        new_digits = (
+            new_digits[
+                :free_space
+            ]
+        )
 
         all_digits = (
             current_digits
@@ -430,7 +433,10 @@ class DateInput(TextInput):
 
 class Database:
 
-    def __init__(self, path):
+    def __init__(
+        self,
+        path
+    ):
 
         self.path = Path(
             path
@@ -496,9 +502,11 @@ class Database:
     def close(self):
 
         try:
+
             self.conn.close()
 
         except Exception:
+
             pass
 
     def clear_all(self):
@@ -862,7 +870,9 @@ class Database:
             target_conn.close()
 
     @staticmethod
-    def validate(path):
+    def validate(
+        path
+    ):
 
         try:
 
@@ -1378,7 +1388,8 @@ class AddProductScreen(BaseScreen):
             self.app.message(
                 "Введите срок в формате "
                 "ДД.ММ.ГГ.\n\n"
-                "Например: 280826 → 28.08.26"
+                "Например:\n"
+                "280826 → 28.08.26"
             )
 
             return
@@ -1715,7 +1726,7 @@ class MainApp(App):
         )
 
         title = Label(
-            text="Сроки товаров",
+            text=APP_TITLE,
             font_size="23sp",
             bold=True,
             halign="center",
@@ -1839,7 +1850,7 @@ class MainApp(App):
         )
 
         back = Button(
-            text="← Назад",
+            text="< Назад",
             size_hint_y=None,
             height=dp(
                 48
@@ -2029,7 +2040,7 @@ class MainApp(App):
         )
 
         back = Button(
-            text="← Назад",
+            text="< Назад",
             size_hint_y=None,
             height=dp(
                 48
@@ -2200,7 +2211,7 @@ class MainApp(App):
         )
 
         back = Button(
-            text="← Назад",
+            text="< Назад",
             size_hint_y=None,
             height=dp(
                 48
@@ -2565,7 +2576,9 @@ class MainApp(App):
 
         try:
 
-            uri = intent.getData()
+            uri = (
+                intent.getData()
+            )
 
             if uri is not None:
 
@@ -2618,7 +2631,7 @@ class MainApp(App):
             )
 
             filename = (
-                "inventory_"
+                "pyton_date_detect_"
                 +
                 datetime.now().strftime(
                     "%Y%m%d_%H%M%S"
@@ -2627,8 +2640,6 @@ class MainApp(App):
                 ".db"
             )
 
-            # Android VERSION — это отдельный
-            # вложенный Java-класс.
             BuildVersion = autoclass(
                 "android.os.Build$VERSION"
             )
@@ -2686,23 +2697,15 @@ class MainApp(App):
             "android.provider.MediaStore"
         )
 
-        # =================================================
-        # ВАЖНО:
-        # ContentValues.put перегружен в Java.
-        #
-        # Обычный Python int PyJNIus здесь неоднозначен.
-        # Поэтому передаём настоящий java.lang.Integer.
-        # =================================================
-
-        JavaInteger = autoclass(
-            "java.lang.Integer"
-        )
-
         values = ContentValues()
 
+        # Для строк лучше явно использовать put(String, String)
+        # через обычные Python-строки.
         values.put(
             "_display_name",
-            filename
+            str(
+                filename
+            )
         )
 
         values.put(
@@ -2710,18 +2713,10 @@ class MainApp(App):
             "application/octet-stream"
         )
 
-        # Публичная папка Downloads.
-        # Это НЕ кэш приложения.
+        # Это именно публичная папка Download.
         values.put(
             "relative_path",
             "Download/"
-        )
-
-        values.put(
-            "is_pending",
-            JavaInteger.valueOf(
-                1
-            )
         )
 
         resolver = (
@@ -2755,17 +2750,20 @@ class MainApp(App):
         if output_stream is None:
 
             try:
+
                 resolver.delete(
                     uri,
                     None,
                     None
                 )
+
             except Exception:
+
                 pass
 
             raise RuntimeError(
                 "Android не смог открыть "
-                "файл Downloads для записи."
+                "файл для записи."
             )
 
         try:
@@ -2774,12 +2772,8 @@ class MainApp(App):
                 source
             ).read_bytes()
 
-            # Чтобы не использовать jarray, который
-            # отсутствует в твоём PyJNIus, пишем через
-            # OutputStream.write(int).
-            #
-            # База этого приложения маленькая, поэтому
-            # для экспорта это нормально и надёжно.
+            # Не используем jarray.
+            # Пишем байты через OutputStream.write(int).
             for byte_value in data:
 
                 output_stream.write(
@@ -2793,17 +2787,15 @@ class MainApp(App):
         except Exception:
 
             try:
-                output_stream.close()
-            except Exception:
-                pass
 
-            try:
                 resolver.delete(
                     uri,
                     None,
                     None
                 )
+
             except Exception:
+
                 pass
 
             raise
@@ -2811,25 +2803,12 @@ class MainApp(App):
         finally:
 
             try:
+
                 output_stream.close()
+
             except Exception:
+
                 pass
-
-        completed = ContentValues()
-
-        completed.put(
-            "is_pending",
-            JavaInteger.valueOf(
-                0
-            )
-        )
-
-        resolver.update(
-            uri,
-            completed,
-            None,
-            None
-        )
 
         try:
 
@@ -3020,7 +2999,6 @@ class MainApp(App):
 
             try:
 
-                # Читаем без jarray.
                 while True:
 
                     value = (
@@ -3101,8 +3079,6 @@ class MainApp(App):
 
         try:
 
-            # Сначала делаем резервную копию
-            # текущей БД.
             self.db.backup_to(
                 backup
             )
@@ -3123,6 +3099,7 @@ class MainApp(App):
                 source.unlink()
 
             except OSError:
+
                 pass
 
             try:
@@ -3130,6 +3107,7 @@ class MainApp(App):
                 backup.unlink()
 
             except OSError:
+
                 pass
 
             self.message(
@@ -3351,7 +3329,7 @@ class MainApp(App):
             Path.cwd()
             /
             (
-                "inventory_"
+                "pyton_date_detect_"
                 +
                 datetime.now().strftime(
                     "%Y%m%d_%H%M%S"
