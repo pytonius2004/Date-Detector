@@ -32,13 +32,12 @@ from kivy.clock import Clock, mainthread
 from kivy.core.window import Window
 from kivy.graphics import Color, RoundedRectangle
 from kivy.metrics import dp
-from kivy.properties import (
-    ListProperty,
-    StringProperty,
-)
+from kivy.properties import ListProperty, StringProperty
+
 from kivy.uix.behaviors import ButtonBehavior
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
+from kivy.uix.image import Image
 from kivy.uix.label import Label
 from kivy.uix.popup import Popup
 from kivy.uix.screenmanager import (
@@ -49,6 +48,7 @@ from kivy.uix.screenmanager import (
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.textinput import TextInput
 from kivy.uix.widget import Widget
+
 from kivy.utils import platform
 
 
@@ -56,26 +56,89 @@ from kivy.utils import platform
 # COLORS / THEME
 # =========================================================
 
-BG = (0.045, 0.047, 0.055, 1)
+BG = (
+    0.045,
+    0.047,
+    0.055,
+    1,
+)
 
-CARD = (0.10, 0.105, 0.12, 1)
-CARD_DISABLED = (0.20, 0.20, 0.22, 1)
+CARD = (
+    0.10,
+    0.105,
+    0.12,
+    1,
+)
 
-TEXT = (0.96, 0.96, 0.97, 1)
-TEXT_SECONDARY = (0.67, 0.68, 0.72, 1)
+CARD_DISABLED = (
+    0.20,
+    0.20,
+    0.22,
+    1,
+)
 
-BUTTON_BG = (0.20, 0.21, 0.24, 1)
-BUTTON_BG_DOWN = (0.27, 0.28, 0.32, 1)
+TEXT = (
+    0.96,
+    0.96,
+    0.97,
+    1,
+)
 
-ACCENT = (0.18, 0.68, 0.92, 1)
+TEXT_SECONDARY = (
+    0.67,
+    0.68,
+    0.72,
+    1,
+)
 
-YELLOW = (1.00, 0.78, 0.13, 1)
-YELLOW_TEXT = (0.10, 0.08, 0.03, 1)
+BUTTON_BG = (
+    0.20,
+    0.21,
+    0.24,
+    1,
+)
 
-RED = (0.82, 0.12, 0.13, 1)
-RED_TEXT = (1, 1, 1, 1)
+BUTTON_BG_DOWN = (
+    0.27,
+    0.28,
+    0.32,
+    1,
+)
 
-GREEN = (0.13, 0.57, 0.27, 1)
+YELLOW = (
+    1.00,
+    0.78,
+    0.13,
+    1,
+)
+
+YELLOW_TEXT = (
+    0.10,
+    0.08,
+    0.03,
+    1,
+)
+
+RED = (
+    0.82,
+    0.12,
+    0.13,
+    1,
+)
+
+RED_TEXT = (
+    1,
+    1,
+    1,
+    1,
+)
+
+GREEN = (
+    0.13,
+    0.57,
+    0.27,
+    1,
+)
 
 Window.clearcolor = BG
 
@@ -97,6 +160,7 @@ activity_helper = None
 if ANDROID:
 
     try:
+
         from jnius import autoclass, cast
 
         PYJNIUS_AVAILABLE = True
@@ -105,16 +169,20 @@ if ANDROID:
 
         PYJNIUS_ERROR = (
             type(exc).__name__
-            + ": "
-            + str(exc)
+            +
+            ": "
+            +
+            str(exc)
         )
 
     try:
+
         from android import activity
 
         activity_helper = activity
 
     except Exception:
+
         activity_helper = None
 
 
@@ -122,7 +190,11 @@ if ANDROID:
 # CONSTANTS
 # =========================================================
 
-APP_TITLE = "Pyton Date Detect"
+APP_TITLE = "Сроки Годности"
+
+HEADER_TITLE = "Pyton Detector"
+
+LOGO_FILE = "logo1.png"
 
 DB_NAME = "inventory.db"
 
@@ -138,9 +210,12 @@ REQUEST_IMPORT_DB = 4102
 # =========================================================
 
 if ANDROID:
+
     SAFE_TOP = dp(32)
     SAFE_BOTTOM = dp(34)
+
 else:
+
     SAFE_TOP = 0
     SAFE_BOTTOM = 0
 
@@ -166,6 +241,7 @@ def safe_padding(
 def normalize_barcode(value):
 
     if value is None:
+
         return ""
 
     return str(value).strip()
@@ -173,23 +249,34 @@ def normalize_barcode(value):
 
 def barcode_variants(barcode):
 
-    barcode = normalize_barcode(barcode)
+    barcode = normalize_barcode(
+        barcode
+    )
 
     if not barcode:
+
         return []
 
-    result = [barcode]
+    result = [
+        barcode
+    ]
 
     if (
         barcode.startswith("0")
-        and len(barcode) > 1
+        and
+        len(barcode) > 1
     ):
-        result.append(barcode[1:])
+
+        result.append(
+            barcode[1:]
+        )
 
     if (
         len(barcode) == 12
-        and barcode.isdigit()
+        and
+        barcode.isdigit()
     ):
+
         result.append(
             "0" + barcode
         )
@@ -199,7 +286,10 @@ def barcode_variants(barcode):
     for item in result:
 
         if item not in unique:
-            unique.append(item)
+
+            unique.append(
+                item
+            )
 
     return unique
 
@@ -220,9 +310,21 @@ def parse_user_date(value):
 
         try:
 
-            day = int(digits[0:2])
-            month = int(digits[2:4])
-            year = 2000 + int(digits[4:6])
+            day = int(
+                digits[0:2]
+            )
+
+            month = int(
+                digits[2:4]
+            )
+
+            year = (
+                2000
+                +
+                int(
+                    digits[4:6]
+                )
+            )
 
             parsed = date(
                 year,
@@ -235,15 +337,24 @@ def parse_user_date(value):
             )
 
         except ValueError:
+
             return None
 
     if len(digits) == 8:
 
         try:
 
-            day = int(digits[0:2])
-            month = int(digits[2:4])
-            year = int(digits[4:8])
+            day = int(
+                digits[0:2]
+            )
+
+            month = int(
+                digits[2:4]
+            )
+
+            year = int(
+                digits[4:8]
+            )
 
             parsed = date(
                 year,
@@ -256,6 +367,7 @@ def parse_user_date(value):
             )
 
         except ValueError:
+
             return None
 
     return None
@@ -264,6 +376,7 @@ def parse_user_date(value):
 def format_date(value):
 
     if not value:
+
         return "—"
 
     try:
@@ -276,11 +389,12 @@ def format_date(value):
         )
 
     except ValueError:
+
         return value
 
 
 # =========================================================
-# CUSTOM UI
+# CUSTOM BUTTON
 # =========================================================
 
 class RoundedButton(Button):
@@ -306,11 +420,12 @@ class RoundedButton(Button):
 
         self.background_normal = ""
         self.background_down = ""
+
         self.background_color = (
             0,
             0,
             0,
-            0
+            0,
         )
 
         self.color = TEXT
@@ -325,8 +440,8 @@ class RoundedButton(Button):
                 pos=self.pos,
                 size=self.size,
                 radius=[
-                    self.radius
-                ]
+                    self.radius,
+                ],
             )
 
         self.bind(
@@ -342,22 +457,39 @@ class RoundedButton(Button):
         *_
     ):
 
-        self._rect.pos = self.pos
-        self._rect.size = self.size
+        self._rect.pos = (
+            self.pos
+        )
+
+        self._rect.size = (
+            self.size
+        )
 
     def _update_state(
         self,
         *_
     ):
 
-        color = (
-            self.down_color
-            if self.state == "down"
-            else self.normal_color
+        if self.state == "down":
+
+            color = (
+                self.down_color
+            )
+
+        else:
+
+            color = (
+                self.normal_color
+            )
+
+        self._color.rgba = (
+            color
         )
 
-        self._color.rgba = color
 
+# =========================================================
+# PRODUCT CARD
+# =========================================================
 
 class ProductCard(
     ButtonBehavior,
@@ -377,7 +509,6 @@ class ProductCard(
         product_name,
         barcode,
         exp_date,
-        status="",
         **kwargs
     ):
 
@@ -385,17 +516,24 @@ class ProductCard(
             **kwargs
         )
 
-        self.orientation = "horizontal"
+        self.orientation = (
+            "horizontal"
+        )
 
         self.size_hint_y = None
-        self.height = dp(112)
+
+        self.height = dp(
+            112
+        )
 
         self.padding = (
             dp(17),
-            dp(12)
+            dp(12),
         )
 
-        self.spacing = dp(10)
+        self.spacing = dp(
+            10
+        )
 
         with self.canvas.before:
 
@@ -407,8 +545,8 @@ class ProductCard(
                 pos=self.pos,
                 size=self.size,
                 radius=[
-                    dp(17)
-                ]
+                    dp(17),
+                ],
             )
 
         self.bind(
@@ -417,16 +555,20 @@ class ProductCard(
             background_color=self._update_color,
         )
 
-        # ---------------------------------------------
-        # LEFT
-        # ---------------------------------------------
+        # -------------------------------------------------
+        # LEFT SIDE
+        # -------------------------------------------------
 
         left = BoxLayout(
             orientation="vertical"
         )
 
-        name_label = Label(
-            text=product_name or "Без названия",
+        self.name_label = Label(
+            text=(
+                product_name
+                or
+                "Без названия"
+            ),
             color=self.foreground_color,
             bold=True,
             font_size="18sp",
@@ -435,7 +577,7 @@ class ProductCard(
             size_hint_y=0.55,
         )
 
-        name_label.bind(
+        self.name_label.bind(
             size=lambda instance, value:
             setattr(
                 instance,
@@ -444,8 +586,10 @@ class ProductCard(
             )
         )
 
-        barcode_label = Label(
-            text=f"Штрихкод: {barcode}",
+        self.barcode_label = Label(
+            text=(
+                f"Штрихкод: {barcode}"
+            ),
             color=self.foreground_color,
             font_size="13sp",
             halign="left",
@@ -453,7 +597,7 @@ class ProductCard(
             size_hint_y=0.45,
         )
 
-        barcode_label.bind(
+        self.barcode_label.bind(
             size=lambda instance, value:
             setattr(
                 instance,
@@ -463,23 +607,23 @@ class ProductCard(
         )
 
         left.add_widget(
-            name_label
+            self.name_label
         )
 
         left.add_widget(
-            barcode_label
+            self.barcode_label
         )
 
-        # ---------------------------------------------
-        # RIGHT
-        # ---------------------------------------------
+        # -------------------------------------------------
+        # RIGHT SIDE
+        # -------------------------------------------------
 
         right = BoxLayout(
             orientation="vertical",
             size_hint_x=0.38,
         )
 
-        valid_label = Label(
+        self.valid_label = Label(
             text="Годен до:",
             color=self.foreground_color,
             font_size="13sp",
@@ -488,7 +632,7 @@ class ProductCard(
             size_hint_y=0.42,
         )
 
-        valid_label.bind(
+        self.valid_label.bind(
             size=lambda instance, value:
             setattr(
                 instance,
@@ -497,7 +641,7 @@ class ProductCard(
             )
         )
 
-        date_label = Label(
+        self.date_label = Label(
             text=exp_date,
             color=self.foreground_color,
             bold=True,
@@ -507,7 +651,7 @@ class ProductCard(
             size_hint_y=0.58,
         )
 
-        date_label.bind(
+        self.date_label.bind(
             size=lambda instance, value:
             setattr(
                 instance,
@@ -517,11 +661,11 @@ class ProductCard(
         )
 
         right.add_widget(
-            valid_label
+            self.valid_label
         )
 
         right.add_widget(
-            date_label
+            self.date_label
         )
 
         self.add_widget(
@@ -532,17 +676,43 @@ class ProductCard(
             right
         )
 
-        if status:
+    def set_foreground(
+        self,
+        color
+    ):
 
-            self.status_text = status
+        self.foreground_color = (
+            color
+        )
+
+        self.name_label.color = (
+            color
+        )
+
+        self.barcode_label.color = (
+            color
+        )
+
+        self.valid_label.color = (
+            color
+        )
+
+        self.date_label.color = (
+            color
+        )
 
     def _update_card(
         self,
         *_
     ):
 
-        self._bg_rect.pos = self.pos
-        self._bg_rect.size = self.size
+        self._bg_rect.pos = (
+            self.pos
+        )
+
+        self._bg_rect.size = (
+            self.size
+        )
 
     def _update_color(
         self,
@@ -572,6 +742,7 @@ class DateInput(TextInput):
         )[:6]
 
         if len(digits) <= 2:
+
             return digits
 
         if len(digits) <= 4:
@@ -619,6 +790,7 @@ class DateInput(TextInput):
         )
 
         if not new_digits:
+
             return
 
         current_digits = "".join(
@@ -628,10 +800,15 @@ class DateInput(TextInput):
         )
 
         free_space = (
-            6 - len(current_digits)
+            6
+            -
+            len(
+                current_digits
+            )
         )
 
         if free_space <= 0:
+
             return
 
         all_digits = (
@@ -662,6 +839,7 @@ class DateInput(TextInput):
         )
 
         if not digits:
+
             return
 
         self.text = self._format_digits(
@@ -685,10 +863,14 @@ class Database:
         path
     ):
 
-        self.path = Path(path)
+        self.path = Path(
+            path
+        )
 
         self.conn = sqlite3.connect(
-            str(self.path)
+            str(
+                self.path
+            )
         )
 
         self.conn.row_factory = (
@@ -745,8 +927,11 @@ class Database:
     def close(self):
 
         try:
+
             self.conn.close()
+
         except Exception:
+
             pass
 
     def clear_all(self):
@@ -782,6 +967,7 @@ class Database:
             ).fetchone()
 
             if row:
+
                 return row
 
         return None
@@ -850,9 +1036,11 @@ class Database:
 
         if product:
 
-            barcode = product[
-                "barcode"
-            ]
+            barcode = (
+                product[
+                    "barcode"
+                ]
+            )
 
         try:
 
@@ -893,7 +1081,12 @@ class Database:
         )
 
         if product:
-            barcode = product["barcode"]
+
+            barcode = (
+                product[
+                    "barcode"
+                ]
+            )
 
         return self.conn.execute(
             """
@@ -920,7 +1113,12 @@ class Database:
         )
 
         if product:
-            barcode = product["barcode"]
+
+            barcode = (
+                product[
+                    "barcode"
+                ]
+            )
 
         return self.conn.execute(
             """
@@ -947,7 +1145,12 @@ class Database:
         )
 
         if product:
-            barcode = product["barcode"]
+
+            barcode = (
+                product[
+                    "barcode"
+                ]
+            )
 
         return self.conn.execute(
             """
@@ -975,6 +1178,7 @@ class Database:
         )
 
         if not row:
+
             return False
 
         self.conn.execute(
@@ -1041,7 +1245,9 @@ class Database:
         target
     ):
 
-        target = Path(target)
+        target = Path(
+            target
+        )
 
         target.parent.mkdir(
             parents=True,
@@ -1049,10 +1255,13 @@ class Database:
         )
 
         if target.exists():
+
             target.unlink()
 
         target_conn = sqlite3.connect(
-            str(target)
+            str(
+                target
+            )
         )
 
         try:
@@ -1068,17 +1277,22 @@ class Database:
             target_conn.close()
 
     @staticmethod
-    def validate(path):
+    def validate(
+        path
+    ):
 
         try:
 
             con = sqlite3.connect(
-                str(path)
+                str(
+                    path
+                )
             )
 
             tables = {
                 row[0]
-                for row in con.execute(
+                for row
+                in con.execute(
                     """
                     SELECT name
                     FROM sqlite_master
@@ -1138,7 +1352,9 @@ class HomeScreen(BaseScreen):
         yesterday = (
             today
             -
-            timedelta(days=1)
+            timedelta(
+                days=1
+            )
         )
 
         active = []
@@ -1148,7 +1364,9 @@ class HomeScreen(BaseScreen):
             self.app.db.get_product_list()
         ):
 
-            if not product["next_exp"]:
+            if not product[
+                "next_exp"
+            ]:
 
                 completed.append(
                     product
@@ -1158,10 +1376,14 @@ class HomeScreen(BaseScreen):
 
             try:
 
-                exp_date = datetime.strptime(
-                    product["next_exp"],
-                    DATE_DB_FORMAT
-                ).date()
+                exp_date = (
+                    datetime.strptime(
+                        product[
+                            "next_exp"
+                        ],
+                        DATE_DB_FORMAT
+                    ).date()
+                )
 
             except ValueError:
 
@@ -1174,7 +1396,7 @@ class HomeScreen(BaseScreen):
             active.append(
                 (
                     product,
-                    exp_date
+                    exp_date,
                 )
             )
 
@@ -1264,7 +1486,6 @@ class HomeScreen(BaseScreen):
 
             bg = CARD_DISABLED
             fg = TEXT_SECONDARY
-
             date_text = "—"
 
         elif exp_date == today:
@@ -1273,7 +1494,9 @@ class HomeScreen(BaseScreen):
             fg = YELLOW_TEXT
 
             date_text = format_date(
-                product["next_exp"]
+                product[
+                    "next_exp"
+                ]
             )
 
         elif exp_date == yesterday:
@@ -1282,7 +1505,9 @@ class HomeScreen(BaseScreen):
             fg = RED_TEXT
 
             date_text = format_date(
-                product["next_exp"]
+                product[
+                    "next_exp"
+                ]
             )
 
         else:
@@ -1291,42 +1516,41 @@ class HomeScreen(BaseScreen):
             fg = TEXT
 
             date_text = format_date(
-                product["next_exp"]
+                product[
+                    "next_exp"
+                ]
             )
 
         card = ProductCard(
             product_name=(
-                product["name"]
+                product[
+                    "name"
+                ]
                 or
                 "Без названия"
             ),
-            barcode=product["barcode"],
+            barcode=(
+                product[
+                    "barcode"
+                ]
+            ),
             exp_date=date_text,
         )
 
-        card.background_color = bg
-        card.foreground_color = fg
+        card.background_color = (
+            bg
+        )
 
-        # Обновляем уже созданные labels
-        for column in card.children:
-
-            if hasattr(
-                column,
-                "children"
-            ):
-
-                for child in column.children:
-
-                    if isinstance(
-                        child,
-                        Label
-                    ):
-                        child.color = fg
+        card.set_foreground(
+            fg
+        )
 
         card.bind(
             on_release=lambda *_:
             self.app.open_product(
-                product["barcode"]
+                product[
+                    "barcode"
+                ]
             )
         )
 
@@ -1372,6 +1596,7 @@ class AddProductScreen(BaseScreen):
     ):
 
         if barcode is None:
+
             barcode = (
                 self.barcode_input.text
             )
@@ -1381,6 +1606,7 @@ class AddProductScreen(BaseScreen):
         )
 
         if not barcode:
+
             return
 
         product = (
@@ -1390,10 +1616,13 @@ class AddProductScreen(BaseScreen):
         )
 
         if not product:
+
             return
 
         name = (
-            product["name"]
+            product[
+                "name"
+            ]
             or
             ""
         ).strip()
@@ -1415,6 +1644,7 @@ class AddProductScreen(BaseScreen):
         )
 
         if not barcode:
+
             return
 
         Clock.schedule_once(
@@ -1460,10 +1690,18 @@ class AddProductScreen(BaseScreen):
             if product:
 
                 name = (
-                    product["name"]
+                    product[
+                        "name"
+                    ]
                     or
                     ""
                 ).strip()
+
+                if name:
+
+                    self.name_input.text = (
+                        name
+                    )
 
         if not name:
 
@@ -1531,7 +1769,9 @@ class AddProductScreen(BaseScreen):
 
 class ProductScreen(BaseScreen):
 
-    barcode = StringProperty("")
+    barcode = StringProperty(
+        ""
+    )
 
     def load(
         self,
@@ -1545,14 +1785,19 @@ class ProductScreen(BaseScreen):
         )
 
         if not product:
+
             return
 
         self.barcode = (
-            product["barcode"]
+            product[
+                "barcode"
+            ]
         )
 
         self.product_name_label.text = (
-            product["name"]
+            product[
+                "name"
+            ]
             or
             "Без названия"
         )
@@ -1595,16 +1840,25 @@ class ProductScreen(BaseScreen):
             )
         ):
 
-            status = (
-                "СПИСАНО"
-                if item["written_off"]
-                else
-                "АКТИВЕН"
-            )
+            if item[
+                "written_off"
+            ]:
+
+                status = (
+                    "СПИСАНО"
+                )
+
+            else:
+
+                status = (
+                    "АКТИВЕН"
+                )
 
             history.append(
                 format_date(
-                    item["exp_date"]
+                    item[
+                        "exp_date"
+                    ]
                 )
                 +
                 " — "
@@ -1612,15 +1866,24 @@ class ProductScreen(BaseScreen):
                 status
             )
 
-        self.history_label.text = (
-            "\n".join(history)
-            if history
-            else
-            "История пока пустая."
-        )
+        if history:
+
+            self.history_label.text = (
+                "\n".join(
+                    history
+                )
+            )
+
+        else:
+
+            self.history_label.text = (
+                "История пока пустая."
+            )
 
         self.writeoff_button.disabled = (
-            not bool(active)
+            not bool(
+                active
+            )
         )
 
     def write_off(self):
@@ -1669,6 +1932,7 @@ class ProductScreen(BaseScreen):
 
 
 class SettingsScreen(BaseScreen):
+
     pass
 
 
@@ -1745,6 +2009,7 @@ class MainApp(App):
 
         return manager
 
+
     # =====================================================
     # BACK
     # =====================================================
@@ -1759,6 +2024,7 @@ class MainApp(App):
     ):
 
         if key != 27:
+
             return False
 
         if self.sm.current != "home":
@@ -1768,6 +2034,71 @@ class MainApp(App):
             return True
 
         return False
+
+
+    # =====================================================
+    # HEADER
+    # =====================================================
+
+    def create_header(self):
+
+        header = BoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=dp(72),
+            spacing=dp(10),
+            padding=(
+                dp(8),
+                dp(4),
+            ),
+        )
+
+        logo = Image(
+            source=LOGO_FILE,
+            size_hint_x=None,
+            width=dp(58),
+            allow_stretch=True,
+            keep_ratio=True,
+        )
+
+        header.add_widget(
+            Widget()
+        )
+
+        header.add_widget(
+            logo
+        )
+
+        title = Label(
+            text=HEADER_TITLE,
+            color=TEXT,
+            bold=True,
+            font_size="25sp",
+            size_hint_x=None,
+            width=dp(210),
+            halign="left",
+            valign="middle",
+        )
+
+        title.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        header.add_widget(
+            title
+        )
+
+        header.add_widget(
+            Widget()
+        )
+
+        return header
+
 
     # =====================================================
     # HOME UI
@@ -1783,34 +2114,14 @@ class MainApp(App):
             orientation="vertical",
             padding=safe_padding(
                 horizontal=14,
-                top=8,
+                top=7,
                 bottom=12
             ),
-            spacing=dp(14)
-        )
-
-        title = Label(
-            text=APP_TITLE,
-            color=TEXT,
-            font_size="26sp",
-            bold=True,
-            size_hint_y=None,
-            height=dp(62),
-            halign="center",
-            valign="middle",
-        )
-
-        title.bind(
-            size=lambda instance, value:
-            setattr(
-                instance,
-                "text_size",
-                value
-            )
+            spacing=dp(14),
         )
 
         root.add_widget(
-            title
+            self.create_header()
         )
 
         actions = BoxLayout(
@@ -1892,6 +2203,7 @@ class MainApp(App):
 
         return screen
 
+
     # =====================================================
     # ADD SCREEN
     # =====================================================
@@ -1909,7 +2221,7 @@ class MainApp(App):
                 top=8,
                 bottom=12
             ),
-            spacing=dp(12)
+            spacing=dp(12),
         )
 
         back = RoundedButton(
@@ -1976,12 +2288,13 @@ class MainApp(App):
             font_size="18sp",
             padding=(
                 dp(12),
-                dp(12)
+                dp(12),
             ),
         )
 
         barcode.bind(
-            text=screen.on_barcode_change
+            text=
+            screen.on_barcode_change
         )
 
         name = TextInput(
@@ -1992,7 +2305,7 @@ class MainApp(App):
             font_size="18sp",
             padding=(
                 dp(12),
-                dp(12)
+                dp(12),
             ),
         )
 
@@ -2005,7 +2318,7 @@ class MainApp(App):
             font_size="18sp",
             padding=(
                 dp(12),
-                dp(12)
+                dp(12),
             ),
         )
 
@@ -2035,7 +2348,7 @@ class MainApp(App):
                 0.10,
                 0.45,
                 0.21,
-                1
+                1,
             ),
         )
 
@@ -2066,6 +2379,7 @@ class MainApp(App):
 
         return screen
 
+
     # =====================================================
     # PRODUCT SCREEN
     # =====================================================
@@ -2083,7 +2397,7 @@ class MainApp(App):
                 top=8,
                 bottom=12
             ),
-            spacing=dp(12)
+            spacing=dp(12),
         )
 
         back = RoundedButton(
@@ -2138,16 +2452,14 @@ class MainApp(App):
             nearest_date
         )
 
-        history_title = Label(
-            text="История сроков",
-            color=TEXT_SECONDARY,
-            font_size="14sp",
-            size_hint_y=None,
-            height=dp(34),
-        )
-
         root.add_widget(
-            history_title
+            Label(
+                text="История сроков",
+                color=TEXT_SECONDARY,
+                font_size="14sp",
+                size_hint_y=None,
+                height=dp(34),
+            )
         )
 
         history_scroll = ScrollView(
@@ -2192,7 +2504,7 @@ class MainApp(App):
                 0.65,
                 0.08,
                 0.10,
-                1
+                1,
             ),
         )
 
@@ -2231,6 +2543,7 @@ class MainApp(App):
 
         return screen
 
+
     # =====================================================
     # SETTINGS
     # =====================================================
@@ -2248,7 +2561,7 @@ class MainApp(App):
                 top=8,
                 bottom=12
             ),
-            spacing=dp(12)
+            spacing=dp(12),
         )
 
         back = RoundedButton(
@@ -2331,7 +2644,7 @@ class MainApp(App):
                 0.65,
                 0.08,
                 0.10,
-                1
+                1,
             ),
         )
 
@@ -2354,13 +2667,16 @@ class MainApp(App):
 
         return screen
 
+
     # =====================================================
     # NAVIGATION
     # =====================================================
 
     def open_home(self):
 
-        self.sm.current = "home"
+        self.sm.current = (
+            "home"
+        )
 
         self.sm.get_screen(
             "home"
@@ -2371,12 +2687,12 @@ class MainApp(App):
         barcode=""
     ):
 
-        self.sm.current = "add"
+        self.sm.current = (
+            "add"
+        )
 
-        screen = (
-            self.sm.get_screen(
-                "add"
-            )
+        screen = self.sm.get_screen(
+            "add"
         )
 
         screen.clear_form()
@@ -2404,7 +2720,9 @@ class MainApp(App):
         barcode
     ):
 
-        self.sm.current = "product"
+        self.sm.current = (
+            "product"
+        )
 
         self.sm.get_screen(
             "product"
@@ -2414,7 +2732,10 @@ class MainApp(App):
 
     def open_settings(self):
 
-        self.sm.current = "settings"
+        self.sm.current = (
+            "settings"
+        )
+
 
     # =====================================================
     # SCANNER
@@ -2482,6 +2803,7 @@ class MainApp(App):
                 str(exc)
             )
 
+
     # =====================================================
     # ACTIVITY RESULT
     # =====================================================
@@ -2493,7 +2815,11 @@ class MainApp(App):
         intent
     ):
 
-        if request_code == REQUEST_SCAN_BARCODE:
+        if (
+            request_code
+            ==
+            REQUEST_SCAN_BARCODE
+        ):
 
             self.handle_scanner_result(
                 result_code,
@@ -2502,7 +2828,11 @@ class MainApp(App):
 
             return
 
-        if request_code == REQUEST_IMPORT_DB:
+        if (
+            request_code
+            ==
+            REQUEST_IMPORT_DB
+        ):
 
             self.handle_import_result(
                 result_code,
@@ -2519,11 +2849,13 @@ class MainApp(App):
         if result_code != -1:
 
             self.open_home()
+
             return
 
         if intent is None:
 
             self.open_home()
+
             return
 
         try:
@@ -2541,7 +2873,10 @@ class MainApp(App):
 
         if manual:
 
-            self.open_add("")
+            self.open_add(
+                ""
+            )
+
             return
 
         try:
@@ -2576,14 +2911,18 @@ class MainApp(App):
     ):
 
         if result_code != -1:
+
             return
 
         if intent is None:
+
             return
 
         try:
 
-            uri = intent.getData()
+            uri = (
+                intent.getData()
+            )
 
             if uri is not None:
 
@@ -2599,6 +2938,7 @@ class MainApp(App):
                 str(exc)
             )
 
+
     # =====================================================
     # EXPORT
     # =====================================================
@@ -2608,6 +2948,7 @@ class MainApp(App):
         if not ANDROID:
 
             self._desktop_export()
+
             return
 
         try:
@@ -2658,8 +2999,11 @@ class MainApp(App):
             )
 
             try:
+
                 temp_db.unlink()
+
             except OSError:
+
                 pass
 
             self.message(
@@ -2667,7 +3011,9 @@ class MainApp(App):
                 +
                 str(result)
                 +
-                "\n\nПапка: Downloads"
+                "\n\n"
+                +
+                "Папка: Downloads"
             )
 
         except Exception as exc:
@@ -2681,6 +3027,7 @@ class MainApp(App):
                 +
                 str(exc)
             )
+
 
     # =====================================================
     # IMPORT
@@ -2778,26 +3125,37 @@ class MainApp(App):
             )
 
             try:
+
                 if temp.exists():
+
                     temp.unlink()
+
             except OSError:
+
                 pass
 
-            output = temp.open("wb")
+            output = temp.open(
+                "wb"
+            )
 
             try:
 
                 while True:
 
-                    value = input_stream.read()
+                    value = (
+                        input_stream.read()
+                    )
 
                     if value == -1:
+
                         break
 
                     output.write(
                         bytes(
                             (
-                                value & 0xFF,
+                                value
+                                &
+                                0xFF,
                             )
                         )
                     )
@@ -2824,7 +3182,9 @@ class MainApp(App):
         db_path
     ):
 
-        db_path = Path(db_path)
+        db_path = Path(
+            db_path
+        )
 
         for suffix in (
             "-wal",
@@ -2841,9 +3201,11 @@ class MainApp(App):
             try:
 
                 if sidecar.exists():
+
                     sidecar.unlink()
 
             except OSError:
+
                 pass
 
     def _replace_database(
@@ -2851,7 +3213,9 @@ class MainApp(App):
         source
     ):
 
-        source = Path(source)
+        source = Path(
+            source
+        )
 
         if not source.exists():
 
@@ -2871,8 +3235,13 @@ class MainApp(App):
 
             return
 
-        destination = self.db_path
-        app_dir = destination.parent
+        destination = (
+            self.db_path
+        )
+
+        app_dir = (
+            destination.parent
+        )
 
         backup = (
             app_dir
@@ -2899,6 +3268,7 @@ class MainApp(App):
             )
 
             if replacement.exists():
+
                 replacement.unlink()
 
             shutil.copyfile(
@@ -2928,13 +3298,19 @@ class MainApp(App):
             )
 
             try:
+
                 source.unlink()
+
             except OSError:
+
                 pass
 
             try:
+
                 backup.unlink()
+
             except OSError:
+
                 pass
 
             self.message(
@@ -2959,6 +3335,16 @@ class MainApp(App):
                         "inventory_restore.db"
                     )
 
+                    try:
+
+                        if restore_temp.exists():
+
+                            restore_temp.unlink()
+
+                    except OSError:
+
+                        pass
+
                     shutil.copyfile(
                         str(backup),
                         str(restore_temp)
@@ -2974,6 +3360,7 @@ class MainApp(App):
                 )
 
             except Exception:
+
                 pass
 
             self.message(
@@ -2981,6 +3368,7 @@ class MainApp(App):
                 +
                 str(exc)
             )
+
 
     # =====================================================
     # CLEAR
@@ -3029,21 +3417,35 @@ class MainApp(App):
             background_color=RED,
         )
 
-        buttons.add_widget(cancel)
-        buttons.add_widget(clear)
+        buttons.add_widget(
+            cancel
+        )
 
-        content.add_widget(label)
-        content.add_widget(buttons)
+        buttons.add_widget(
+            clear
+        )
+
+        content.add_widget(
+            label
+        )
+
+        content.add_widget(
+            buttons
+        )
 
         popup = Popup(
             title=APP_TITLE,
             content=content,
-            size_hint=(0.90, 0.50),
+            size_hint=(
+                0.90,
+                0.50,
+            ),
             auto_dismiss=False,
         )
 
         cancel.bind(
-            on_release=popup.dismiss
+            on_release=
+            popup.dismiss
         )
 
         def do_clear(*_):
@@ -3059,10 +3461,12 @@ class MainApp(App):
             self.open_home()
 
         clear.bind(
-            on_release=do_clear
+            on_release=
+            do_clear
         )
 
         popup.open()
+
 
     # =====================================================
     # MESSAGE
@@ -3100,21 +3504,31 @@ class MainApp(App):
             height=dp(48),
         )
 
-        content.add_widget(label)
-        content.add_widget(ok)
+        content.add_widget(
+            label
+        )
+
+        content.add_widget(
+            ok
+        )
 
         popup = Popup(
             title=APP_TITLE,
             content=content,
-            size_hint=(0.90, 0.55),
+            size_hint=(
+                0.90,
+                0.55,
+            ),
             auto_dismiss=False,
         )
 
         ok.bind(
-            on_release=popup.dismiss
+            on_release=
+            popup.dismiss
         )
 
         popup.open()
+
 
     # =====================================================
     # DESKTOP
@@ -3145,7 +3559,9 @@ class MainApp(App):
             self.message(
                 "База сохранена:\n"
                 +
-                str(destination)
+                str(
+                    destination
+                )
             )
 
         except Exception as exc:
@@ -3155,6 +3571,7 @@ class MainApp(App):
                 +
                 str(exc)
             )
+
 
     # =====================================================
     # STOP
@@ -3176,6 +3593,7 @@ class MainApp(App):
                 )
 
             except Exception:
+
                 pass
 
         try:
@@ -3186,6 +3604,7 @@ class MainApp(App):
             )
 
         except Exception:
+
             pass
 
         if hasattr(
