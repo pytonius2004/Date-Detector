@@ -1352,11 +1352,27 @@ class BaseScreen(Screen):
 
 class HomeScreen(BaseScreen):
 
+    def __init__(
+        self,
+        **kwargs
+    ):
+        super().__init__(
+            **kwargs
+        )
+        self.filter_mode = "all"
+
     def on_pre_enter(
         self,
         *_
     ):
 
+        self.refresh()
+
+    def set_filter(
+        self,
+        mode
+    ):
+        self.filter_mode = mode
         self.refresh()
 
     def refresh(self):
@@ -1415,6 +1431,30 @@ class HomeScreen(BaseScreen):
                     exp_date,
                 )
             )
+
+        # Фильтр главного списка.
+        # expired: дата раньше сегодняшней
+        # expiring: срок сегодня
+        # no_date: активного срока нет
+        if self.filter_mode == "expired":
+            active = [
+                item
+                for item in active
+                if item[1] < today
+            ]
+            completed = []
+
+        elif self.filter_mode == "expiring":
+            active = [
+                item
+                for item in active
+                if item[1] == today
+            ]
+            completed = []
+
+        elif self.filter_mode == "no_date":
+            active = []
+            # completed уже содержит товары без активной даты
 
         for product, exp_date in active:
 
@@ -2143,7 +2183,7 @@ class MainApp(App):
         actions = BoxLayout(
             size_hint_y=None,
             height=dp(58),
-            spacing=dp(10),
+            spacing=dp(8),
         )
 
         add_button = RoundedButton(
@@ -2151,6 +2191,7 @@ class MainApp(App):
             font_size="16sp",
             normal_color=ACCENT_RED,
             down_color=ACCENT_RED_DOWN,
+            size_hint_x=0.48,
         )
 
         add_button.bind(
@@ -2161,11 +2202,23 @@ class MainApp(App):
         settings_button = RoundedButton(
             text="Настройки",
             font_size="15sp",
+            size_hint_x=0.38,
         )
 
         settings_button.bind(
             on_release=lambda *_:
             self.open_settings()
+        )
+
+        sort_button = RoundedButton(
+            text="≡",
+            font_size="25sp",
+            size_hint_x=0.14,
+        )
+
+        sort_button.bind(
+            on_release=lambda *_:
+            self.open_sort_popup()
         )
 
         actions.add_widget(
@@ -2174,6 +2227,10 @@ class MainApp(App):
 
         actions.add_widget(
             settings_button
+        )
+
+        actions.add_widget(
+            sort_button
         )
 
         root.add_widget(
@@ -2679,6 +2736,78 @@ class MainApp(App):
         )
 
         return screen
+
+
+    # =====================================================
+    # SORT / FILTER
+    # =====================================================
+
+    def open_sort_popup(self):
+
+        content = BoxLayout(
+            orientation="vertical",
+            padding=dp(12),
+            spacing=dp(9),
+        )
+
+        popup = Popup(
+            title="Сортировка",
+            content=content,
+            size_hint=(
+                0.88,
+                0.52,
+            ),
+            auto_dismiss=True,
+        )
+
+        options = (
+            ("Все товары", "all"),
+            ("Просроченный товар", "expired"),
+            ("Истекающий товар", "expiring"),
+            ("Без даты", "no_date"),
+        )
+
+        home = self.sm.get_screen(
+            "home"
+        )
+
+        for title, mode in options:
+
+            button = RoundedButton(
+                text=title,
+                size_hint_y=None,
+                height=dp(52),
+                font_size="15sp",
+                normal_color=(
+                    ACCENT_RED
+                    if home.filter_mode == mode
+                    else BUTTON_BG
+                ),
+                down_color=(
+                    ACCENT_RED_DOWN
+                    if home.filter_mode == mode
+                    else BUTTON_BG_DOWN
+                ),
+            )
+
+            def choose(
+                _button,
+                selected_mode=mode
+            ):
+                home.set_filter(
+                    selected_mode
+                )
+                popup.dismiss()
+
+            button.bind(
+                on_release=choose
+            )
+
+            content.add_widget(
+                button
+            )
+
+        popup.open()
 
 
     # =====================================================
