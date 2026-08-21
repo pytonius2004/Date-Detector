@@ -94,12 +94,10 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки товаров"
+
 DB_NAME = "inventory.db"
 
 DATE_DB_FORMAT = "%Y-%m-%d"
-
-# Теперь пользователь видит 28.08.26,
-# а не 28.08.2026.
 DATE_USER_FORMAT = "%d.%m.%y"
 
 REQUEST_SCAN_BARCODE = 7001
@@ -119,31 +117,46 @@ def normalize_barcode(value):
 
 
 def barcode_variants(barcode):
-    """
-    Иногда EAN/UPC сканер может вернуть код с ведущим нулём,
-    а вручную товар был записан без него.
 
-    Поэтому проверяем несколько безопасных вариантов.
-    """
-
-    barcode = normalize_barcode(barcode)
+    barcode = normalize_barcode(
+        barcode
+    )
 
     if not barcode:
         return []
 
-    result = [barcode]
+    result = [
+        barcode
+    ]
 
-    if barcode.startswith("0") and len(barcode) > 1:
-        result.append(barcode[1:])
+    # Иногда UPC/EAN может отличаться
+    # только ведущим нулём.
+    if (
+        barcode.startswith("0")
+        and
+        len(barcode) > 1
+    ):
+        result.append(
+            barcode[1:]
+        )
 
-    if len(barcode) == 12 and barcode.isdigit():
-        result.append("0" + barcode)
+    if (
+        len(barcode) == 12
+        and
+        barcode.isdigit()
+    ):
+        result.append(
+            "0" + barcode
+        )
 
     unique = []
 
     for item in result:
+
         if item not in unique:
-            unique.append(item)
+            unique.append(
+                item
+            )
 
     return unique
 
@@ -155,31 +168,50 @@ def barcode_variants(barcode):
 def parse_user_date(value):
     """
     Пользователь вводит:
+
         280826
-    или поле уже содержит:
+
+    Поле показывает:
+
         28.08.26
 
-    В базе сохраняем:
+    В БД сохраняется:
+
         2026-08-28
     """
 
-    value = str(value).strip()
+    value = str(
+        value
+    ).strip()
 
     digits = "".join(
-        ch for ch in value
-        if ch.isdigit()
+        char
+        for char in value
+        if char.isdigit()
     )
 
-    # Основной новый формат: ДДММГГ
+    # ДДММГГ
     if len(digits) == 6:
 
         try:
-            day = int(digits[0:2])
-            month = int(digits[2:4])
-            short_year = int(digits[4:6])
 
-            # Для сроков товаров логично считать 26 = 2026.
-            year = 2000 + short_year
+            day = int(
+                digits[0:2]
+            )
+
+            month = int(
+                digits[2:4]
+            )
+
+            short_year = int(
+                digits[4:6]
+            )
+
+            year = (
+                2000
+                +
+                short_year
+            )
 
             parsed = date(
                 year,
@@ -192,15 +224,25 @@ def parse_user_date(value):
             )
 
         except ValueError:
+
             return None
 
-    # На всякий случай принимаем старый формат ДДММГГГГ.
+    # На всякий случай понимаем и ДДММГГГГ.
     if len(digits) == 8:
 
         try:
-            day = int(digits[0:2])
-            month = int(digits[2:4])
-            year = int(digits[4:8])
+
+            day = int(
+                digits[0:2]
+            )
+
+            month = int(
+                digits[2:4]
+            )
+
+            year = int(
+                digits[4:8]
+            )
 
             parsed = date(
                 year,
@@ -213,6 +255,7 @@ def parse_user_date(value):
             )
 
         except ValueError:
+
             return None
 
     return None
@@ -243,18 +286,65 @@ def format_date(value):
 
 class DateInput(TextInput):
     """
-    Пользователь нажимает:
+    Пользователь вводит:
 
-        2 8 0 8 2 6
+        2
+        8
+        0
+        8
+        2
+        6
 
-    В поле автоматически получается:
+    Получается:
 
         28.08.26
 
-    Точки нажимать вообще не нужно.
+    Точки вводить вручную не нужно.
     """
 
-    _changing_text = False
+    def _format_digits(
+        self,
+        digits
+    ):
+
+        digits = "".join(
+            char
+            for char in digits
+            if char.isdigit()
+        )[:6]
+
+        if len(digits) <= 2:
+
+            return digits
+
+        if len(digits) <= 4:
+
+            return (
+                digits[:2]
+                +
+                "."
+                +
+                digits[2:]
+            )
+
+        return (
+            digits[:2]
+            +
+            "."
+            +
+            digits[2:4]
+            +
+            "."
+            +
+            digits[4:6]
+        )
+
+    def _move_cursor_to_end(self, *_):
+
+        self.cursor = (
+            len(self.text),
+            0
+        )
 
     def insert_text(
         self,
@@ -262,89 +352,76 @@ class DateInput(TextInput):
         from_undo=False
     ):
 
-        # Принимаем от клавиатуры только цифры.
-        digits = "".join(
+        new_digits = "".join(
             char
             for char in substring
             if char.isdigit()
         )
 
-        if not digits:
+        if not new_digits:
             return
 
-        # Сколько цифр уже находится в поле.
         current_digits = "".join(
             char
             for char in self.text
             if char.isdigit()
         )
 
-        remaining = 6 - len(current_digits)
-
-        if remaining <= 0:
-            return
-
-        digits = digits[:remaining]
-
-        super().insert_text(
-            digits,
-            from_undo=from_undo
+        free_space = (
+            6
+            -
+            len(current_digits)
         )
 
-    def on_text(
+        if free_space <= 0:
+            return
+
+        new_digits = new_digits[
+            :free_space
+        ]
+
+        all_digits = (
+            current_digits
+            +
+            new_digits
+        )
+
+        self.text = self._format_digits(
+            all_digits
+        )
+
+        Clock.schedule_once(
+            self._move_cursor_to_end,
+            0
+        )
+
+    def do_backspace(
         self,
-        instance,
-        value
+        from_undo=False,
+        mode="bkspc"
     ):
 
-        if self._changing_text:
-            return
-
-        digits = "".join(
+        current_digits = "".join(
             char
-            for char in value
+            for char in self.text
             if char.isdigit()
-        )[:6]
+        )
 
-        if len(digits) <= 2:
-
-            formatted = digits
-
-        elif len(digits) <= 4:
-
-            formatted = (
-                digits[:2]
-                + "."
-                + digits[2:]
-            )
-
-        else:
-
-            formatted = (
-                digits[:2]
-                + "."
-                + digits[2:4]
-                + "."
-                + digits[4:6]
-            )
-
-        if formatted == value:
+        if not current_digits:
             return
 
-        self._changing_text = True
+        current_digits = (
+            current_digits[:-1]
+        )
 
-        try:
+        self.text = self._format_digits(
+            current_digits
+        )
 
-            self.text = formatted
-
-            self.cursor = (
-                len(formatted),
-                0
-            )
-
-        finally:
-
-            self._changing_text = False
+        Clock.schedule_once(
+            self._move_cursor_to_end,
+            0
+        )
 
 
 # =========================================================
@@ -355,13 +432,19 @@ class Database:
 
     def __init__(self, path):
 
-        self.path = Path(path)
-
-        self.conn = sqlite3.connect(
-            str(self.path)
+        self.path = Path(
+            path
         )
 
-        self.conn.row_factory = sqlite3.Row
+        self.conn = sqlite3.connect(
+            str(
+                self.path
+            )
+        )
+
+        self.conn.row_factory = (
+            sqlite3.Row
+        )
 
         self.conn.execute(
             "PRAGMA foreign_keys = ON"
@@ -393,7 +476,10 @@ class Database:
 
             CREATE UNIQUE INDEX IF NOT EXISTS
             idx_barcode_expiration
-            ON expirations(barcode, exp_date);
+            ON expirations(
+                barcode,
+                exp_date
+            );
 
             CREATE INDEX IF NOT EXISTS
             idx_active_expirations
@@ -411,6 +497,7 @@ class Database:
 
         try:
             self.conn.close()
+
         except Exception:
             pass
 
@@ -426,7 +513,10 @@ class Database:
 
         self.conn.commit()
 
-    def get_product(self, barcode):
+    def get_product(
+        self,
+        barcode
+    ):
 
         for candidate in barcode_variants(
             barcode
@@ -438,10 +528,13 @@ class Database:
                 FROM products
                 WHERE barcode = ?
                 """,
-                (candidate,),
+                (
+                    candidate,
+                ),
             ).fetchone()
 
             if row is not None:
+
                 return row
 
         return None
@@ -464,7 +557,11 @@ class Database:
 
         if existing:
 
-            real_barcode = existing["barcode"]
+            real_barcode = (
+                existing[
+                    "barcode"
+                ]
+            )
 
             self.conn.execute(
                 """
@@ -474,7 +571,7 @@ class Database:
                 """,
                 (
                     name,
-                    real_barcode
+                    real_barcode,
                 ),
             )
 
@@ -513,8 +610,15 @@ class Database:
         )
 
         if existing_product:
-            barcode = existing_product["barcode"]
+
+            barcode = (
+                existing_product[
+                    "barcode"
+                ]
+            )
+
         else:
+
             barcode = normalize_barcode(
                 barcode
             )
@@ -558,7 +662,12 @@ class Database:
         )
 
         if product:
-            barcode = product["barcode"]
+
+            barcode = (
+                product[
+                    "barcode"
+                ]
+            )
 
         return self.conn.execute(
             """
@@ -570,7 +679,9 @@ class Database:
                 exp_date ASC,
                 id ASC
             """,
-            (barcode,),
+            (
+                barcode,
+            ),
         ).fetchall()
 
     def get_all_expirations(
@@ -583,7 +694,12 @@ class Database:
         )
 
         if product:
-            barcode = product["barcode"]
+
+            barcode = (
+                product[
+                    "barcode"
+                ]
+            )
 
         return self.conn.execute(
             """
@@ -595,7 +711,9 @@ class Database:
                 exp_date ASC,
                 id ASC
             """,
-            (barcode,),
+            (
+                barcode,
+            ),
         ).fetchall()
 
     def get_next_expiration(
@@ -608,7 +726,12 @@ class Database:
         )
 
         if product:
-            barcode = product["barcode"]
+
+            barcode = (
+                product[
+                    "barcode"
+                ]
+            )
 
         return self.conn.execute(
             """
@@ -621,7 +744,9 @@ class Database:
                 id ASC
             LIMIT 1
             """,
-            (barcode,),
+            (
+                barcode,
+            ),
         ).fetchone()
 
     def write_off_next(
@@ -634,6 +759,7 @@ class Database:
         )
 
         if not row:
+
             return False
 
         self.conn.execute(
@@ -642,7 +768,11 @@ class Database:
             SET written_off = 1
             WHERE id = ?
             """,
-            (row["id"],),
+            (
+                row[
+                    "id"
+                ],
+            ),
         )
 
         self.conn.commit()
@@ -693,9 +823,14 @@ class Database:
             """
         ).fetchall()
 
-    def backup_to(self, target):
+    def backup_to(
+        self,
+        target
+    ):
 
-        target = Path(target)
+        target = Path(
+            target
+        )
 
         target.parent.mkdir(
             parents=True,
@@ -703,15 +838,21 @@ class Database:
         )
 
         if target.exists():
+
             target.unlink()
 
-        target_conn = sqlite3.connect(
-            str(target)
+        target_conn = (
+            sqlite3.connect(
+                str(
+                    target
+                )
+            )
         )
 
         try:
 
             with target_conn:
+
                 self.conn.backup(
                     target_conn
                 )
@@ -726,7 +867,9 @@ class Database:
         try:
 
             con = sqlite3.connect(
-                str(path)
+                str(
+                    path
+                )
             )
 
             tables = {
@@ -743,9 +886,13 @@ class Database:
             con.close()
 
             return (
-                "products" in tables
+                "products"
+                in
+                tables
                 and
-                "expirations" in tables
+                "expirations"
+                in
+                tables
             )
 
         except Exception:
@@ -759,13 +906,18 @@ class Database:
 
 class BaseScreen(Screen):
 
-    def __init__(self, **kwargs):
+    def __init__(
+        self,
+        **kwargs
+    ):
 
         super().__init__(
             **kwargs
         )
 
-        self.app = App.get_running_app()
+        self.app = (
+            App.get_running_app()
+        )
 
 
 # =========================================================
@@ -774,7 +926,10 @@ class BaseScreen(Screen):
 
 class HomeScreen(BaseScreen):
 
-    def on_pre_enter(self, *_):
+    def on_pre_enter(
+        self,
+        *_
+    ):
 
         self.refresh()
 
@@ -787,7 +942,9 @@ class HomeScreen(BaseScreen):
         yesterday = (
             today
             -
-            timedelta(days=1)
+            timedelta(
+                days=1
+            )
         )
 
         active = []
@@ -797,7 +954,9 @@ class HomeScreen(BaseScreen):
             self.app.db.get_product_list()
         ):
 
-            if not product["next_exp"]:
+            if not product[
+                "next_exp"
+            ]:
 
                 completed.append(
                     product
@@ -807,10 +966,14 @@ class HomeScreen(BaseScreen):
 
             try:
 
-                exp_date = datetime.strptime(
-                    product["next_exp"],
-                    DATE_DB_FORMAT
-                ).date()
+                exp_date = (
+                    datetime.strptime(
+                        product[
+                            "next_exp"
+                        ],
+                        DATE_DB_FORMAT
+                    ).date()
+                )
 
             except ValueError:
 
@@ -848,7 +1011,9 @@ class HomeScreen(BaseScreen):
                 ),
                 markup=True,
                 size_hint_y=None,
-                height=dp(36),
+                height=dp(
+                    36
+                ),
                 halign="center",
                 valign="middle"
             )
@@ -877,7 +1042,11 @@ class HomeScreen(BaseScreen):
                     )
                 )
 
-        if not active and not completed:
+        if (
+            not active
+            and
+            not completed
+        ):
 
             empty_label = Label(
                 text=(
@@ -885,7 +1054,9 @@ class HomeScreen(BaseScreen):
                     "Нажми «Добавить срок»."
                 ),
                 size_hint_y=None,
-                height=dp(150),
+                height=dp(
+                    150
+                ),
                 halign="center",
                 valign="middle"
             )
@@ -999,7 +1170,9 @@ class HomeScreen(BaseScreen):
         button = Button(
             text=text,
             size_hint_y=None,
-            height=dp(92),
+            height=dp(
+                92
+            ),
             background_normal="",
             background_color=background,
             color=foreground,
@@ -1018,7 +1191,9 @@ class HomeScreen(BaseScreen):
                 instance,
                 "text_size",
                 (
-                    value[0] - dp(22),
+                    value[0]
+                    -
+                    dp(22),
                     value[1]
                 )
             )
@@ -1027,7 +1202,9 @@ class HomeScreen(BaseScreen):
         button.bind(
             on_release=lambda *_:
             self.app.open_product(
-                product["barcode"]
+                product[
+                    "barcode"
+                ]
             )
         )
 
@@ -1035,7 +1212,7 @@ class HomeScreen(BaseScreen):
 
 
 # =========================================================
-# ADD PRODUCT SCREEN
+# ADD PRODUCT
 # =========================================================
 
 class AddProductScreen(BaseScreen):
@@ -1087,6 +1264,7 @@ class AddProductScreen(BaseScreen):
         )
 
         if not barcode:
+
             return
 
         product = (
@@ -1096,10 +1274,13 @@ class AddProductScreen(BaseScreen):
         )
 
         if product is None:
+
             return
 
         saved_name = (
-            product["name"]
+            product[
+                "name"
+            ]
             or
             ""
         ).strip()
@@ -1121,6 +1302,7 @@ class AddProductScreen(BaseScreen):
         )
 
         if not barcode:
+
             return
 
         Clock.schedule_once(
@@ -1155,7 +1337,6 @@ class AddProductScreen(BaseScreen):
 
             return
 
-        # Финальная проверка БД.
         if not name:
 
             product = (
@@ -1167,7 +1348,9 @@ class AddProductScreen(BaseScreen):
             if product:
 
                 name = (
-                    product["name"]
+                    product[
+                        "name"
+                    ]
                     or
                     ""
                 ).strip()
@@ -1211,12 +1394,12 @@ class AddProductScreen(BaseScreen):
             name
         )
 
-        # Если товар уже существовал под вариантом
-        # штрихкода, берём его реальный ключ.
         if existing_product:
 
             barcode_for_expiration = (
-                existing_product["barcode"]
+                existing_product[
+                    "barcode"
+                ]
             )
 
         else:
@@ -1250,7 +1433,9 @@ class AddProductScreen(BaseScreen):
 
 class ProductScreen(BaseScreen):
 
-    barcode = StringProperty("")
+    barcode = StringProperty(
+        ""
+    )
 
     def load(
         self,
@@ -1264,14 +1449,19 @@ class ProductScreen(BaseScreen):
         )
 
         if not product:
+
             return
 
         self.barcode = (
-            product["barcode"]
+            product[
+                "barcode"
+            ]
         )
 
         self.product_name_label.text = (
-            product["name"]
+            product[
+                "name"
+            ]
             or
             "Без названия"
         )
@@ -1294,7 +1484,9 @@ class ProductScreen(BaseScreen):
                 "Ближайший срок: "
                 +
                 format_date(
-                    active[0]["exp_date"]
+                    active[0][
+                        "exp_date"
+                    ]
                 )
             )
 
@@ -1314,14 +1506,19 @@ class ProductScreen(BaseScreen):
 
             status = (
                 "СПИСАНО"
-                if item["written_off"]
+                if
+                item[
+                    "written_off"
+                ]
                 else
                 "АКТИВЕН"
             )
 
             history.append(
                 format_date(
-                    item["exp_date"]
+                    item[
+                        "exp_date"
+                    ]
                 )
                 +
                 " — "
@@ -1330,14 +1527,18 @@ class ProductScreen(BaseScreen):
             )
 
         self.history_label.text = (
-            "\n".join(history)
+            "\n".join(
+                history
+            )
             if history
             else
             "История пока пустая."
         )
 
         self.writeoff_button.disabled = (
-            not bool(active)
+            not bool(
+                active
+            )
         )
 
     def write_off(self):
@@ -1365,7 +1566,9 @@ class ProductScreen(BaseScreen):
                 "Следующий срок:\n"
                 +
                 format_date(
-                    next_item["exp_date"]
+                    next_item[
+                        "exp_date"
+                    ]
                 )
             )
 
@@ -1384,6 +1587,10 @@ class ProductScreen(BaseScreen):
         self.app.open_home()
 
 
+# =========================================================
+# SETTINGS SCREEN
+# =========================================================
+
 class SettingsScreen(BaseScreen):
     pass
 
@@ -1399,7 +1606,9 @@ class MainApp(App):
     def build(self):
 
         self.db_path = (
-            Path(self.user_data_dir)
+            Path(
+                self.user_data_dir
+            )
             /
             DB_NAME
         )
@@ -1473,6 +1682,7 @@ class MainApp(App):
     ):
 
         if key != 27:
+
             return False
 
         if self.sm.current != "home":
@@ -1511,7 +1721,9 @@ class MainApp(App):
             halign="center",
             valign="middle",
             size_hint_y=None,
-            height=dp(55)
+            height=dp(
+                55
+            )
         )
 
         title.bind(
@@ -1529,8 +1741,12 @@ class MainApp(App):
 
         actions = BoxLayout(
             size_hint_y=None,
-            height=dp(56),
-            spacing=dp(8)
+            height=dp(
+                56
+            ),
+            spacing=dp(
+                8
+            )
         )
 
         add_button = Button(
@@ -1571,7 +1787,9 @@ class MainApp(App):
 
         product_list = BoxLayout(
             orientation="vertical",
-            spacing=dp(7),
+            spacing=dp(
+                7
+            ),
             size_hint_y=None
         )
 
@@ -1612,14 +1830,20 @@ class MainApp(App):
 
         root = BoxLayout(
             orientation="vertical",
-            padding=dp(12),
-            spacing=dp(8)
+            padding=dp(
+                12
+            ),
+            spacing=dp(
+                8
+            )
         )
 
         back = Button(
             text="← Назад",
             size_hint_y=None,
-            height=dp(48)
+            height=dp(
+                48
+            )
         )
 
         back.bind(
@@ -1636,7 +1860,9 @@ class MainApp(App):
             font_size="23sp",
             bold=True,
             size_hint_y=None,
-            height=dp(52),
+            height=dp(
+                52
+            ),
             halign="center",
             valign="middle"
         )
@@ -1662,7 +1888,9 @@ class MainApp(App):
                 "название заполнится автоматически."
             ),
             size_hint_y=None,
-            height=dp(82),
+            height=dp(
+                82
+            ),
             halign="center",
             valign="middle",
             font_size="14sp"
@@ -1674,7 +1902,9 @@ class MainApp(App):
                 instance,
                 "text_size",
                 (
-                    value[0] - dp(24),
+                    value[0]
+                    -
+                    dp(24),
                     None
                 )
             )
@@ -1688,7 +1918,9 @@ class MainApp(App):
             hint_text="Штрихкод",
             multiline=False,
             size_hint_y=None,
-            height=dp(52),
+            height=dp(
+                52
+            ),
             font_size="18sp"
         )
 
@@ -1701,7 +1933,9 @@ class MainApp(App):
             hint_text="Наименование товара",
             multiline=False,
             size_hint_y=None,
-            height=dp(52),
+            height=dp(
+                52
+            ),
             font_size="18sp"
         )
 
@@ -1709,7 +1943,9 @@ class MainApp(App):
             hint_text="ДД.ММ.ГГ",
             multiline=False,
             size_hint_y=None,
-            height=dp(52),
+            height=dp(
+                52
+            ),
             input_type="number",
             font_size="18sp"
         )
@@ -1733,7 +1969,9 @@ class MainApp(App):
         save = Button(
             text="Сохранить срок",
             size_hint_y=None,
-            height=dp(58),
+            height=dp(
+                58
+            ),
             background_normal="",
             background_color=(
                 0.15,
@@ -1752,9 +1990,17 @@ class MainApp(App):
             save
         )
 
-        screen.barcode_input = barcode
-        screen.name_input = name
-        screen.date_input = date_input
+        screen.barcode_input = (
+            barcode
+        )
+
+        screen.name_input = (
+            name
+        )
+
+        screen.date_input = (
+            date_input
+        )
 
         screen.add_widget(
             root
@@ -1774,14 +2020,20 @@ class MainApp(App):
 
         root = BoxLayout(
             orientation="vertical",
-            padding=dp(12),
-            spacing=dp(8)
+            padding=dp(
+                12
+            ),
+            spacing=dp(
+                8
+            )
         )
 
         back = Button(
             text="← Назад",
             size_hint_y=None,
-            height=dp(48)
+            height=dp(
+                48
+            )
         )
 
         back.bind(
@@ -1800,13 +2052,17 @@ class MainApp(App):
             halign="center",
             valign="middle",
             size_hint_y=None,
-            height=dp(50)
+            height=dp(
+                50
+            )
         )
 
         product_barcode = Label(
             text="Штрихкод: —",
             size_hint_y=None,
-            height=dp(30)
+            height=dp(
+                30
+            )
         )
 
         nearest_date = Label(
@@ -1814,7 +2070,9 @@ class MainApp(App):
             font_size="19sp",
             bold=True,
             size_hint_y=None,
-            height=dp(40)
+            height=dp(
+                40
+            )
         )
 
         root.add_widget(
@@ -1834,7 +2092,9 @@ class MainApp(App):
                 text="История сроков",
                 bold=True,
                 size_hint_y=None,
-                height=dp(32)
+                height=dp(
+                    32
+                )
             )
         )
 
@@ -1872,7 +2132,9 @@ class MainApp(App):
         writeoff = Button(
             text="Списано",
             size_hint_y=None,
-            height=dp(60),
+            height=dp(
+                60
+            ),
             background_normal="",
             background_color=(
                 0.86,
@@ -1929,14 +2191,20 @@ class MainApp(App):
 
         root = BoxLayout(
             orientation="vertical",
-            padding=dp(12),
-            spacing=dp(10)
+            padding=dp(
+                12
+            ),
+            spacing=dp(
+                10
+            )
         )
 
         back = Button(
             text="← Назад",
             size_hint_y=None,
-            height=dp(48)
+            height=dp(
+                48
+            )
         )
 
         back.bind(
@@ -1954,7 +2222,9 @@ class MainApp(App):
                 font_size="23sp",
                 bold=True,
                 size_hint_y=None,
-                height=dp(50)
+                height=dp(
+                    50
+                )
             )
         )
 
@@ -1968,14 +2238,18 @@ class MainApp(App):
                 halign="center",
                 valign="middle",
                 size_hint_y=None,
-                height=dp(95)
+                height=dp(
+                    95
+                )
             )
         )
 
         export_button = Button(
             text="Экспортировать БД",
             size_hint_y=None,
-            height=dp(58)
+            height=dp(
+                58
+            )
         )
 
         export_button.bind(
@@ -1990,7 +2264,9 @@ class MainApp(App):
         import_button = Button(
             text="Импортировать БД",
             size_hint_y=None,
-            height=dp(58)
+            height=dp(
+                58
+            )
         )
 
         import_button.bind(
@@ -2005,7 +2281,9 @@ class MainApp(App):
         clear_button = Button(
             text="Очистить БД",
             size_hint_y=None,
-            height=dp(58),
+            height=dp(
+                58
+            ),
             background_normal="",
             background_color=(
                 0.86,
@@ -2040,7 +2318,9 @@ class MainApp(App):
 
     def open_home(self):
 
-        self.sm.current = "home"
+        self.sm.current = (
+            "home"
+        )
 
         self.sm.get_screen(
             "home"
@@ -2051,10 +2331,14 @@ class MainApp(App):
         barcode=""
     ):
 
-        self.sm.current = "add"
-
-        screen = self.sm.get_screen(
+        self.sm.current = (
             "add"
+        )
+
+        screen = (
+            self.sm.get_screen(
+                "add"
+            )
         )
 
         screen.clear_form()
@@ -2082,7 +2366,9 @@ class MainApp(App):
         barcode
     ):
 
-        self.sm.current = "product"
+        self.sm.current = (
+            "product"
+        )
 
         self.sm.get_screen(
             "product"
@@ -2092,7 +2378,9 @@ class MainApp(App):
 
     def open_settings(self):
 
-        self.sm.current = "settings"
+        self.sm.current = (
+            "settings"
+        )
 
     # =====================================================
     # BARCODE SCANNER
@@ -2206,11 +2494,13 @@ class MainApp(App):
         if result_code != -1:
 
             self.open_home()
+
             return
 
         if intent is None:
 
             self.open_home()
+
             return
 
         try:
@@ -2228,7 +2518,10 @@ class MainApp(App):
 
         if manual:
 
-            self.open_add("")
+            self.open_add(
+                ""
+            )
+
             return
 
         try:
@@ -2263,9 +2556,11 @@ class MainApp(App):
     ):
 
         if result_code != -1:
+
             return
 
         if intent is None:
+
             return
 
         try:
@@ -2295,6 +2590,7 @@ class MainApp(App):
         if not ANDROID:
 
             self._desktop_export()
+
             return
 
         if not PYJNIUS_AVAILABLE:
@@ -2310,7 +2606,9 @@ class MainApp(App):
         try:
 
             temp_db = (
-                Path(self.user_data_dir)
+                Path(
+                    self.user_data_dir
+                )
                 /
                 "inventory_export.db"
             )
@@ -2322,23 +2620,15 @@ class MainApp(App):
             filename = (
                 "inventory_"
                 +
-                date.today().strftime(
+                datetime.now().strftime(
                     "%Y%m%d_%H%M%S"
                 )
                 +
                 ".db"
             )
 
-            # =============================================
-            # ИСПРАВЛЕНИЕ ОШИБКИ СО СКРИНШОТА
-            #
-            # Было неправильно:
-            # android.os.Build.VERSION
-            #
-            # VERSION является вложенным Java-классом:
-            # android.os.Build$VERSION
-            # =============================================
-
+            # Android VERSION — это отдельный
+            # вложенный Java-класс.
             BuildVersion = autoclass(
                 "android.os.Build$VERSION"
             )
@@ -2396,6 +2686,18 @@ class MainApp(App):
             "android.provider.MediaStore"
         )
 
+        # =================================================
+        # ВАЖНО:
+        # ContentValues.put перегружен в Java.
+        #
+        # Обычный Python int PyJNIus здесь неоднозначен.
+        # Поэтому передаём настоящий java.lang.Integer.
+        # =================================================
+
+        JavaInteger = autoclass(
+            "java.lang.Integer"
+        )
+
         values = ContentValues()
 
         values.put(
@@ -2408,11 +2710,8 @@ class MainApp(App):
             "application/octet-stream"
         )
 
-        # =============================================
-        # ЭТО ИМЕННО ПУБЛИЧНАЯ DOWNLOADS.
-        # НЕ КЭШ ПРИЛОЖЕНИЯ.
-        # =============================================
-
+        # Публичная папка Downloads.
+        # Это НЕ кэш приложения.
         values.put(
             "relative_path",
             "Download/"
@@ -2420,7 +2719,9 @@ class MainApp(App):
 
         values.put(
             "is_pending",
-            1
+            JavaInteger.valueOf(
+                1
+            )
         )
 
         resolver = (
@@ -2453,6 +2754,15 @@ class MainApp(App):
 
         if output_stream is None:
 
+            try:
+                resolver.delete(
+                    uri,
+                    None,
+                    None
+                )
+            except Exception:
+                pass
+
             raise RuntimeError(
                 "Android не смог открыть "
                 "файл Downloads для записи."
@@ -2460,29 +2770,58 @@ class MainApp(App):
 
         try:
 
-            data = bytearray(
-                Path(
-                    source
-                ).read_bytes()
-            )
+            data = Path(
+                source
+            ).read_bytes()
 
-            # PyJNIus преобразует bytearray
-            # в Java byte[] для OutputStream.write().
-            output_stream.write(
-                data
-            )
+            # Чтобы не использовать jarray, который
+            # отсутствует в твоём PyJNIus, пишем через
+            # OutputStream.write(int).
+            #
+            # База этого приложения маленькая, поэтому
+            # для экспорта это нормально и надёжно.
+            for byte_value in data:
+
+                output_stream.write(
+                    int(
+                        byte_value
+                    )
+                )
 
             output_stream.flush()
 
+        except Exception:
+
+            try:
+                output_stream.close()
+            except Exception:
+                pass
+
+            try:
+                resolver.delete(
+                    uri,
+                    None,
+                    None
+                )
+            except Exception:
+                pass
+
+            raise
+
         finally:
 
-            output_stream.close()
+            try:
+                output_stream.close()
+            except Exception:
+                pass
 
         completed = ContentValues()
 
         completed.put(
             "is_pending",
-            0
+            JavaInteger.valueOf(
+                0
+            )
         )
 
         resolver.update(
@@ -2494,9 +2833,12 @@ class MainApp(App):
 
         try:
 
-            Path(source).unlink()
+            Path(
+                source
+            ).unlink()
 
         except OSError:
+
             pass
 
         self.message(
@@ -2504,7 +2846,9 @@ class MainApp(App):
             +
             filename
             +
-            "\n\nПапка: Downloads"
+            "\n\n"
+            +
+            "Папка: Downloads"
         )
 
     def _export_to_legacy_downloads(
@@ -2526,7 +2870,9 @@ class MainApp(App):
 
         destination = (
             Path(
-                str(downloads)
+                str(
+                    downloads
+                )
             )
             /
             filename
@@ -2544,9 +2890,12 @@ class MainApp(App):
 
         try:
 
-            Path(source).unlink()
+            Path(
+                source
+            ).unlink()
 
         except OSError:
+
             pass
 
         self.message(
@@ -2554,7 +2903,9 @@ class MainApp(App):
             +
             filename
             +
-            "\n\nПапка: Downloads"
+            "\n\n"
+            +
+            "Папка: Downloads"
         )
 
     # =====================================================
@@ -2656,7 +3007,9 @@ class MainApp(App):
                 )
 
             temp = (
-                Path(self.user_data_dir)
+                Path(
+                    self.user_data_dir
+                )
                 /
                 "imported_inventory.db"
             )
@@ -2667,8 +3020,7 @@ class MainApp(App):
 
             try:
 
-                # Не используем jarray —
-                # именно он раньше ломал PyJNIus.
+                # Читаем без jarray.
                 while True:
 
                     value = (
@@ -2676,12 +3028,15 @@ class MainApp(App):
                     )
 
                     if value == -1:
+
                         break
 
                     output.write(
                         bytes(
                             (
-                                value & 0xFF,
+                                value
+                                &
+                                0xFF,
                             )
                         )
                     )
@@ -2689,6 +3044,7 @@ class MainApp(App):
             finally:
 
                 output.close()
+
                 input_stream.close()
 
             self._replace_database(
@@ -2731,22 +3087,47 @@ class MainApp(App):
 
             return
 
+        destination = (
+            self.db_path
+        )
+
+        backup = (
+            Path(
+                self.user_data_dir
+            )
+            /
+            "inventory_before_import.db"
+        )
+
         try:
+
+            # Сначала делаем резервную копию
+            # текущей БД.
+            self.db.backup_to(
+                backup
+            )
 
             self.db.close()
 
             shutil.copy2(
                 source,
-                self.db_path
+                destination
             )
 
             self.db = Database(
-                self.db_path
+                destination
             )
 
             try:
 
                 source.unlink()
+
+            except OSError:
+                pass
+
+            try:
+
+                backup.unlink()
 
             except OSError:
                 pass
@@ -2758,6 +3139,23 @@ class MainApp(App):
             self.open_home()
 
         except Exception as exc:
+
+            try:
+
+                if backup.exists():
+
+                    shutil.copy2(
+                        backup,
+                        destination
+                    )
+
+                    self.db = Database(
+                        destination
+                    )
+
+            except Exception:
+
+                pass
 
             self.message(
                 "Ошибка импорта:\n"
@@ -2773,8 +3171,12 @@ class MainApp(App):
 
         content = BoxLayout(
             orientation="vertical",
-            padding=dp(12),
-            spacing=dp(10)
+            padding=dp(
+                12
+            ),
+            spacing=dp(
+                10
+            )
         )
 
         label = Label(
@@ -2799,8 +3201,12 @@ class MainApp(App):
 
         buttons = BoxLayout(
             size_hint_y=None,
-            height=dp(50),
-            spacing=dp(8)
+            height=dp(
+                50
+            ),
+            spacing=dp(
+                8
+            )
         )
 
         cancel = Button(
@@ -2879,8 +3285,12 @@ class MainApp(App):
 
         content = BoxLayout(
             orientation="vertical",
-            padding=dp(12),
-            spacing=dp(10)
+            padding=dp(
+                12
+            ),
+            spacing=dp(
+                10
+            )
         )
 
         label = Label(
@@ -2901,7 +3311,9 @@ class MainApp(App):
         ok = Button(
             text="OK",
             size_hint_y=None,
-            height=dp(48)
+            height=dp(
+                48
+            )
         )
 
         content.add_widget(
@@ -2930,7 +3342,7 @@ class MainApp(App):
         popup.open()
 
     # =====================================================
-    # DESKTOP
+    # DESKTOP EXPORT
     # =====================================================
 
     def _desktop_export(self):
@@ -2941,8 +3353,8 @@ class MainApp(App):
             (
                 "inventory_"
                 +
-                date.today().strftime(
-                    "%Y%m%d"
+                datetime.now().strftime(
+                    "%Y%m%d_%H%M%S"
                 )
                 +
                 ".db"
@@ -2958,7 +3370,9 @@ class MainApp(App):
             self.message(
                 "База сохранена:\n"
                 +
-                str(destination)
+                str(
+                    destination
+                )
             )
 
         except Exception as exc:
@@ -2989,6 +3403,7 @@ class MainApp(App):
                 )
 
             except Exception:
+
                 pass
 
         try:
@@ -2999,6 +3414,7 @@ class MainApp(App):
             )
 
         except Exception:
+
             pass
 
         if hasattr(
