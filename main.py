@@ -94,18 +94,20 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки товаров"
-
 DB_NAME = "inventory.db"
 
 DATE_DB_FORMAT = "%Y-%m-%d"
-DATE_USER_FORMAT = "%d.%m.%Y"
+
+# Теперь пользователь видит 28.08.26,
+# а не 28.08.2026.
+DATE_USER_FORMAT = "%d.%m.%y"
 
 REQUEST_SCAN_BARCODE = 7001
 REQUEST_IMPORT_DB = 4102
 
 
 # =========================================================
-# HELPERS
+# BARCODE HELPERS
 # =========================================================
 
 def normalize_barcode(value):
@@ -116,28 +118,102 @@ def normalize_barcode(value):
     return str(value).strip()
 
 
+def barcode_variants(barcode):
+    """
+    Иногда EAN/UPC сканер может вернуть код с ведущим нулём,
+    а вручную товар был записан без него.
+
+    Поэтому проверяем несколько безопасных вариантов.
+    """
+
+    barcode = normalize_barcode(barcode)
+
+    if not barcode:
+        return []
+
+    result = [barcode]
+
+    if barcode.startswith("0") and len(barcode) > 1:
+        result.append(barcode[1:])
+
+    if len(barcode) == 12 and barcode.isdigit():
+        result.append("0" + barcode)
+
+    unique = []
+
+    for item in result:
+        if item not in unique:
+            unique.append(item)
+
+    return unique
+
+
+# =========================================================
+# DATE HELPERS
+# =========================================================
+
 def parse_user_date(value):
+    """
+    Пользователь вводит:
+        280826
+    или поле уже содержит:
+        28.08.26
 
-    value = value.strip()
+    В базе сохраняем:
+        2026-08-28
+    """
 
-    for fmt in (
-        DATE_USER_FORMAT,
-        "%Y-%m-%d",
-        "%d/%m/%Y",
-        "%d-%m-%Y",
-    ):
+    value = str(value).strip()
+
+    digits = "".join(
+        ch for ch in value
+        if ch.isdigit()
+    )
+
+    # Основной новый формат: ДДММГГ
+    if len(digits) == 6:
 
         try:
+            day = int(digits[0:2])
+            month = int(digits[2:4])
+            short_year = int(digits[4:6])
 
-            return datetime.strptime(
-                value,
-                fmt
-            ).strftime(
+            # Для сроков товаров логично считать 26 = 2026.
+            year = 2000 + short_year
+
+            parsed = date(
+                year,
+                month,
+                day
+            )
+
+            return parsed.strftime(
                 DATE_DB_FORMAT
             )
 
         except ValueError:
-            pass
+            return None
+
+    # На всякий случай принимаем старый формат ДДММГГГГ.
+    if len(digits) == 8:
+
+        try:
+            day = int(digits[0:2])
+            month = int(digits[2:4])
+            year = int(digits[4:8])
+
+            parsed = date(
+                year,
+                month,
+                day
+            )
+
+            return parsed.strftime(
+                DATE_DB_FORMAT
+            )
+
+        except ValueError:
+            return None
 
     return None
 
@@ -166,8 +242,19 @@ def format_date(value):
 # =========================================================
 
 class DateInput(TextInput):
+    """
+    Пользователь нажимает:
 
-    _internal_change = False
+        2 8 0 8 2 6
+
+    В поле автоматически получается:
+
+        28.08.26
+
+    Точки нажимать вообще не нужно.
+    """
+
+    _changing_text = False
 
     def insert_text(
         self,
@@ -175,25 +262,32 @@ class DateInput(TextInput):
         from_undo=False
     ):
 
-        if self._internal_change:
-
-            return super().insert_text(
-                substring,
-                from_undo=from_undo
-            )
-
-        # Разрешаем только цифры и разделители.
-        filtered = "".join(
-            c
-            for c in substring
-            if c.isdigit() or c in ".-/"
+        # Принимаем от клавиатуры только цифры.
+        digits = "".join(
+            char
+            for char in substring
+            if char.isdigit()
         )
 
-        if not filtered:
+        if not digits:
             return
 
+        # Сколько цифр уже находится в поле.
+        current_digits = "".join(
+            char
+            for char in self.text
+            if char.isdigit()
+        )
+
+        remaining = 6 - len(current_digits)
+
+        if remaining <= 0:
+            return
+
+        digits = digits[:remaining]
+
         super().insert_text(
-            filtered,
+            digits,
             from_undo=from_undo
         )
 
@@ -203,19 +297,14 @@ class DateInput(TextInput):
         value
     ):
 
-        if self._internal_change:
+        if self._changing_text:
             return
 
         digits = "".join(
-            ch
-            for ch in value
-            if ch.isdigit()
-        )[:8]
-
-        if not digits:
-            return
-
-        formatted = ""
+            char
+            for char in value
+            if char.isdigit()
+        )[:6]
 
         if len(digits) <= 2:
 
@@ -225,54 +314,24 @@ class DateInput(TextInput):
 
             formatted = (
                 digits[:2]
-                +
-                "."
-                +
-                digits[2:]
+                + "."
+                + digits[2:]
             )
 
         else:
 
             formatted = (
                 digits[:2]
-                +
-                "."
-                +
-                digits[2:4]
-                +
-                "."
-                +
-                digits[4:]
+                + "."
+                + digits[2:4]
+                + "."
+                + digits[4:6]
             )
-
-        # Если пользователь только что нажал точку после дня
-        # или месяца — оставляем её.
-        if value.endswith((".", "-", "/")):
-
-            if len(digits) == 2:
-
-                formatted = (
-                    digits
-                    +
-                    "."
-                )
-
-            elif len(digits) == 4:
-
-                formatted = (
-                    digits[:2]
-                    +
-                    "."
-                    +
-                    digits[2:4]
-                    +
-                    "."
-                )
 
         if formatted == value:
             return
 
-        self._internal_change = True
+        self._changing_text = True
 
         try:
 
@@ -285,7 +344,7 @@ class DateInput(TextInput):
 
         finally:
 
-            self._internal_change = False
+            self._changing_text = False
 
 
 # =========================================================
@@ -367,23 +426,25 @@ class Database:
 
         self.conn.commit()
 
-    def get_product(
-        self,
-        barcode
-    ):
+    def get_product(self, barcode):
 
-        barcode = normalize_barcode(
+        for candidate in barcode_variants(
             barcode
-        )
+        ):
 
-        return self.conn.execute(
-            """
-            SELECT *
-            FROM products
-            WHERE barcode = ?
-            """,
-            (barcode,),
-        ).fetchone()
+            row = self.conn.execute(
+                """
+                SELECT *
+                FROM products
+                WHERE barcode = ?
+                """,
+                (candidate,),
+            ).fetchone()
+
+            if row is not None:
+                return row
+
+        return None
 
     def save_product(
         self,
@@ -403,6 +464,8 @@ class Database:
 
         if existing:
 
+            real_barcode = existing["barcode"]
+
             self.conn.execute(
                 """
                 UPDATE products
@@ -411,7 +474,7 @@ class Database:
                 """,
                 (
                     name,
-                    barcode
+                    real_barcode
                 ),
             )
 
@@ -443,9 +506,18 @@ class Database:
         exp_date
     ):
 
-        barcode = normalize_barcode(
-            barcode
+        existing_product = (
+            self.get_product(
+                barcode
+            )
         )
+
+        if existing_product:
+            barcode = existing_product["barcode"]
+        else:
+            barcode = normalize_barcode(
+                barcode
+            )
 
         try:
 
@@ -481,9 +553,12 @@ class Database:
         barcode
     ):
 
-        barcode = normalize_barcode(
+        product = self.get_product(
             barcode
         )
+
+        if product:
+            barcode = product["barcode"]
 
         return self.conn.execute(
             """
@@ -503,9 +578,12 @@ class Database:
         barcode
     ):
 
-        barcode = normalize_barcode(
+        product = self.get_product(
             barcode
         )
+
+        if product:
+            barcode = product["barcode"]
 
         return self.conn.execute(
             """
@@ -525,9 +603,12 @@ class Database:
         barcode
     ):
 
-        barcode = normalize_barcode(
+        product = self.get_product(
             barcode
         )
+
+        if product:
+            barcode = product["barcode"]
 
         return self.conn.execute(
             """
@@ -612,10 +693,7 @@ class Database:
             """
         ).fetchall()
 
-    def backup_to(
-        self,
-        target
-    ):
+    def backup_to(self, target):
 
         target = Path(target)
 
@@ -634,7 +712,6 @@ class Database:
         try:
 
             with target_conn:
-
                 self.conn.backup(
                     target_conn
                 )
@@ -677,7 +754,7 @@ class Database:
 
 
 # =========================================================
-# SCREENS
+# BASE SCREEN
 # =========================================================
 
 class BaseScreen(Screen):
@@ -690,6 +767,10 @@ class BaseScreen(Screen):
 
         self.app = App.get_running_app()
 
+
+# =========================================================
+# HOME SCREEN
+# =========================================================
 
 class HomeScreen(BaseScreen):
 
@@ -953,6 +1034,10 @@ class HomeScreen(BaseScreen):
         return button
 
 
+# =========================================================
+# ADD PRODUCT SCREEN
+# =========================================================
+
 class AddProductScreen(BaseScreen):
 
     def clear_form(self):
@@ -974,12 +1059,10 @@ class AddProductScreen(BaseScreen):
             barcode
         )
 
-        # Подставляем сразу.
         self.autofill_product(
             barcode
         )
 
-        # И ещё раз после обновления Kivy.
         Clock.schedule_once(
             lambda *_:
             self.autofill_product(
@@ -1013,18 +1096,19 @@ class AddProductScreen(BaseScreen):
         )
 
         if product is None:
-
             return
 
-        name = (
+        saved_name = (
             product["name"]
             or
             ""
         ).strip()
 
-        if name:
+        if saved_name:
 
-            self.name_input.text = name
+            self.name_input.text = (
+                saved_name
+            )
 
     def on_barcode_change(
         self,
@@ -1071,8 +1155,7 @@ class AddProductScreen(BaseScreen):
 
             return
 
-        # Ещё одна финальная попытка подставить
-        # название перед сохранением.
+        # Финальная проверка БД.
         if not name:
 
             product = (
@@ -1110,19 +1193,40 @@ class AddProductScreen(BaseScreen):
         if not exp_date:
 
             self.app.message(
-                "Введите дату в формате "
-                "ДД.ММ.ГГГГ."
+                "Введите срок в формате "
+                "ДД.ММ.ГГ.\n\n"
+                "Например: 280826 → 28.08.26"
             )
 
             return
+
+        existing_product = (
+            self.app.db.get_product(
+                barcode
+            )
+        )
 
         self.app.db.save_product(
             barcode,
             name
         )
 
+        # Если товар уже существовал под вариантом
+        # штрихкода, берём его реальный ключ.
+        if existing_product:
+
+            barcode_for_expiration = (
+                existing_product["barcode"]
+            )
+
+        else:
+
+            barcode_for_expiration = (
+                barcode
+            )
+
         if not self.app.db.add_expiration(
-            barcode,
+            barcode_for_expiration,
             exp_date
         ):
 
@@ -1140,6 +1244,10 @@ class AddProductScreen(BaseScreen):
         self.app.open_home()
 
 
+# =========================================================
+# PRODUCT SCREEN
+# =========================================================
+
 class ProductScreen(BaseScreen):
 
     barcode = StringProperty("")
@@ -1149,18 +1257,18 @@ class ProductScreen(BaseScreen):
         barcode
     ):
 
-        self.barcode = normalize_barcode(
-            barcode
-        )
-
         product = (
             self.app.db.get_product(
-                self.barcode
+                barcode
             )
         )
 
         if not product:
             return
+
+        self.barcode = (
+            product["barcode"]
+        )
 
         self.product_name_label.text = (
             product["name"]
@@ -1281,7 +1389,7 @@ class SettingsScreen(BaseScreen):
 
 
 # =========================================================
-# APP
+# MAIN APP
 # =========================================================
 
 class MainApp(App):
@@ -1365,7 +1473,6 @@ class MainApp(App):
     ):
 
         if key != 27:
-
             return False
 
         if self.sm.current != "home":
@@ -1377,7 +1484,7 @@ class MainApp(App):
         return False
 
     # =====================================================
-    # HOME
+    # HOME UI
     # =====================================================
 
     def create_home_screen(self):
@@ -1494,7 +1601,7 @@ class MainApp(App):
         return screen
 
     # =====================================================
-    # ADD
+    # ADD UI
     # =====================================================
 
     def create_add_screen(self):
@@ -1567,7 +1674,7 @@ class MainApp(App):
                 instance,
                 "text_size",
                 (
-                    value[0] - dp(20),
+                    value[0] - dp(24),
                     None
                 )
             )
@@ -1599,7 +1706,7 @@ class MainApp(App):
         )
 
         date_input = DateInput(
-            hint_text="ДД.ММ.ГГГГ",
+            hint_text="ДД.ММ.ГГ",
             multiline=False,
             size_hint_y=None,
             height=dp(52),
@@ -1656,7 +1763,7 @@ class MainApp(App):
         return screen
 
     # =====================================================
-    # PRODUCT
+    # PRODUCT UI
     # =====================================================
 
     def create_product_screen(self):
@@ -1811,7 +1918,7 @@ class MainApp(App):
         return screen
 
     # =====================================================
-    # SETTINGS
+    # SETTINGS UI
     # =====================================================
 
     def create_settings_screen(self):
@@ -1946,10 +2053,8 @@ class MainApp(App):
 
         self.sm.current = "add"
 
-        screen = (
-            self.sm.get_screen(
-                "add"
-            )
+        screen = self.sm.get_screen(
+            "add"
         )
 
         screen.clear_form()
@@ -1957,9 +2062,7 @@ class MainApp(App):
         if barcode:
 
             screen.load_barcode(
-                normalize_barcode(
-                    barcode
-                )
+                barcode
             )
 
         else:
@@ -1992,7 +2095,7 @@ class MainApp(App):
         self.sm.current = "settings"
 
     # =====================================================
-    # SCANNER
+    # BARCODE SCANNER
     # =====================================================
 
     def start_barcode_scanner(self):
@@ -2103,13 +2206,11 @@ class MainApp(App):
         if result_code != -1:
 
             self.open_home()
-
             return
 
         if intent is None:
 
             self.open_home()
-
             return
 
         try:
@@ -2127,10 +2228,7 @@ class MainApp(App):
 
         if manual:
 
-            self.open_add(
-                ""
-            )
-
+            self.open_add("")
             return
 
         try:
@@ -2197,7 +2295,6 @@ class MainApp(App):
         if not ANDROID:
 
             self._desktop_export()
-
             return
 
         if not PYJNIUS_AVAILABLE:
@@ -2226,18 +2323,28 @@ class MainApp(App):
                 "inventory_"
                 +
                 date.today().strftime(
-                    "%Y%m%d"
+                    "%Y%m%d_%H%M%S"
                 )
                 +
                 ".db"
             )
 
-            Build = autoclass(
-                "android.os.Build"
+            # =============================================
+            # ИСПРАВЛЕНИЕ ОШИБКИ СО СКРИНШОТА
+            #
+            # Было неправильно:
+            # android.os.Build.VERSION
+            #
+            # VERSION является вложенным Java-классом:
+            # android.os.Build$VERSION
+            # =============================================
+
+            BuildVersion = autoclass(
+                "android.os.Build$VERSION"
             )
 
             sdk = int(
-                Build.VERSION.SDK_INT
+                BuildVersion.SDK_INT
             )
 
             if sdk >= 29:
@@ -2258,6 +2365,10 @@ class MainApp(App):
 
             self.message(
                 "Не удалось экспортировать БД:\n\n"
+                +
+                type(exc).__name__
+                +
+                ": "
                 +
                 str(exc)
             )
@@ -2297,7 +2408,11 @@ class MainApp(App):
             "application/octet-stream"
         )
 
-        # PUBLIC DOWNLOADS
+        # =============================================
+        # ЭТО ИМЕННО ПУБЛИЧНАЯ DOWNLOADS.
+        # НЕ КЭШ ПРИЛОЖЕНИЯ.
+        # =============================================
+
         values.put(
             "relative_path",
             "Download/"
@@ -2313,9 +2428,13 @@ class MainApp(App):
             .getContentResolver()
         )
 
-        uri = resolver.insert(
+        collection = (
             MediaStore.Downloads
-            .EXTERNAL_CONTENT_URI,
+            .EXTERNAL_CONTENT_URI
+        )
+
+        uri = resolver.insert(
+            collection,
             values
         )
 
@@ -2336,19 +2455,19 @@ class MainApp(App):
 
             raise RuntimeError(
                 "Android не смог открыть "
-                "файл для записи."
+                "файл Downloads для записи."
             )
 
         try:
 
-            # PyJNIus умеет преобразовывать bytearray
-            # в Java byte[].
             data = bytearray(
                 Path(
                     source
                 ).read_bytes()
             )
 
+            # PyJNIus преобразует bytearray
+            # в Java byte[] для OutputStream.write().
             output_stream.write(
                 data
             )
@@ -2432,7 +2551,10 @@ class MainApp(App):
 
         self.message(
             "База экспортирована.\n\n"
-            "Папка: Downloads"
+            +
+            filename
+            +
+            "\n\nПапка: Downloads"
         )
 
     # =====================================================
@@ -2545,11 +2667,13 @@ class MainApp(App):
 
             try:
 
-                # Для чтения по одному байту.
-                # Медленнее, зато не зависит от jarray.
+                # Не используем jarray —
+                # именно он раньше ломал PyJNIus.
                 while True:
 
-                    value = input_stream.read()
+                    value = (
+                        input_stream.read()
+                    )
 
                     if value == -1:
                         break
