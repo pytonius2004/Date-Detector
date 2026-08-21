@@ -140,6 +140,22 @@ GREEN = (
     1,
 )
 
+# Основной фирменный акцент из иконки приложения: #83121e
+ACCENT_RED = (
+    131 / 255,
+    18 / 255,
+    30 / 255,
+    1,
+)
+
+# Чуть темнее при нажатии
+ACCENT_RED_DOWN = (
+    0.40,
+    0.045,
+    0.075,
+    1,
+)
+
 Window.clearcolor = BG
 
 
@@ -2133,6 +2149,8 @@ class MainApp(App):
         add_button = RoundedButton(
             text="+  Добавить срок",
             font_size="16sp",
+            normal_color=ACCENT_RED,
+            down_color=ACCENT_RED_DOWN,
         )
 
         add_button.bind(
@@ -2343,13 +2361,8 @@ class MainApp(App):
             size_hint_y=None,
             height=dp(60),
             font_size="17sp",
-            normal_color=GREEN,
-            down_color=(
-                0.10,
-                0.45,
-                0.21,
-                1,
-            ),
+            normal_color=ACCENT_RED,
+            down_color=ACCENT_RED_DOWN,
         )
 
         save.bind(
