@@ -11,7 +11,7 @@ source.include_exts = py,png,jpg,jpeg,webp,kv,atlas,json
 
 source.exclude_dirs = .git,.github,.buildozer,bin,venv,__pycache__
 
-version = 0.0.5
+version = 0.0.6
 
 requirements = python3==3.11.6,hostpython3==3.11.6,kivy==2.3.1,plyer,pyjnius,filetype
 
@@ -48,28 +48,40 @@ android.allow_backup = True
 
 
 # =========================================================
-# NATIVE BARCODE SCANNER
-# CameraX + Google ML Kit
+# ANDROIDX
 # =========================================================
 
 android.enable_androidx = True
 
-# ВАЖНО:
-# эта папка содержит:
-#
-# android_src/org/example/expiringgoods/BarcodeScannerActivity.java
-#
-android.add_src = android_src
 
-# Добавляем Activity в AndroidManifest.xml
-android.add_activity = org.example.expiringgoods.BarcodeScannerActivity
+# =========================================================
+# JAVA SOURCE
+#
+# Репозиторий:
+#
+# android_src/
+#   org/
+#     example/
+#       expiringgoods/
+#         BarcodeScannerActivity.java
+# =========================================================
+
+android.add_src = android_src
 
 
 # =========================================================
-# GRADLE DEPENDENCIES
+# EXTRA ACTIVITY
 #
-# НИКАКИХ кавычек вокруг зависимостей.
-# Иначе Buildozer передаёт кавычки прямо в Gradle.
+# ВАЖНО:
+# именно android.add_activities
+# во множественном числе.
+# =========================================================
+
+android.add_activities = org.example.expiringgoods.BarcodeScannerActivity
+
+
+# =========================================================
+# CAMERA X + GOOGLE ML KIT
 # =========================================================
 
 android.gradle_dependencies = androidx.activity:activity:1.10.1,androidx.camera:camera-core:1.4.2,androidx.camera:camera-camera2:1.4.2,androidx.camera:camera-lifecycle:1.4.2,androidx.camera:camera-view:1.4.2,com.google.mlkit:barcode-scanning:17.3.0
