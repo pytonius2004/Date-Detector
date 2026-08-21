@@ -123,9 +123,9 @@ else:
 
 
 def safe_padding(
-        horizontal=12,
-        top=12,
-        bottom=12
+    horizontal=12,
+    top=12,
+    bottom=12
 ):
 
     return (
@@ -503,6 +503,7 @@ class Database:
 
         try:
             self.conn.close()
+
         except Exception:
             pass
 
@@ -2750,6 +2751,14 @@ class MainApp(App):
                 "imported_inventory.db"
             )
 
+            try:
+
+                if temp.exists():
+                    temp.unlink()
+
+            except OSError:
+                pass
+
             output = temp.open(
                 "wb"
             )
@@ -2793,6 +2802,44 @@ class MainApp(App):
                 str(exc)
             )
 
+    def _remove_sqlite_sidecars(
+        self,
+        db_path
+    ):
+
+        db_path = Path(
+            db_path
+        )
+
+        sidecars = [
+            Path(
+                str(db_path)
+                +
+                "-wal"
+            ),
+            Path(
+                str(db_path)
+                +
+                "-shm"
+            ),
+            Path(
+                str(db_path)
+                +
+                "-journal"
+            ),
+        ]
+
+        for sidecar in sidecars:
+
+            try:
+
+                if sidecar.exists():
+                    sidecar.unlink()
+
+            except OSError:
+
+                pass
+
     def _replace_database(
         self,
         source
@@ -2819,36 +2866,137 @@ class MainApp(App):
                 "базой приложения."
             )
 
+            try:
+
+                source.unlink()
+
+            except OSError:
+
+                pass
+
             return
 
         destination = (
             self.db_path
         )
 
+        app_dir = (
+            destination.parent
+        )
+
         backup = (
-            Path(
-                self.user_data_dir
-            )
+            app_dir
             /
             "inventory_before_import.db"
         )
 
+        replacement = (
+            app_dir
+            /
+            "inventory_replacement.db"
+        )
+
+        database_closed = False
+
         try:
+
+            # -------------------------------------------------
+            # 1. Резервная копия текущей базы.
+            #
+            # Используем SQLite backup API, пока БД ещё открыта.
+            # -------------------------------------------------
 
             self.db.backup_to(
                 backup
             )
 
+            # -------------------------------------------------
+            # 2. Закрываем текущую SQLite БД.
+            # -------------------------------------------------
+
             self.db.close()
 
-            shutil.copy2(
-                source,
+            database_closed = True
+
+            # -------------------------------------------------
+            # 3. Удаляем WAL/SHM/journal старой базы.
+            # -------------------------------------------------
+
+            self._remove_sqlite_sidecars(
                 destination
             )
+
+            # -------------------------------------------------
+            # 4. Создаём новый файл ВНУТРИ app sandbox.
+            #
+            # ВАЖНО:
+            # copyfile(), а НЕ copy2().
+            #
+            # copy2() пытается переносить метаданные и права,
+            # из-за чего Android может выдать Permission denied.
+            # -------------------------------------------------
+
+            try:
+
+                if replacement.exists():
+                    replacement.unlink()
+
+            except OSError:
+
+                pass
+
+            shutil.copyfile(
+                str(source),
+                str(replacement)
+            )
+
+            # -------------------------------------------------
+            # 5. Проверяем скопированный файл ещё раз.
+            # -------------------------------------------------
+
+            if not Database.validate(
+                replacement
+            ):
+
+                raise RuntimeError(
+                    "После копирования база "
+                    "не прошла проверку."
+                )
+
+            # -------------------------------------------------
+            # 6. Атомарно заменяем inventory.db.
+            #
+            # Оба файла находятся в одной внутренней папке
+            # приложения, поэтому os.replace() — подходящий
+            # вариант.
+            # -------------------------------------------------
+
+            os.replace(
+                str(replacement),
+                str(destination)
+            )
+
+            # -------------------------------------------------
+            # 7. На всякий случай ещё раз убираем sidecar-файлы.
+            # -------------------------------------------------
+
+            self._remove_sqlite_sidecars(
+                destination
+            )
+
+            # -------------------------------------------------
+            # 8. Открываем импортированную базу.
+            # -------------------------------------------------
 
             self.db = Database(
                 destination
             )
+
+            database_closed = False
+
+            # -------------------------------------------------
+            # 9. Удаляем временные файлы.
+            # -------------------------------------------------
 
             try:
 
@@ -2866,6 +3014,15 @@ class MainApp(App):
 
                 pass
 
+            try:
+
+                if replacement.exists():
+                    replacement.unlink()
+
+            except OSError:
+
+                pass
+
             self.message(
                 "База успешно импортирована."
             )
@@ -2874,22 +3031,82 @@ class MainApp(App):
 
         except Exception as exc:
 
+            # -------------------------------------------------
+            # Если что-то пошло не так,
+            # пытаемся вернуть старую БД.
+            # -------------------------------------------------
+
             try:
+
+                if not database_closed:
+
+                    try:
+                        self.db.close()
+                    except Exception:
+                        pass
+
+                self._remove_sqlite_sidecars(
+                    destination
+                )
 
                 if backup.exists():
 
-                    shutil.copy2(
-                        backup,
-                        destination
+                    restore_temp = (
+                        app_dir
+                        /
+                        "inventory_restore.db"
                     )
 
-                    self.db = Database(
-                        destination
+                    try:
+
+                        if restore_temp.exists():
+                            restore_temp.unlink()
+
+                    except OSError:
+
+                        pass
+
+                    shutil.copyfile(
+                        str(backup),
+                        str(restore_temp)
                     )
 
-            except Exception:
+                    os.replace(
+                        str(restore_temp),
+                        str(destination)
+                    )
 
-                pass
+                self.db = Database(
+                    destination
+                )
+
+            except Exception as restore_exc:
+
+                self.message(
+                    "Ошибка импорта:\n"
+                    +
+                    str(exc)
+                    +
+                    "\n\n"
+                    +
+                    "Дополнительно не удалось "
+                    "восстановить старую БД:\n"
+                    +
+                    str(restore_exc)
+                )
+
+                return
+
+            finally:
+
+                try:
+
+                    if replacement.exists():
+                        replacement.unlink()
+
+                except OSError:
+
+                    pass
 
             self.message(
                 "Ошибка импорта:\n"
