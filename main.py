@@ -24,15 +24,19 @@ Config.set("kivy", "exit_on_escape", "0")
 
 
 # =========================================================
-# KIVY
+# KIVY IMPORTS
 # =========================================================
 
 from kivy.app import App
 from kivy.clock import Clock, mainthread
 from kivy.core.window import Window
+from kivy.graphics import Color, RoundedRectangle
 from kivy.metrics import dp
-from kivy.properties import StringProperty
-
+from kivy.properties import (
+    ListProperty,
+    StringProperty,
+)
+from kivy.uix.behaviors import ButtonBehavior
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
@@ -45,8 +49,35 @@ from kivy.uix.screenmanager import (
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.textinput import TextInput
 from kivy.uix.widget import Widget
-
 from kivy.utils import platform
+
+
+# =========================================================
+# COLORS / THEME
+# =========================================================
+
+BG = (0.045, 0.047, 0.055, 1)
+
+CARD = (0.10, 0.105, 0.12, 1)
+CARD_DISABLED = (0.20, 0.20, 0.22, 1)
+
+TEXT = (0.96, 0.96, 0.97, 1)
+TEXT_SECONDARY = (0.67, 0.68, 0.72, 1)
+
+BUTTON_BG = (0.20, 0.21, 0.24, 1)
+BUTTON_BG_DOWN = (0.27, 0.28, 0.32, 1)
+
+ACCENT = (0.18, 0.68, 0.92, 1)
+
+YELLOW = (1.00, 0.78, 0.13, 1)
+YELLOW_TEXT = (0.10, 0.08, 0.03, 1)
+
+RED = (0.82, 0.12, 0.13, 1)
+RED_TEXT = (1, 1, 1, 1)
+
+GREEN = (0.13, 0.57, 0.27, 1)
+
+Window.clearcolor = BG
 
 
 # =========================================================
@@ -66,14 +97,11 @@ activity_helper = None
 if ANDROID:
 
     try:
-
         from jnius import autoclass, cast
 
         PYJNIUS_AVAILABLE = True
 
     except Exception as exc:
-
-        PYJNIUS_AVAILABLE = False
 
         PYJNIUS_ERROR = (
             type(exc).__name__
@@ -82,13 +110,11 @@ if ANDROID:
         )
 
     try:
-
         from android import activity
 
         activity_helper = activity
 
     except Exception:
-
         activity_helper = None
 
 
@@ -112,12 +138,9 @@ REQUEST_IMPORT_DB = 4102
 # =========================================================
 
 if ANDROID:
-
     SAFE_TOP = dp(32)
     SAFE_BOTTOM = dp(34)
-
 else:
-
     SAFE_TOP = 0
     SAFE_BOTTOM = 0
 
@@ -150,33 +173,23 @@ def normalize_barcode(value):
 
 def barcode_variants(barcode):
 
-    barcode = normalize_barcode(
-        barcode
-    )
+    barcode = normalize_barcode(barcode)
 
     if not barcode:
         return []
 
-    result = [
-        barcode
-    ]
+    result = [barcode]
 
     if (
         barcode.startswith("0")
-        and
-        len(barcode) > 1
+        and len(barcode) > 1
     ):
-
-        result.append(
-            barcode[1:]
-        )
+        result.append(barcode[1:])
 
     if (
         len(barcode) == 12
-        and
-        barcode.isdigit()
+        and barcode.isdigit()
     ):
-
         result.append(
             "0" + barcode
         )
@@ -186,10 +199,7 @@ def barcode_variants(barcode):
     for item in result:
 
         if item not in unique:
-
-            unique.append(
-                item
-            )
+            unique.append(item)
 
     return unique
 
@@ -200,13 +210,9 @@ def barcode_variants(barcode):
 
 def parse_user_date(value):
 
-    value = str(
-        value
-    ).strip()
-
     digits = "".join(
         char
-        for char in value
+        for char in str(value)
         if char.isdigit()
     )
 
@@ -214,23 +220,9 @@ def parse_user_date(value):
 
         try:
 
-            day = int(
-                digits[0:2]
-            )
-
-            month = int(
-                digits[2:4]
-            )
-
-            short_year = int(
-                digits[4:6]
-            )
-
-            year = (
-                2000
-                +
-                short_year
-            )
+            day = int(digits[0:2])
+            month = int(digits[2:4])
+            year = 2000 + int(digits[4:6])
 
             parsed = date(
                 year,
@@ -243,24 +235,15 @@ def parse_user_date(value):
             )
 
         except ValueError:
-
             return None
 
     if len(digits) == 8:
 
         try:
 
-            day = int(
-                digits[0:2]
-            )
-
-            month = int(
-                digits[2:4]
-            )
-
-            year = int(
-                digits[4:8]
-            )
+            day = int(digits[0:2])
+            month = int(digits[2:4])
+            year = int(digits[4:8])
 
             parsed = date(
                 year,
@@ -273,7 +256,6 @@ def parse_user_date(value):
             )
 
         except ValueError:
-
             return None
 
     return None
@@ -294,8 +276,282 @@ def format_date(value):
         )
 
     except ValueError:
-
         return value
+
+
+# =========================================================
+# CUSTOM UI
+# =========================================================
+
+class RoundedButton(Button):
+
+    normal_color = ListProperty(
+        BUTTON_BG
+    )
+
+    down_color = ListProperty(
+        BUTTON_BG_DOWN
+    )
+
+    radius = dp(14)
+
+    def __init__(
+        self,
+        **kwargs
+    ):
+
+        super().__init__(
+            **kwargs
+        )
+
+        self.background_normal = ""
+        self.background_down = ""
+        self.background_color = (
+            0,
+            0,
+            0,
+            0
+        )
+
+        self.color = TEXT
+
+        with self.canvas.before:
+
+            self._color = Color(
+                *self.normal_color
+            )
+
+            self._rect = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[
+                    self.radius
+                ]
+            )
+
+        self.bind(
+            pos=self._update_canvas,
+            size=self._update_canvas,
+            state=self._update_state,
+            normal_color=self._update_state,
+            down_color=self._update_state,
+        )
+
+    def _update_canvas(
+        self,
+        *_
+    ):
+
+        self._rect.pos = self.pos
+        self._rect.size = self.size
+
+    def _update_state(
+        self,
+        *_
+    ):
+
+        color = (
+            self.down_color
+            if self.state == "down"
+            else self.normal_color
+        )
+
+        self._color.rgba = color
+
+
+class ProductCard(
+    ButtonBehavior,
+    BoxLayout
+):
+
+    background_color = ListProperty(
+        CARD
+    )
+
+    foreground_color = ListProperty(
+        TEXT
+    )
+
+    def __init__(
+        self,
+        product_name,
+        barcode,
+        exp_date,
+        status="",
+        **kwargs
+    ):
+
+        super().__init__(
+            **kwargs
+        )
+
+        self.orientation = "horizontal"
+
+        self.size_hint_y = None
+        self.height = dp(112)
+
+        self.padding = (
+            dp(17),
+            dp(12)
+        )
+
+        self.spacing = dp(10)
+
+        with self.canvas.before:
+
+            self._bg_color = Color(
+                *self.background_color
+            )
+
+            self._bg_rect = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[
+                    dp(17)
+                ]
+            )
+
+        self.bind(
+            pos=self._update_card,
+            size=self._update_card,
+            background_color=self._update_color,
+        )
+
+        # ---------------------------------------------
+        # LEFT
+        # ---------------------------------------------
+
+        left = BoxLayout(
+            orientation="vertical"
+        )
+
+        name_label = Label(
+            text=product_name or "Без названия",
+            color=self.foreground_color,
+            bold=True,
+            font_size="18sp",
+            halign="left",
+            valign="middle",
+            size_hint_y=0.55,
+        )
+
+        name_label.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        barcode_label = Label(
+            text=f"Штрихкод: {barcode}",
+            color=self.foreground_color,
+            font_size="13sp",
+            halign="left",
+            valign="middle",
+            size_hint_y=0.45,
+        )
+
+        barcode_label.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        left.add_widget(
+            name_label
+        )
+
+        left.add_widget(
+            barcode_label
+        )
+
+        # ---------------------------------------------
+        # RIGHT
+        # ---------------------------------------------
+
+        right = BoxLayout(
+            orientation="vertical",
+            size_hint_x=0.38,
+        )
+
+        valid_label = Label(
+            text="Годен до:",
+            color=self.foreground_color,
+            font_size="13sp",
+            halign="right",
+            valign="bottom",
+            size_hint_y=0.42,
+        )
+
+        valid_label.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        date_label = Label(
+            text=exp_date,
+            color=self.foreground_color,
+            bold=True,
+            font_size="21sp",
+            halign="right",
+            valign="top",
+            size_hint_y=0.58,
+        )
+
+        date_label.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        right.add_widget(
+            valid_label
+        )
+
+        right.add_widget(
+            date_label
+        )
+
+        self.add_widget(
+            left
+        )
+
+        self.add_widget(
+            right
+        )
+
+        if status:
+
+            self.status_text = status
+
+    def _update_card(
+        self,
+        *_
+    ):
+
+        self._bg_rect.pos = self.pos
+        self._bg_rect.size = self.size
+
+    def _update_color(
+        self,
+        *_
+    ):
+
+        self._bg_color.rgba = (
+            self.background_color
+        )
 
 
 # =========================================================
@@ -316,7 +572,6 @@ class DateInput(TextInput):
         )[:6]
 
         if len(digits) <= 2:
-
             return digits
 
         if len(digits) <= 4:
@@ -373,22 +628,16 @@ class DateInput(TextInput):
         )
 
         free_space = (
-            6
-            -
-            len(current_digits)
+            6 - len(current_digits)
         )
 
         if free_space <= 0:
             return
 
-        new_digits = new_digits[
-            :free_space
-        ]
-
         all_digits = (
             current_digits
             +
-            new_digits
+            new_digits[:free_space]
         )
 
         self.text = self._format_digits(
@@ -415,10 +664,8 @@ class DateInput(TextInput):
         if not digits:
             return
 
-        digits = digits[:-1]
-
         self.text = self._format_digits(
-            digits
+            digits[:-1]
         )
 
         Clock.schedule_once(
@@ -438,14 +685,10 @@ class Database:
         path
     ):
 
-        self.path = Path(
-            path
-        )
+        self.path = Path(path)
 
         self.conn = sqlite3.connect(
-            str(
-                self.path
-            )
+            str(self.path)
         )
 
         self.conn.row_factory = (
@@ -503,7 +746,6 @@ class Database:
 
         try:
             self.conn.close()
-
         except Exception:
             pass
 
@@ -539,8 +781,7 @@ class Database:
                 ),
             ).fetchone()
 
-            if row is not None:
-
+            if row:
                 return row
 
         return None
@@ -563,12 +804,6 @@ class Database:
 
         if existing:
 
-            real_barcode = (
-                existing[
-                    "barcode"
-                ]
-            )
-
             self.conn.execute(
                 """
                 UPDATE products
@@ -577,7 +812,7 @@ class Database:
                 """,
                 (
                     name,
-                    real_barcode,
+                    existing["barcode"],
                 ),
             )
 
@@ -609,25 +844,15 @@ class Database:
         exp_date
     ):
 
-        existing_product = (
-            self.get_product(
-                barcode
-            )
+        product = self.get_product(
+            barcode
         )
 
-        if existing_product:
+        if product:
 
-            barcode = (
-                existing_product[
-                    "barcode"
-                ]
-            )
-
-        else:
-
-            barcode = normalize_barcode(
-                barcode
-            )
+            barcode = product[
+                "barcode"
+            ]
 
         try:
 
@@ -668,10 +893,7 @@ class Database:
         )
 
         if product:
-
-            barcode = product[
-                "barcode"
-            ]
+            barcode = product["barcode"]
 
         return self.conn.execute(
             """
@@ -679,7 +901,9 @@ class Database:
             FROM expirations
             WHERE barcode = ?
               AND written_off = 0
-            ORDER BY exp_date ASC, id ASC
+            ORDER BY
+                exp_date ASC,
+                id ASC
             """,
             (
                 barcode,
@@ -696,10 +920,7 @@ class Database:
         )
 
         if product:
-
-            barcode = product[
-                "barcode"
-            ]
+            barcode = product["barcode"]
 
         return self.conn.execute(
             """
@@ -726,10 +947,7 @@ class Database:
         )
 
         if product:
-
-            barcode = product[
-                "barcode"
-            ]
+            barcode = product["barcode"]
 
         return self.conn.execute(
             """
@@ -737,7 +955,9 @@ class Database:
             FROM expirations
             WHERE barcode = ?
               AND written_off = 0
-            ORDER BY exp_date ASC, id ASC
+            ORDER BY
+                exp_date ASC,
+                id ASC
             LIMIT 1
             """,
             (
@@ -764,9 +984,7 @@ class Database:
             WHERE id = ?
             """,
             (
-                row[
-                    "id"
-                ],
+                row["id"],
             ),
         )
 
@@ -823,9 +1041,7 @@ class Database:
         target
     ):
 
-        target = Path(
-            target
-        )
+        target = Path(target)
 
         target.parent.mkdir(
             parents=True,
@@ -836,9 +1052,7 @@ class Database:
             target.unlink()
 
         target_conn = sqlite3.connect(
-            str(
-                target
-            )
+            str(target)
         )
 
         try:
@@ -854,22 +1068,17 @@ class Database:
             target_conn.close()
 
     @staticmethod
-    def validate(
-        path
-    ):
+    def validate(path):
 
         try:
 
             con = sqlite3.connect(
-                str(
-                    path
-                )
+                str(path)
             )
 
             tables = {
                 row[0]
-                for row
-                in con.execute(
+                for row in con.execute(
                     """
                     SELECT name
                     FROM sqlite_master
@@ -929,9 +1138,7 @@ class HomeScreen(BaseScreen):
         yesterday = (
             today
             -
-            timedelta(
-                days=1
-            )
+            timedelta(days=1)
         )
 
         active = []
@@ -941,9 +1148,7 @@ class HomeScreen(BaseScreen):
             self.app.db.get_product_list()
         ):
 
-            if not product[
-                "next_exp"
-            ]:
+            if not product["next_exp"]:
 
                 completed.append(
                     product
@@ -953,14 +1158,10 @@ class HomeScreen(BaseScreen):
 
             try:
 
-                exp_date = (
-                    datetime.strptime(
-                        product[
-                            "next_exp"
-                        ],
-                        DATE_DB_FORMAT
-                    ).date()
-                )
+                exp_date = datetime.strptime(
+                    product["next_exp"],
+                    DATE_DB_FORMAT
+                ).date()
 
             except ValueError:
 
@@ -980,7 +1181,7 @@ class HomeScreen(BaseScreen):
         for product, exp_date in active:
 
             self.product_list.add_widget(
-                self.make_product_button(
+                self.make_product_card(
                     product,
                     exp_date,
                     today,
@@ -991,27 +1192,11 @@ class HomeScreen(BaseScreen):
         if completed:
 
             separator = Label(
-                text=(
-                    "[color=777777]"
-                    "— ВСЕ СРОКИ СПИСАНЫ —"
-                    "[/color]"
-                ),
-                markup=True,
+                text="Все сроки списаны",
+                color=TEXT_SECONDARY,
                 size_hint_y=None,
-                height=dp(
-                    36
-                ),
-                halign="center",
-                valign="middle"
-            )
-
-            separator.bind(
-                size=lambda instance, value:
-                setattr(
-                    instance,
-                    "text_size",
-                    value
-                )
+                height=dp(44),
+                font_size="13sp",
             )
 
             self.product_list.add_widget(
@@ -1021,7 +1206,7 @@ class HomeScreen(BaseScreen):
             for product in completed:
 
                 self.product_list.add_widget(
-                    self.make_product_button(
+                    self.make_product_card(
                         product,
                         None,
                         today,
@@ -1035,33 +1220,39 @@ class HomeScreen(BaseScreen):
             not completed
         ):
 
-            empty_label = Label(
-                text=(
-                    "База пока пустая.\n\n"
-                    "Нажми «Добавить срок»."
-                ),
+            empty = BoxLayout(
+                orientation="vertical",
                 size_hint_y=None,
-                height=dp(
-                    150
-                ),
-                halign="center",
-                valign="middle"
+                height=dp(210),
+                padding=dp(20),
             )
 
-            empty_label.bind(
-                size=lambda instance, value:
-                setattr(
-                    instance,
-                    "text_size",
-                    value
+            empty.add_widget(
+                Label(
+                    text="Пока ничего нет",
+                    color=TEXT,
+                    bold=True,
+                    font_size="20sp",
+                )
+            )
+
+            empty.add_widget(
+                Label(
+                    text=(
+                        "Отсканируй первый товар\n"
+                        "и добавь его срок годности"
+                    ),
+                    color=TEXT_SECONDARY,
+                    halign="center",
+                    font_size="14sp",
                 )
             )
 
             self.product_list.add_widget(
-                empty_label
+                empty
             )
 
-    def make_product_button(
+    def make_product_card(
         self,
         product,
         exp_date,
@@ -1071,129 +1262,75 @@ class HomeScreen(BaseScreen):
 
         if exp_date is None:
 
-            background = (
-                0.65,
-                0.65,
-                0.65,
-                1
-            )
+            bg = CARD_DISABLED
+            fg = TEXT_SECONDARY
 
-            foreground = (
-                0.20,
-                0.20,
-                0.20,
-                1
-            )
-
-            status = (
-                "ВСЕ СРОКИ СПИСАНЫ"
-            )
+            date_text = "—"
 
         elif exp_date == today:
 
-            background = (
-                1.0,
-                0.86,
-                0.20,
-                1
-            )
+            bg = YELLOW
+            fg = YELLOW_TEXT
 
-            foreground = (
-                0.10,
-                0.10,
-                0.10,
-                1
-            )
-
-            status = (
-                "УЦЕНКА СЕГОДНЯ"
+            date_text = format_date(
+                product["next_exp"]
             )
 
         elif exp_date == yesterday:
 
-            background = (
-                0.92,
-                0.20,
-                0.17,
-                1
-            )
+            bg = RED
+            fg = RED_TEXT
 
-            foreground = (
-                1,
-                1,
-                1,
-                1
-            )
-
-            status = (
-                "ИСТЁК ВЧЕРА — СПИСАНИЕ"
+            date_text = format_date(
+                product["next_exp"]
             )
 
         else:
 
-            background = (
-                0.94,
-                0.94,
-                0.94,
-                1
+            bg = CARD
+            fg = TEXT
+
+            date_text = format_date(
+                product["next_exp"]
             )
 
-            foreground = (
-                0.12,
-                0.12,
-                0.12,
-                1
-            )
-
-            status = ""
-
-        text = (
-            f"{product['name'] or 'Без названия'}\n"
-            f"Штрихкод: {product['barcode']}\n"
-            f"Срок: {format_date(product['next_exp'])}\n"
-            f"{status}"
-        ).strip()
-
-        button = Button(
-            text=text,
-            size_hint_y=None,
-            height=dp(
-                92
+        card = ProductCard(
+            product_name=(
+                product["name"]
+                or
+                "Без названия"
             ),
-            background_normal="",
-            background_color=background,
-            color=foreground,
-            halign="left",
-            valign="middle",
-            padding=(
-                dp(12),
-                dp(8)
-            ),
-            font_size="14sp"
+            barcode=product["barcode"],
+            exp_date=date_text,
         )
 
-        button.bind(
-            size=lambda instance, value:
-            setattr(
-                instance,
-                "text_size",
-                (
-                    value[0] - dp(22),
-                    value[1]
-                )
-            )
-        )
+        card.background_color = bg
+        card.foreground_color = fg
 
-        button.bind(
+        # Обновляем уже созданные labels
+        for column in card.children:
+
+            if hasattr(
+                column,
+                "children"
+            ):
+
+                for child in column.children:
+
+                    if isinstance(
+                        child,
+                        Label
+                    ):
+                        child.color = fg
+
+        card.bind(
             on_release=lambda *_:
             self.app.open_product(
-                product[
-                    "barcode"
-                ]
+                product["barcode"]
             )
         )
 
-        return button
+        return card
 
 
 class AddProductScreen(BaseScreen):
@@ -1235,7 +1372,6 @@ class AddProductScreen(BaseScreen):
     ):
 
         if barcode is None:
-
             barcode = (
                 self.barcode_input.text
             )
@@ -1253,21 +1389,19 @@ class AddProductScreen(BaseScreen):
             )
         )
 
-        if product is None:
+        if not product:
             return
 
-        saved_name = (
-            product[
-                "name"
-            ]
+        name = (
+            product["name"]
             or
             ""
         ).strip()
 
-        if saved_name:
+        if name:
 
             self.name_input.text = (
-                saved_name
+                name
             )
 
     def on_barcode_change(
@@ -1326,18 +1460,10 @@ class AddProductScreen(BaseScreen):
             if product:
 
                 name = (
-                    product[
-                        "name"
-                    ]
+                    product["name"]
                     or
                     ""
                 ).strip()
-
-                if name:
-
-                    self.name_input.text = (
-                        name
-                    )
 
         if not name:
 
@@ -1354,10 +1480,8 @@ class AddProductScreen(BaseScreen):
         if not exp_date:
 
             self.app.message(
-                "Введите срок в формате "
-                "ДД.ММ.ГГ.\n\n"
-                "Например:\n"
-                "280826 → 28.08.26"
+                "Введите срок в формате ДД.ММ.ГГ.\n\n"
+                "Например: 280826 → 28.08.26"
             )
 
             return
@@ -1393,8 +1517,7 @@ class AddProductScreen(BaseScreen):
         ):
 
             self.app.message(
-                "Такой срок у этого товара "
-                "уже существует."
+                "Такой срок у этого товара уже существует."
             )
 
             return
@@ -1408,9 +1531,7 @@ class AddProductScreen(BaseScreen):
 
 class ProductScreen(BaseScreen):
 
-    barcode = StringProperty(
-        ""
-    )
+    barcode = StringProperty("")
 
     def load(
         self,
@@ -1427,15 +1548,11 @@ class ProductScreen(BaseScreen):
             return
 
         self.barcode = (
-            product[
-                "barcode"
-            ]
+            product["barcode"]
         )
 
         self.product_name_label.text = (
-            product[
-                "name"
-            ]
+            product["name"]
             or
             "Без названия"
         )
@@ -1455,7 +1572,7 @@ class ProductScreen(BaseScreen):
         if active:
 
             self.nearest_date_label.text = (
-                "Ближайший срок: "
+                "Годен до: "
                 +
                 format_date(
                     active[0][
@@ -1480,19 +1597,14 @@ class ProductScreen(BaseScreen):
 
             status = (
                 "СПИСАНО"
-                if
-                item[
-                    "written_off"
-                ]
+                if item["written_off"]
                 else
                 "АКТИВЕН"
             )
 
             history.append(
                 format_date(
-                    item[
-                        "exp_date"
-                    ]
+                    item["exp_date"]
                 )
                 +
                 " — "
@@ -1501,18 +1613,14 @@ class ProductScreen(BaseScreen):
             )
 
         self.history_label.text = (
-            "\n".join(
-                history
-            )
+            "\n".join(history)
             if history
             else
             "История пока пустая."
         )
 
         self.writeoff_button.disabled = (
-            not bool(
-                active
-            )
+            not bool(active)
         )
 
     def write_off(self):
@@ -1550,8 +1658,7 @@ class ProductScreen(BaseScreen):
 
             message = (
                 "Срок списан.\n\n"
-                "Активных сроков больше нет.\n\n"
-                "Товар станет серым."
+                "Активных сроков больше нет."
             )
 
         self.app.message(
@@ -1614,7 +1721,7 @@ class MainApp(App):
 
         manager = ScreenManager(
             transition=FadeTransition(
-                duration=0.08
+                duration=0.10
             )
         )
 
@@ -1663,7 +1770,7 @@ class MainApp(App):
         return False
 
     # =====================================================
-    # HOME
+    # HOME UI
     # =====================================================
 
     def create_home_screen(self):
@@ -1675,25 +1782,22 @@ class MainApp(App):
         root = BoxLayout(
             orientation="vertical",
             padding=safe_padding(
-                horizontal=10,
+                horizontal=14,
                 top=8,
-                bottom=10
+                bottom=12
             ),
-            spacing=dp(
-                8
-            )
+            spacing=dp(14)
         )
 
         title = Label(
             text=APP_TITLE,
-            font_size="23sp",
+            color=TEXT,
+            font_size="26sp",
             bold=True,
+            size_hint_y=None,
+            height=dp(62),
             halign="center",
             valign="middle",
-            size_hint_y=None,
-            height=dp(
-                55
-            )
         )
 
         title.bind(
@@ -1711,17 +1815,13 @@ class MainApp(App):
 
         actions = BoxLayout(
             size_hint_y=None,
-            height=dp(
-                56
-            ),
-            spacing=dp(
-                8
-            )
+            height=dp(58),
+            spacing=dp(10),
         )
 
-        add_button = Button(
-            text="Добавить срок",
-            font_size="16sp"
+        add_button = RoundedButton(
+            text="+  Добавить срок",
+            font_size="16sp",
         )
 
         add_button.bind(
@@ -1729,9 +1829,9 @@ class MainApp(App):
             self.start_barcode_scanner()
         )
 
-        settings_button = Button(
+        settings_button = RoundedButton(
             text="Настройки",
-            font_size="15sp"
+            font_size="15sp",
         )
 
         settings_button.bind(
@@ -1752,15 +1852,19 @@ class MainApp(App):
         )
 
         scroll = ScrollView(
-            do_scroll_x=False
+            do_scroll_x=False,
         )
 
         product_list = BoxLayout(
             orientation="vertical",
-            spacing=dp(
-                7
+            spacing=dp(11),
+            padding=(
+                0,
+                dp(4),
+                0,
+                dp(10),
             ),
-            size_hint_y=None
+            size_hint_y=None,
         )
 
         product_list.bind(
@@ -1789,7 +1893,7 @@ class MainApp(App):
         return screen
 
     # =====================================================
-    # ADD
+    # ADD SCREEN
     # =====================================================
 
     def create_add_screen(self):
@@ -1801,21 +1905,18 @@ class MainApp(App):
         root = BoxLayout(
             orientation="vertical",
             padding=safe_padding(
-                horizontal=12,
+                horizontal=14,
                 top=8,
                 bottom=12
             ),
-            spacing=dp(
-                8
-            )
+            spacing=dp(12)
         )
 
-        back = Button(
+        back = RoundedButton(
             text="< Назад",
             size_hint_y=None,
-            height=dp(
-                48
-            )
+            height=dp(50),
+            font_size="15sp",
         )
 
         back.bind(
@@ -1827,45 +1928,28 @@ class MainApp(App):
             back
         )
 
-        title = Label(
-            text="Добавить срок",
-            font_size="23sp",
-            bold=True,
-            size_hint_y=None,
-            height=dp(
-                52
-            ),
-            halign="center",
-            valign="middle"
-        )
-
-        title.bind(
-            size=lambda instance, value:
-            setattr(
-                instance,
-                "text_size",
-                value
-            )
-        )
-
         root.add_widget(
-            title
+            Label(
+                text="Добавить срок",
+                color=TEXT,
+                font_size="25sp",
+                bold=True,
+                size_hint_y=None,
+                height=dp(58),
+            )
         )
 
         info = Label(
             text=(
-                "Штрихкод можно отсканировать "
-                "или ввести вручную.\n"
-                "Если товар уже есть в базе, "
-                "название заполнится автоматически."
+                "Отсканируй штрихкод или введи его вручную.\n"
+                "Для известного товара название заполнится автоматически."
             ),
-            size_hint_y=None,
-            height=dp(
-                82
-            ),
+            color=TEXT_SECONDARY,
+            font_size="13sp",
             halign="center",
             valign="middle",
-            font_size="14sp"
+            size_hint_y=None,
+            height=dp(74),
         )
 
         info.bind(
@@ -1874,7 +1958,7 @@ class MainApp(App):
                 instance,
                 "text_size",
                 (
-                    value[0] - dp(24),
+                    value[0] - dp(20),
                     None
                 )
             )
@@ -1888,36 +1972,41 @@ class MainApp(App):
             hint_text="Штрихкод",
             multiline=False,
             size_hint_y=None,
-            height=dp(
-                52
+            height=dp(56),
+            font_size="18sp",
+            padding=(
+                dp(12),
+                dp(12)
             ),
-            font_size="18sp"
         )
 
         barcode.bind(
-            text=
-            screen.on_barcode_change
+            text=screen.on_barcode_change
         )
 
         name = TextInput(
             hint_text="Наименование товара",
             multiline=False,
             size_hint_y=None,
-            height=dp(
-                52
+            height=dp(56),
+            font_size="18sp",
+            padding=(
+                dp(12),
+                dp(12)
             ),
-            font_size="18sp"
         )
 
         date_input = DateInput(
             hint_text="ДД.ММ.ГГ",
             multiline=False,
-            size_hint_y=None,
-            height=dp(
-                52
-            ),
             input_type="number",
-            font_size="18sp"
+            size_hint_y=None,
+            height=dp(56),
+            font_size="18sp",
+            padding=(
+                dp(12),
+                dp(12)
+            ),
         )
 
         root.add_widget(
@@ -1936,19 +2025,18 @@ class MainApp(App):
             Widget()
         )
 
-        save = Button(
+        save = RoundedButton(
             text="Сохранить срок",
             size_hint_y=None,
-            height=dp(
-                58
-            ),
-            background_normal="",
-            background_color=(
-                0.15,
-                0.58,
-                0.26,
+            height=dp(60),
+            font_size="17sp",
+            normal_color=GREEN,
+            down_color=(
+                0.10,
+                0.45,
+                0.21,
                 1
-            )
+            ),
         )
 
         save.bind(
@@ -1979,7 +2067,7 @@ class MainApp(App):
         return screen
 
     # =====================================================
-    # PRODUCT
+    # PRODUCT SCREEN
     # =====================================================
 
     def create_product_screen(self):
@@ -1991,21 +2079,17 @@ class MainApp(App):
         root = BoxLayout(
             orientation="vertical",
             padding=safe_padding(
-                horizontal=12,
+                horizontal=14,
                 top=8,
                 bottom=12
             ),
-            spacing=dp(
-                8
-            )
+            spacing=dp(12)
         )
 
-        back = Button(
+        back = RoundedButton(
             text="< Назад",
             size_hint_y=None,
-            height=dp(
-                48
-            )
+            height=dp(50),
         )
 
         back.bind(
@@ -2019,32 +2103,27 @@ class MainApp(App):
 
         product_name = Label(
             text="Товар",
-            font_size="24sp",
+            color=TEXT,
+            font_size="26sp",
             bold=True,
-            halign="center",
-            valign="middle",
             size_hint_y=None,
-            height=dp(
-                50
-            )
+            height=dp(58),
         )
 
         product_barcode = Label(
             text="Штрихкод: —",
+            color=TEXT_SECONDARY,
             size_hint_y=None,
-            height=dp(
-                30
-            )
+            height=dp(32),
         )
 
         nearest_date = Label(
-            text="Ближайший срок: —",
-            font_size="19sp",
+            text="Годен до: —",
+            color=TEXT,
+            font_size="20sp",
             bold=True,
             size_hint_y=None,
-            height=dp(
-                40
-            )
+            height=dp(44),
         )
 
         root.add_widget(
@@ -2059,26 +2138,28 @@ class MainApp(App):
             nearest_date
         )
 
+        history_title = Label(
+            text="История сроков",
+            color=TEXT_SECONDARY,
+            font_size="14sp",
+            size_hint_y=None,
+            height=dp(34),
+        )
+
         root.add_widget(
-            Label(
-                text="История сроков",
-                bold=True,
-                size_hint_y=None,
-                height=dp(
-                    32
-                )
-            )
+            history_title
         )
 
         history_scroll = ScrollView(
-            do_scroll_x=False
+            do_scroll_x=False,
         )
 
         history = Label(
             text="История пока пустая.",
+            color=TEXT,
             halign="left",
             valign="top",
-            size_hint_y=None
+            size_hint_y=None,
         )
 
         history.bind(
@@ -2101,19 +2182,18 @@ class MainApp(App):
             history_scroll
         )
 
-        writeoff = Button(
+        writeoff = RoundedButton(
             text="Списано",
             size_hint_y=None,
-            height=dp(
-                60
-            ),
-            background_normal="",
-            background_color=(
-                0.86,
-                0.18,
-                0.16,
+            height=dp(60),
+            font_size="17sp",
+            normal_color=RED,
+            down_color=(
+                0.65,
+                0.08,
+                0.10,
                 1
-            )
+            ),
         )
 
         writeoff.bind(
@@ -2164,21 +2244,17 @@ class MainApp(App):
         root = BoxLayout(
             orientation="vertical",
             padding=safe_padding(
-                horizontal=12,
+                horizontal=14,
                 top=8,
                 bottom=12
             ),
-            spacing=dp(
-                10
-            )
+            spacing=dp(12)
         )
 
-        back = Button(
+        back = RoundedButton(
             text="< Назад",
             size_hint_y=None,
-            height=dp(
-                48
-            )
+            height=dp(50),
         )
 
         back.bind(
@@ -2193,37 +2269,33 @@ class MainApp(App):
         root.add_widget(
             Label(
                 text="Настройки",
-                font_size="23sp",
+                color=TEXT,
+                font_size="26sp",
                 bold=True,
                 size_hint_y=None,
-                height=dp(
-                    50
-                )
+                height=dp(58),
             )
         )
 
         root.add_widget(
             Label(
                 text=(
-                    "База хранится на телефоне.\n\n"
-                    "Экспорт БД сохраняется "
-                    "в папку Downloads."
+                    "База хранится на телефоне.\n"
+                    "Экспорт сохраняется в Downloads."
                 ),
+                color=TEXT_SECONDARY,
+                font_size="14sp",
                 halign="center",
                 valign="middle",
                 size_hint_y=None,
-                height=dp(
-                    95
-                )
+                height=dp(80),
             )
         )
 
-        export_button = Button(
+        export_button = RoundedButton(
             text="Экспортировать БД",
             size_hint_y=None,
-            height=dp(
-                58
-            )
+            height=dp(58),
         )
 
         export_button.bind(
@@ -2235,12 +2307,10 @@ class MainApp(App):
             export_button
         )
 
-        import_button = Button(
+        import_button = RoundedButton(
             text="Импортировать БД",
             size_hint_y=None,
-            height=dp(
-                58
-            )
+            height=dp(58),
         )
 
         import_button.bind(
@@ -2252,19 +2322,17 @@ class MainApp(App):
             import_button
         )
 
-        clear_button = Button(
+        clear_button = RoundedButton(
             text="Очистить БД",
             size_hint_y=None,
-            height=dp(
-                58
-            ),
-            background_normal="",
-            background_color=(
-                0.86,
-                0.18,
-                0.16,
+            height=dp(58),
+            normal_color=RED,
+            down_color=(
+                0.65,
+                0.08,
+                0.10,
                 1
-            )
+            ),
         )
 
         clear_button.bind(
@@ -2349,7 +2417,7 @@ class MainApp(App):
         self.sm.current = "settings"
 
     # =====================================================
-    # BARCODE SCANNER
+    # SCANNER
     # =====================================================
 
     def start_barcode_scanner(self):
@@ -2425,11 +2493,7 @@ class MainApp(App):
         intent
     ):
 
-        if (
-            request_code
-            ==
-            REQUEST_SCAN_BARCODE
-        ):
+        if request_code == REQUEST_SCAN_BARCODE:
 
             self.handle_scanner_result(
                 result_code,
@@ -2438,11 +2502,7 @@ class MainApp(App):
 
             return
 
-        if (
-            request_code
-            ==
-            REQUEST_IMPORT_DB
-        ):
+        if request_code == REQUEST_IMPORT_DB:
 
             self.handle_import_result(
                 result_code,
@@ -2459,13 +2519,11 @@ class MainApp(App):
         if result_code != -1:
 
             self.open_home()
-
             return
 
         if intent is None:
 
             self.open_home()
-
             return
 
         try:
@@ -2483,10 +2541,7 @@ class MainApp(App):
 
         if manual:
 
-            self.open_add(
-                ""
-            )
-
+            self.open_add("")
             return
 
         try:
@@ -2528,9 +2583,7 @@ class MainApp(App):
 
         try:
 
-            uri = (
-                intent.getData()
-            )
+            uri = intent.getData()
 
             if uri is not None:
 
@@ -2547,7 +2600,7 @@ class MainApp(App):
             )
 
     # =====================================================
-    # EXPORT DATABASE
+    # EXPORT
     # =====================================================
 
     def export_database(self):
@@ -2555,17 +2608,6 @@ class MainApp(App):
         if not ANDROID:
 
             self._desktop_export()
-
-            return
-
-        if not PYJNIUS_AVAILABLE:
-
-            self.message(
-                "PyJNIus не загрузился.\n\n"
-                +
-                PYJNIUS_ERROR
-            )
-
             return
 
         try:
@@ -2616,11 +2658,8 @@ class MainApp(App):
             )
 
             try:
-
                 temp_db.unlink()
-
             except OSError:
-
                 pass
 
             self.message(
@@ -2628,9 +2667,7 @@ class MainApp(App):
                 +
                 str(result)
                 +
-                "\n\n"
-                +
-                "Папка: Downloads"
+                "\n\nПапка: Downloads"
             )
 
         except Exception as exc:
@@ -2646,7 +2683,7 @@ class MainApp(App):
             )
 
     # =====================================================
-    # IMPORT DATABASE
+    # IMPORT
     # =====================================================
 
     def import_database(self):
@@ -2655,16 +2692,6 @@ class MainApp(App):
 
             self.message(
                 "Импорт доступен на Android."
-            )
-
-            return
-
-        if not PYJNIUS_AVAILABLE:
-
-            self.message(
-                "PyJNIus не загрузился.\n\n"
-                +
-                PYJNIUS_ERROR
             )
 
             return
@@ -2739,8 +2766,7 @@ class MainApp(App):
             if input_stream is None:
 
                 raise RuntimeError(
-                    "Android не смог "
-                    "открыть файл."
+                    "Android не смог открыть файл."
                 )
 
             temp = (
@@ -2752,35 +2778,26 @@ class MainApp(App):
             )
 
             try:
-
                 if temp.exists():
                     temp.unlink()
-
             except OSError:
                 pass
 
-            output = temp.open(
-                "wb"
-            )
+            output = temp.open("wb")
 
             try:
 
                 while True:
 
-                    value = (
-                        input_stream.read()
-                    )
+                    value = input_stream.read()
 
                     if value == -1:
-
                         break
 
                     output.write(
                         bytes(
                             (
-                                value
-                                &
-                                0xFF,
+                                value & 0xFF,
                             )
                         )
                     )
@@ -2807,29 +2824,19 @@ class MainApp(App):
         db_path
     ):
 
-        db_path = Path(
-            db_path
-        )
+        db_path = Path(db_path)
 
-        sidecars = [
-            Path(
-                str(db_path)
-                +
-                "-wal"
-            ),
-            Path(
-                str(db_path)
-                +
-                "-shm"
-            ),
-            Path(
-                str(db_path)
-                +
-                "-journal"
-            ),
-        ]
+        for suffix in (
+            "-wal",
+            "-shm",
+            "-journal",
+        ):
 
-        for sidecar in sidecars:
+            sidecar = Path(
+                str(db_path)
+                +
+                suffix
+            )
 
             try:
 
@@ -2837,7 +2844,6 @@ class MainApp(App):
                     sidecar.unlink()
 
             except OSError:
-
                 pass
 
     def _replace_database(
@@ -2845,9 +2851,7 @@ class MainApp(App):
         source
     ):
 
-        source = Path(
-            source
-        )
+        source = Path(source)
 
         if not source.exists():
 
@@ -2862,27 +2866,13 @@ class MainApp(App):
         ):
 
             self.message(
-                "Файл не является "
-                "базой приложения."
+                "Файл не является базой приложения."
             )
-
-            try:
-
-                source.unlink()
-
-            except OSError:
-
-                pass
 
             return
 
-        destination = (
-            self.db_path
-        )
-
-        app_dir = (
-            destination.parent
-        )
+        destination = self.db_path
+        app_dir = destination.parent
 
         backup = (
             app_dir
@@ -2896,131 +2886,55 @@ class MainApp(App):
             "inventory_replacement.db"
         )
 
-        database_closed = False
-
         try:
-
-            # -------------------------------------------------
-            # 1. Резервная копия текущей базы.
-            #
-            # Используем SQLite backup API, пока БД ещё открыта.
-            # -------------------------------------------------
 
             self.db.backup_to(
                 backup
             )
 
-            # -------------------------------------------------
-            # 2. Закрываем текущую SQLite БД.
-            # -------------------------------------------------
-
             self.db.close()
-
-            database_closed = True
-
-            # -------------------------------------------------
-            # 3. Удаляем WAL/SHM/journal старой базы.
-            # -------------------------------------------------
 
             self._remove_sqlite_sidecars(
                 destination
             )
 
-            # -------------------------------------------------
-            # 4. Создаём новый файл ВНУТРИ app sandbox.
-            #
-            # ВАЖНО:
-            # copyfile(), а НЕ copy2().
-            #
-            # copy2() пытается переносить метаданные и права,
-            # из-за чего Android может выдать Permission denied.
-            # -------------------------------------------------
-
-            try:
-
-                if replacement.exists():
-                    replacement.unlink()
-
-            except OSError:
-
-                pass
+            if replacement.exists():
+                replacement.unlink()
 
             shutil.copyfile(
                 str(source),
                 str(replacement)
             )
 
-            # -------------------------------------------------
-            # 5. Проверяем скопированный файл ещё раз.
-            # -------------------------------------------------
-
             if not Database.validate(
                 replacement
             ):
 
                 raise RuntimeError(
-                    "После копирования база "
-                    "не прошла проверку."
+                    "Импортированная база повреждена."
                 )
-
-            # -------------------------------------------------
-            # 6. Атомарно заменяем inventory.db.
-            #
-            # Оба файла находятся в одной внутренней папке
-            # приложения, поэтому os.replace() — подходящий
-            # вариант.
-            # -------------------------------------------------
 
             os.replace(
                 str(replacement),
                 str(destination)
             )
 
-            # -------------------------------------------------
-            # 7. На всякий случай ещё раз убираем sidecar-файлы.
-            # -------------------------------------------------
-
             self._remove_sqlite_sidecars(
                 destination
             )
-
-            # -------------------------------------------------
-            # 8. Открываем импортированную базу.
-            # -------------------------------------------------
 
             self.db = Database(
                 destination
             )
 
-            database_closed = False
-
-            # -------------------------------------------------
-            # 9. Удаляем временные файлы.
-            # -------------------------------------------------
-
             try:
-
                 source.unlink()
-
             except OSError:
-
                 pass
 
             try:
-
                 backup.unlink()
-
             except OSError:
-
-                pass
-
-            try:
-
-                if replacement.exists():
-                    replacement.unlink()
-
-            except OSError:
-
                 pass
 
             self.message(
@@ -3031,40 +2945,19 @@ class MainApp(App):
 
         except Exception as exc:
 
-            # -------------------------------------------------
-            # Если что-то пошло не так,
-            # пытаемся вернуть старую БД.
-            # -------------------------------------------------
-
             try:
 
-                if not database_closed:
-
-                    try:
-                        self.db.close()
-                    except Exception:
-                        pass
-
-                self._remove_sqlite_sidecars(
-                    destination
-                )
-
                 if backup.exists():
+
+                    self._remove_sqlite_sidecars(
+                        destination
+                    )
 
                     restore_temp = (
                         app_dir
                         /
                         "inventory_restore.db"
                     )
-
-                    try:
-
-                        if restore_temp.exists():
-                            restore_temp.unlink()
-
-                    except OSError:
-
-                        pass
 
                     shutil.copyfile(
                         str(backup),
@@ -3080,33 +2973,8 @@ class MainApp(App):
                     destination
                 )
 
-            except Exception as restore_exc:
-
-                self.message(
-                    "Ошибка импорта:\n"
-                    +
-                    str(exc)
-                    +
-                    "\n\n"
-                    +
-                    "Дополнительно не удалось "
-                    "восстановить старую БД:\n"
-                    +
-                    str(restore_exc)
-                )
-
-                return
-
-            finally:
-
-                try:
-
-                    if replacement.exists():
-                        replacement.unlink()
-
-                except OSError:
-
-                    pass
+            except Exception:
+                pass
 
             self.message(
                 "Ошибка импорта:\n"
@@ -3115,30 +2983,25 @@ class MainApp(App):
             )
 
     # =====================================================
-    # CLEAR DATABASE
+    # CLEAR
     # =====================================================
 
     def confirm_clear_database(self):
 
         content = BoxLayout(
             orientation="vertical",
-            padding=dp(
-                12
-            ),
-            spacing=dp(
-                10
-            )
+            padding=dp(12),
+            spacing=dp(10),
         )
 
         label = Label(
             text=(
-                "ВНИМАНИЕ!\n\n"
-                "Будут удалены все товары "
-                "и все сроки.\n\n"
+                "Удалить всю базу?\n\n"
+                "Будут удалены все товары и сроки.\n"
                 "Это действие нельзя отменить."
             ),
             halign="center",
-            valign="middle"
+            valign="middle",
         )
 
         label.bind(
@@ -3152,12 +3015,8 @@ class MainApp(App):
 
         buttons = BoxLayout(
             size_hint_y=None,
-            height=dp(
-                50
-            ),
-            spacing=dp(
-                8
-            )
+            height=dp(50),
+            spacing=dp(8),
         )
 
         cancel = Button(
@@ -3167,43 +3026,24 @@ class MainApp(App):
         clear = Button(
             text="Удалить всё",
             background_normal="",
-            background_color=(
-                0.86,
-                0.18,
-                0.16,
-                1
-            )
+            background_color=RED,
         )
 
-        buttons.add_widget(
-            cancel
-        )
+        buttons.add_widget(cancel)
+        buttons.add_widget(clear)
 
-        buttons.add_widget(
-            clear
-        )
-
-        content.add_widget(
-            label
-        )
-
-        content.add_widget(
-            buttons
-        )
+        content.add_widget(label)
+        content.add_widget(buttons)
 
         popup = Popup(
             title=APP_TITLE,
             content=content,
-            size_hint=(
-                0.90,
-                0.55
-            ),
-            auto_dismiss=False
+            size_hint=(0.90, 0.50),
+            auto_dismiss=False,
         )
 
         cancel.bind(
-            on_release=
-            popup.dismiss
+            on_release=popup.dismiss
         )
 
         def do_clear(*_):
@@ -3219,8 +3059,7 @@ class MainApp(App):
             self.open_home()
 
         clear.bind(
-            on_release=
-            do_clear
+            on_release=do_clear
         )
 
         popup.open()
@@ -3236,18 +3075,14 @@ class MainApp(App):
 
         content = BoxLayout(
             orientation="vertical",
-            padding=dp(
-                12
-            ),
-            spacing=dp(
-                10
-            )
+            padding=dp(12),
+            spacing=dp(10),
         )
 
         label = Label(
             text=text,
             halign="left",
-            valign="middle"
+            valign="middle",
         )
 
         label.bind(
@@ -3262,38 +3097,27 @@ class MainApp(App):
         ok = Button(
             text="OK",
             size_hint_y=None,
-            height=dp(
-                48
-            )
+            height=dp(48),
         )
 
-        content.add_widget(
-            label
-        )
-
-        content.add_widget(
-            ok
-        )
+        content.add_widget(label)
+        content.add_widget(ok)
 
         popup = Popup(
             title=APP_TITLE,
             content=content,
-            size_hint=(
-                0.90,
-                0.55
-            ),
-            auto_dismiss=False
+            size_hint=(0.90, 0.55),
+            auto_dismiss=False,
         )
 
         ok.bind(
-            on_release=
-            popup.dismiss
+            on_release=popup.dismiss
         )
 
         popup.open()
 
     # =====================================================
-    # DESKTOP EXPORT
+    # DESKTOP
     # =====================================================
 
     def _desktop_export(self):
@@ -3321,9 +3145,7 @@ class MainApp(App):
             self.message(
                 "База сохранена:\n"
                 +
-                str(
-                    destination
-                )
+                str(destination)
             )
 
         except Exception as exc:
@@ -3354,7 +3176,6 @@ class MainApp(App):
                 )
 
             except Exception:
-
                 pass
 
         try:
@@ -3365,7 +3186,6 @@ class MainApp(App):
             )
 
         except Exception:
-
             pass
 
         if hasattr(
