@@ -49,46 +49,39 @@ from kivy.utils import platform
 
 ANDROID = platform == "android"
 
-# Current Android Activity.
-#
-# This is deliberately obtained through PyJNIus instead
-# of relying on the "activity" helper object for launching
-# the scanner.
 android_autoclass = None
+android_cast = None
 android_jarray = None
 android_activity_helper = None
 
 if ANDROID:
 
     try:
-        from jnius import autoclass as _autoclass
-        from jnius import jarray as _jarray
+        from jnius import autoclass
+        from jnius import cast
+        from jnius import jarray
 
-        android_autoclass = _autoclass
-        android_jarray = _jarray
+        android_autoclass = autoclass
+        android_cast = cast
+        android_jarray = jarray
 
-    except Exception:
-        android_autoclass = None
-        android_jarray = None
+    except Exception as exc:
+        print("PyJNIus import error:", exc)
 
-    # We still use android.activity for the
-    # on_activity_result callback when available.
     try:
-        from android import activity as _activity_helper
+        from android import activity
 
-        android_activity_helper = _activity_helper
+        android_activity_helper = activity
 
-    except Exception:
-        android_activity_helper = None
+    except Exception as exc:
+        print("android.activity import error:", exc)
 
 
-def get_android_activity():
-    """
-    Return the current Kivy Android Activity.
+# =========================================================
+# ANDROID HELPERS
+# =========================================================
 
-    This works through the standard Kivy
-    PythonActivity.mActivity reference.
-    """
+def get_python_activity_class():
 
     if not ANDROID:
         return None
@@ -97,22 +90,21 @@ def get_android_activity():
         return None
 
     try:
-
-        PythonActivity = android_autoclass(
+        return android_autoclass(
             "org.kivy.android.PythonActivity"
         )
 
-        return PythonActivity.mActivity
+    except Exception as exc:
 
-    except Exception:
+        print(
+            "PythonActivity class error:",
+            exc
+        )
 
         return None
 
 
 def get_android_sdk_int():
-    """
-    Return Android SDK integer.
-    """
 
     if not ANDROID:
         return 0
@@ -286,7 +278,11 @@ class Database:
             (barcode,),
         ).fetchone()
 
-    def save_product(self, barcode, name):
+    def save_product(
+        self,
+        barcode,
+        name
+    ):
 
         barcode = barcode.strip()
         name = name.strip()
@@ -305,7 +301,7 @@ class Database:
                 """,
                 (
                     name,
-                    barcode
+                    barcode,
                 ),
             )
 
@@ -480,7 +476,6 @@ class Database:
                             e2.id ASC
                         LIMIT 1
                     ) IS NULL
-
                     THEN 1
                     ELSE 0
                 END ASC,
@@ -491,7 +486,10 @@ class Database:
             """
         ).fetchall()
 
-    def backup_to(self, target):
+    def backup_to(
+        self,
+        target
+    ):
 
         target = Path(target)
 
@@ -501,6 +499,7 @@ class Database:
         )
 
         if target.exists():
+
             target.unlink()
 
         target_conn = sqlite3.connect(
@@ -596,9 +595,7 @@ class HomeScreen(BaseScreen):
             self.app.db.get_product_list()
         ):
 
-            next_exp = product["next_exp"]
-
-            if not next_exp:
+            if not product["next_exp"]:
 
                 completed.append(
                     product
@@ -609,7 +606,7 @@ class HomeScreen(BaseScreen):
             try:
 
                 exp_date = datetime.strptime(
-                    next_exp,
+                    product["next_exp"],
                     DATE_DB_FORMAT
                 ).date()
 
@@ -728,9 +725,7 @@ class HomeScreen(BaseScreen):
                 1
             )
 
-            status = (
-                "ВСЕ СРОКИ СПИСАНЫ"
-            )
+            status = "ВСЕ СРОКИ СПИСАНЫ"
 
         elif exp_date == today:
 
@@ -748,9 +743,7 @@ class HomeScreen(BaseScreen):
                 1
             )
 
-            status = (
-                "УЦЕНКА СЕГОДНЯ"
-            )
+            status = "УЦЕНКА СЕГОДНЯ"
 
         elif exp_date == yesterday:
 
@@ -872,7 +865,6 @@ class AddProductScreen(BaseScreen):
         barcode = barcode.strip()
 
         if not barcode:
-
             return
 
         product = self.app.db.get_product(
@@ -957,7 +949,7 @@ class AddProductScreen(BaseScreen):
 
 
 # =========================================================
-# PRODUCT DETAIL
+# PRODUCT
 # =========================================================
 
 class ProductScreen(BaseScreen):
@@ -1103,7 +1095,7 @@ class SettingsScreen(BaseScreen):
 
 
 # =========================================================
-# APP
+# MAIN APP
 # =========================================================
 
 class MainApp(App):
@@ -1122,9 +1114,9 @@ class MainApp(App):
             self.db_path
         )
 
-        # -------------------------------------------------
-        # Android result callback
-        # -------------------------------------------------
+        # ---------------------------------------------
+        # Android callback
+        # ---------------------------------------------
 
         if (
             ANDROID
@@ -1177,7 +1169,7 @@ class MainApp(App):
         return manager
 
     # =====================================================
-    # ANDROID BACK
+    # BACK
     # =====================================================
 
     def _on_keyboard(
@@ -1190,7 +1182,6 @@ class MainApp(App):
     ):
 
         if key != 27:
-
             return False
 
         if self.sm.current != "home":
@@ -1202,10 +1193,7 @@ class MainApp(App):
         return False
 
     # =====================================================
-    # HOME UI
-    #
-    # Two rows instead of three elements in one row.
-    # This prevents the title/button overflow seen on A17.
+    # HOME
     # =====================================================
 
     def create_home_screen(self):
@@ -1224,10 +1212,6 @@ class MainApp(App):
             ),
             spacing=dp(8)
         )
-
-        # -------------------------------------------------
-        # Title row
-        # -------------------------------------------------
 
         title_row = BoxLayout(
             size_hint_y=None,
@@ -1258,10 +1242,6 @@ class MainApp(App):
         root.add_widget(
             title_row
         )
-
-        # -------------------------------------------------
-        # Action row
-        # -------------------------------------------------
 
         actions = BoxLayout(
             size_hint_y=None,
@@ -1301,10 +1281,6 @@ class MainApp(App):
             actions
         )
 
-        # -------------------------------------------------
-        # Product list
-        # -------------------------------------------------
-
         scroll = ScrollView(
             do_scroll_x=False
         )
@@ -1341,7 +1317,7 @@ class MainApp(App):
         return screen
 
     # =====================================================
-    # ADD UI
+    # ADD
     # =====================================================
 
     def create_add_screen(self):
@@ -1416,7 +1392,7 @@ class MainApp(App):
                     "Штрихкод можно отсканировать "
                     "или ввести вручную.\n"
                     "Для существующего товара "
-                    "название заполнится автоматически."
+                    "название подставится автоматически."
                 ),
                 size_hint_y=None,
                 height=dp(72),
@@ -1474,7 +1450,7 @@ class MainApp(App):
         return screen
 
     # =====================================================
-    # PRODUCT UI
+    # PRODUCT
     # =====================================================
 
     def create_product_screen(self):
@@ -1602,25 +1578,11 @@ class MainApp(App):
             writeoff
         )
 
-        screen.product_name_label = (
-            product_name
-        )
-
-        screen.product_barcode_label = (
-            product_barcode
-        )
-
-        screen.nearest_date_label = (
-            nearest_date
-        )
-
-        screen.history_label = (
-            history
-        )
-
-        screen.writeoff_button = (
-            writeoff
-        )
+        screen.product_name_label = product_name
+        screen.product_barcode_label = product_barcode
+        screen.nearest_date_label = nearest_date
+        screen.history_label = history
+        screen.writeoff_button = writeoff
 
         screen.add_widget(
             root
@@ -1629,7 +1591,7 @@ class MainApp(App):
         return screen
 
     # =====================================================
-    # SETTINGS UI
+    # SETTINGS
     # =====================================================
 
     def create_settings_screen(self):
@@ -1797,6 +1759,10 @@ class MainApp(App):
 
     # =====================================================
     # BARCODE SCANNER
+    #
+    # IMPORTANT:
+    # We DO NOT check whether mActivity is None and abort.
+    # We use it directly, as recommended by PyJNIus docs.
     # =====================================================
 
     def start_barcode_scanner(self):
@@ -1810,28 +1776,27 @@ class MainApp(App):
 
             return
 
-        current_activity = (
-            get_android_activity()
-        )
-
-        if current_activity is None:
-
-            self.message(
-                "Не удалось получить текущую "
-                "Android Activity."
-            )
-
-            return
-
         if android_autoclass is None:
 
             self.message(
-                "PyJNIus недоступен."
+                "PyJNIus недоступен в APK."
             )
 
             return
 
         try:
+
+            PythonActivity = (
+                android_autoclass(
+                    "org.kivy.android.PythonActivity"
+                )
+            )
+
+            Intent = (
+                android_autoclass(
+                    "android.content.Intent"
+                )
+            )
 
             ScannerActivity = (
                 android_autoclass(
@@ -1840,10 +1805,9 @@ class MainApp(App):
                 )
             )
 
-            Intent = (
-                android_autoclass(
-                    "android.content.Intent"
-                )
+            # This is the actual current Android Activity.
+            current_activity = (
+                PythonActivity.mActivity
             )
 
             intent = Intent(
@@ -1859,7 +1823,7 @@ class MainApp(App):
         except Exception as exc:
 
             self.message(
-                "Не удалось открыть сканер:\n\n"
+                "Ошибка запуска сканера:\n\n"
                 +
                 str(exc)
             )
@@ -1881,7 +1845,6 @@ class MainApp(App):
             REQUEST_SCAN_BARCODE
         ):
 
-            # Android RESULT_OK == -1
             if result_code != -1:
                 return
 
@@ -1896,7 +1859,12 @@ class MainApp(App):
                     )
                 )
 
-            except Exception:
+            except Exception as exc:
+
+                print(
+                    "Barcode result error:",
+                    exc
+                )
 
                 barcode = None
 
@@ -1943,9 +1911,7 @@ class MainApp(App):
                 )
 
     # =====================================================
-    # EXPORT DATABASE
-    #
-    # Android 10+ -> MediaStore Downloads
+    # EXPORT DATABASE TO DOWNLOADS
     # =====================================================
 
     def export_database(self):
@@ -1953,19 +1919,6 @@ class MainApp(App):
         if not ANDROID:
 
             self._desktop_export()
-
-            return
-
-        current_activity = (
-            get_android_activity()
-        )
-
-        if current_activity is None:
-
-            self.message(
-                "Не удалось получить "
-                "Android Activity."
-            )
 
             return
 
@@ -1991,9 +1944,7 @@ class MainApp(App):
                 ".db"
             )
 
-            sdk_int = (
-                get_android_sdk_int()
-            )
+            sdk_int = get_android_sdk_int()
 
             if sdk_int >= 29:
 
@@ -2023,6 +1974,12 @@ class MainApp(App):
         filename
     ):
 
+        current_activity = (
+            android_autoclass(
+                "org.kivy.android.PythonActivity"
+            ).mActivity
+        )
+
         ContentValues = (
             android_autoclass(
                 "android.content.ContentValues"
@@ -2047,20 +2004,15 @@ class MainApp(App):
             "application/octet-stream"
         )
 
-        # PUBLIC DOWNLOADS
+        # Public Android Downloads folder.
         values.put(
             "relative_path",
             "Download/"
         )
 
-        # Hide incomplete file until writing finishes.
         values.put(
             "is_pending",
             1
-        )
-
-        current_activity = (
-            get_android_activity()
         )
 
         resolver = (
@@ -2158,7 +2110,7 @@ class MainApp(App):
             )
         )
 
-        downloads_directory = (
+        downloads = (
             Environment
             .getExternalStoragePublicDirectory(
                 Environment.DIRECTORY_DOWNLOADS
@@ -2167,9 +2119,7 @@ class MainApp(App):
 
         destination = (
             Path(
-                str(
-                    downloads_directory
-                )
+                str(downloads)
             )
             /
             filename
@@ -2199,7 +2149,7 @@ class MainApp(App):
         )
 
     # =====================================================
-    # IMPORT DATABASE
+    # IMPORT
     # =====================================================
 
     def import_database(self):
@@ -2207,32 +2157,27 @@ class MainApp(App):
         if not ANDROID:
 
             self.message(
-                "Импорт через системный "
-                "выбор файла доступен "
-                "на Android."
-            )
-
-            return
-
-        current_activity = (
-            get_android_activity()
-        )
-
-        if current_activity is None:
-
-            self.message(
-                "Не удалось получить "
-                "Android Activity."
+                "Импорт доступен на Android."
             )
 
             return
 
         try:
 
+            PythonActivity = (
+                android_autoclass(
+                    "org.kivy.android.PythonActivity"
+                )
+            )
+
             Intent = (
                 android_autoclass(
                     "android.content.Intent"
                 )
+            )
+
+            current_activity = (
+                PythonActivity.mActivity
             )
 
             intent = Intent(
@@ -2256,7 +2201,7 @@ class MainApp(App):
 
             self.message(
                 "Не удалось открыть "
-                "выбор файла:\n"
+                "выбор файла:\n\n"
                 +
                 str(exc)
             )
@@ -2267,17 +2212,10 @@ class MainApp(App):
     ):
 
         current_activity = (
-            get_android_activity()
+            android_autoclass(
+                "org.kivy.android.PythonActivity"
+            ).mActivity
         )
-
-        if current_activity is None:
-
-            self.message(
-                "Не удалось получить "
-                "Android Activity."
-            )
-
-            return
 
         resolver = (
             current_activity
@@ -2354,7 +2292,9 @@ class MainApp(App):
         except Exception as exc:
 
             try:
+
                 temp.unlink()
+
             except OSError:
                 pass
 
@@ -2369,9 +2309,7 @@ class MainApp(App):
         source
     ):
 
-        source = Path(
-            source
-        )
+        source = Path(source)
 
         if not source.exists():
 
@@ -2386,8 +2324,8 @@ class MainApp(App):
         ):
 
             self.message(
-                "Этот файл не похож "
-                "на базу приложения."
+                "Файл не является "
+                "базой приложения."
             )
 
             try:
@@ -2397,19 +2335,17 @@ class MainApp(App):
 
             return
 
-        destination = self.db_path
-
         try:
 
             self.db.close()
 
             shutil.copy2(
                 source,
-                destination
+                self.db_path
             )
 
             self.db = Database(
-                destination
+                self.db_path
             )
 
             try:
@@ -2652,7 +2588,6 @@ class MainApp(App):
                 )
 
             except Exception:
-
                 pass
 
         try:
@@ -2663,7 +2598,6 @@ class MainApp(App):
             )
 
         except Exception:
-
             pass
 
         if hasattr(
