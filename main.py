@@ -24,7 +24,7 @@ Config.set("kivy", "exit_on_escape", "0")
 
 
 # =========================================================
-# KIVY IMPORTS
+# KIVY
 # =========================================================
 
 from kivy.app import App
@@ -108,19 +108,7 @@ REQUEST_IMPORT_DB = 4102
 
 
 # =========================================================
-# ANDROID SAFE AREA
-# =========================================================
-#
-# Samsung / современные Android могут рисовать Kivy
-# под статус-баром и нижней системной навигацией.
-#
-# Поэтому для Android резервируем безопасное место.
-#
-# Верх:
-# статус-бар + небольшой запас.
-#
-# Низ:
-# панель жестов / навигационные кнопки + запас.
+# SAFE AREA
 # =========================================================
 
 if ANDROID:
@@ -135,9 +123,9 @@ else:
 
 
 def safe_padding(
-    horizontal=12,
-    top=12,
-    bottom=12
+        horizontal=12,
+        top=12,
+        bottom=12
 ):
 
     return (
@@ -149,7 +137,7 @@ def safe_padding(
 
 
 # =========================================================
-# BARCODE HELPERS
+# BARCODE
 # =========================================================
 
 def normalize_barcode(value):
@@ -173,7 +161,6 @@ def barcode_variants(barcode):
         barcode
     ]
 
-    # Иногда EAN / UPC отличаются ведущим нулём.
     if (
         barcode.startswith("0")
         and
@@ -208,23 +195,10 @@ def barcode_variants(barcode):
 
 
 # =========================================================
-# DATE HELPERS
+# DATE
 # =========================================================
 
 def parse_user_date(value):
-    """
-    Пользователь вводит:
-
-        280826
-
-    Поле отображает:
-
-        28.08.26
-
-    В БД сохраняется:
-
-        2026-08-28
-    """
 
     value = str(
         value
@@ -329,17 +303,6 @@ def format_date(value):
 # =========================================================
 
 class DateInput(TextInput):
-    """
-    Ввод:
-
-        280826
-
-    Отображение:
-
-        28.08.26
-
-    Точки вводятся автоматически.
-    """
 
     def _format_digits(
         self,
@@ -418,11 +381,9 @@ class DateInput(TextInput):
         if free_space <= 0:
             return
 
-        new_digits = (
-            new_digits[
-                :free_space
-            ]
-        )
+        new_digits = new_digits[
+            :free_space
+        ]
 
         all_digits = (
             current_digits
@@ -445,21 +406,19 @@ class DateInput(TextInput):
         mode="bkspc"
     ):
 
-        current_digits = "".join(
+        digits = "".join(
             char
             for char in self.text
             if char.isdigit()
         )
 
-        if not current_digits:
+        if not digits:
             return
 
-        current_digits = (
-            current_digits[:-1]
-        )
+        digits = digits[:-1]
 
         self.text = self._format_digits(
-            current_digits
+            digits
         )
 
         Clock.schedule_once(
@@ -543,11 +502,8 @@ class Database:
     def close(self):
 
         try:
-
             self.conn.close()
-
         except Exception:
-
             pass
 
     def clear_all(self):
@@ -712,11 +668,9 @@ class Database:
 
         if product:
 
-            barcode = (
-                product[
-                    "barcode"
-                ]
-            )
+            barcode = product[
+                "barcode"
+            ]
 
         return self.conn.execute(
             """
@@ -724,9 +678,7 @@ class Database:
             FROM expirations
             WHERE barcode = ?
               AND written_off = 0
-            ORDER BY
-                exp_date ASC,
-                id ASC
+            ORDER BY exp_date ASC, id ASC
             """,
             (
                 barcode,
@@ -744,11 +696,9 @@ class Database:
 
         if product:
 
-            barcode = (
-                product[
-                    "barcode"
-                ]
-            )
+            barcode = product[
+                "barcode"
+            ]
 
         return self.conn.execute(
             """
@@ -776,11 +726,9 @@ class Database:
 
         if product:
 
-            barcode = (
-                product[
-                    "barcode"
-                ]
-            )
+            barcode = product[
+                "barcode"
+            ]
 
         return self.conn.execute(
             """
@@ -788,9 +736,7 @@ class Database:
             FROM expirations
             WHERE barcode = ?
               AND written_off = 0
-            ORDER BY
-                exp_date ASC,
-                id ASC
+            ORDER BY exp_date ASC, id ASC
             LIMIT 1
             """,
             (
@@ -808,7 +754,6 @@ class Database:
         )
 
         if not row:
-
             return False
 
         self.conn.execute(
@@ -887,14 +832,11 @@ class Database:
         )
 
         if target.exists():
-
             target.unlink()
 
-        target_conn = (
-            sqlite3.connect(
-                str(
-                    target
-                )
+        target_conn = sqlite3.connect(
+            str(
+                target
             )
         )
 
@@ -925,7 +867,8 @@ class Database:
 
             tables = {
                 row[0]
-                for row in con.execute(
+                for row
+                in con.execute(
                     """
                     SELECT name
                     FROM sqlite_master
@@ -937,13 +880,9 @@ class Database:
             con.close()
 
             return (
-                "products"
-                in
-                tables
+                "products" in tables
                 and
-                "expirations"
-                in
-                tables
+                "expirations" in tables
             )
 
         except Exception:
@@ -952,7 +891,7 @@ class Database:
 
 
 # =========================================================
-# BASE SCREEN
+# SCREENS
 # =========================================================
 
 class BaseScreen(Screen):
@@ -970,10 +909,6 @@ class BaseScreen(Screen):
             App.get_running_app()
         )
 
-
-# =========================================================
-# HOME SCREEN
-# =========================================================
 
 class HomeScreen(BaseScreen):
 
@@ -1242,9 +1177,7 @@ class HomeScreen(BaseScreen):
                 instance,
                 "text_size",
                 (
-                    value[0]
-                    -
-                    dp(22),
+                    value[0] - dp(22),
                     value[1]
                 )
             )
@@ -1261,10 +1194,6 @@ class HomeScreen(BaseScreen):
 
         return button
 
-
-# =========================================================
-# ADD PRODUCT
-# =========================================================
 
 class AddProductScreen(BaseScreen):
 
@@ -1315,7 +1244,6 @@ class AddProductScreen(BaseScreen):
         )
 
         if not barcode:
-
             return
 
         product = (
@@ -1325,7 +1253,6 @@ class AddProductScreen(BaseScreen):
         )
 
         if product is None:
-
             return
 
         saved_name = (
@@ -1353,7 +1280,6 @@ class AddProductScreen(BaseScreen):
         )
 
         if not barcode:
-
             return
 
         Clock.schedule_once(
@@ -1479,10 +1405,6 @@ class AddProductScreen(BaseScreen):
         self.app.open_home()
 
 
-# =========================================================
-# PRODUCT SCREEN
-# =========================================================
-
 class ProductScreen(BaseScreen):
 
     barcode = StringProperty(
@@ -1501,7 +1423,6 @@ class ProductScreen(BaseScreen):
         )
 
         if not product:
-
             return
 
         self.barcode = (
@@ -1639,10 +1560,6 @@ class ProductScreen(BaseScreen):
         self.app.open_home()
 
 
-# =========================================================
-# SETTINGS SCREEN
-# =========================================================
-
 class SettingsScreen(BaseScreen):
     pass
 
@@ -1734,7 +1651,6 @@ class MainApp(App):
     ):
 
         if key != 27:
-
             return False
 
         if self.sm.current != "home":
@@ -1746,7 +1662,7 @@ class MainApp(App):
         return False
 
     # =====================================================
-    # HOME UI
+    # HOME
     # =====================================================
 
     def create_home_screen(self):
@@ -1872,7 +1788,7 @@ class MainApp(App):
         return screen
 
     # =====================================================
-    # ADD UI
+    # ADD
     # =====================================================
 
     def create_add_screen(self):
@@ -1957,9 +1873,7 @@ class MainApp(App):
                 instance,
                 "text_size",
                 (
-                    value[0]
-                    -
-                    dp(24),
+                    value[0] - dp(24),
                     None
                 )
             )
@@ -2064,7 +1978,7 @@ class MainApp(App):
         return screen
 
     # =====================================================
-    # PRODUCT UI
+    # PRODUCT
     # =====================================================
 
     def create_product_screen(self):
@@ -2237,7 +2151,7 @@ class MainApp(App):
         return screen
 
     # =====================================================
-    # SETTINGS UI
+    # SETTINGS
     # =====================================================
 
     def create_settings_screen(self):
@@ -2377,9 +2291,7 @@ class MainApp(App):
 
     def open_home(self):
 
-        self.sm.current = (
-            "home"
-        )
+        self.sm.current = "home"
 
         self.sm.get_screen(
             "home"
@@ -2390,9 +2302,7 @@ class MainApp(App):
         barcode=""
     ):
 
-        self.sm.current = (
-            "add"
-        )
+        self.sm.current = "add"
 
         screen = (
             self.sm.get_screen(
@@ -2425,9 +2335,7 @@ class MainApp(App):
         barcode
     ):
 
-        self.sm.current = (
-            "product"
-        )
+        self.sm.current = "product"
 
         self.sm.get_screen(
             "product"
@@ -2437,9 +2345,7 @@ class MainApp(App):
 
     def open_settings(self):
 
-        self.sm.current = (
-            "settings"
-        )
+        self.sm.current = "settings"
 
     # =====================================================
     # BARCODE SCANNER
@@ -2450,8 +2356,7 @@ class MainApp(App):
         if not ANDROID:
 
             self.message(
-                "Устройство не определено "
-                "как Android."
+                "Сканер доступен только на Android."
             )
 
             return
@@ -2615,11 +2520,9 @@ class MainApp(App):
     ):
 
         if result_code != -1:
-
             return
 
         if intent is None:
-
             return
 
         try:
@@ -2688,27 +2591,46 @@ class MainApp(App):
                 ".db"
             )
 
-            BuildVersion = autoclass(
-                "android.os.Build$VERSION"
+            PythonActivity = autoclass(
+                "org.kivy.android.PythonActivity"
             )
 
-            sdk = int(
-                BuildVersion.SDK_INT
+            current_activity = cast(
+                "android.app.Activity",
+                PythonActivity.mActivity
             )
 
-            if sdk >= 29:
+            DatabaseExportHelper = autoclass(
+                "org.example.expiringgoods."
+                "DatabaseExportHelper"
+            )
 
-                self._export_to_downloads(
-                    temp_db,
+            result = (
+                DatabaseExportHelper
+                .exportToDownloads(
+                    current_activity,
+                    str(temp_db),
                     filename
                 )
+            )
 
-            else:
+            try:
 
-                self._export_to_legacy_downloads(
-                    temp_db,
-                    filename
-                )
+                temp_db.unlink()
+
+            except OSError:
+
+                pass
+
+            self.message(
+                "База экспортирована.\n\n"
+                +
+                str(result)
+                +
+                "\n\n"
+                +
+                "Папка: Downloads"
+            )
 
         except Exception as exc:
 
@@ -2721,217 +2643,6 @@ class MainApp(App):
                 +
                 str(exc)
             )
-
-    def _export_to_downloads(
-        self,
-        source,
-        filename
-    ):
-
-        PythonActivity = autoclass(
-            "org.kivy.android.PythonActivity"
-        )
-
-        current_activity = cast(
-            "android.app.Activity",
-            PythonActivity.mActivity
-        )
-
-        ContentValues = autoclass(
-            "android.content.ContentValues"
-        )
-
-        MediaStore = autoclass(
-            "android.provider.MediaStore"
-        )
-
-        values = ContentValues()
-
-        values.put(
-            "_display_name",
-            str(
-                filename
-            )
-        )
-
-        values.put(
-            "mime_type",
-            "application/octet-stream"
-        )
-
-        # Публичная папка Downloads.
-        values.put(
-            "relative_path",
-            "Download/"
-        )
-
-        resolver = (
-            current_activity
-            .getContentResolver()
-        )
-
-        collection = (
-            MediaStore.Downloads
-            .EXTERNAL_CONTENT_URI
-        )
-
-        uri = resolver.insert(
-            collection,
-            values
-        )
-
-        if uri is None:
-
-            raise RuntimeError(
-                "Android не смог создать "
-                "файл в Downloads."
-            )
-
-        output_stream = (
-            resolver.openOutputStream(
-                uri
-            )
-        )
-
-        if output_stream is None:
-
-            try:
-
-                resolver.delete(
-                    uri,
-                    None,
-                    None
-                )
-
-            except Exception:
-
-                pass
-
-            raise RuntimeError(
-                "Android не смог открыть "
-                "файл для записи."
-            )
-
-        try:
-
-            data = Path(
-                source
-            ).read_bytes()
-
-            # Не используем jarray.
-            # Пишем по одному байту через OutputStream.write(int).
-            for byte_value in data:
-
-                output_stream.write(
-                    int(
-                        byte_value
-                    )
-                )
-
-            output_stream.flush()
-
-        except Exception:
-
-            try:
-
-                resolver.delete(
-                    uri,
-                    None,
-                    None
-                )
-
-            except Exception:
-
-                pass
-
-            raise
-
-        finally:
-
-            try:
-
-                output_stream.close()
-
-            except Exception:
-
-                pass
-
-        try:
-
-            Path(
-                source
-            ).unlink()
-
-        except OSError:
-
-            pass
-
-        self.message(
-            "База экспортирована.\n\n"
-            +
-            filename
-            +
-            "\n\n"
-            +
-            "Папка: Downloads"
-        )
-
-    def _export_to_legacy_downloads(
-        self,
-        source,
-        filename
-    ):
-
-        Environment = autoclass(
-            "android.os.Environment"
-        )
-
-        downloads = (
-            Environment
-            .getExternalStoragePublicDirectory(
-                Environment.DIRECTORY_DOWNLOADS
-            )
-        )
-
-        destination = (
-            Path(
-                str(
-                    downloads
-                )
-            )
-            /
-            filename
-        )
-
-        destination.parent.mkdir(
-            parents=True,
-            exist_ok=True
-        )
-
-        shutil.copy2(
-            source,
-            destination
-        )
-
-        try:
-
-            Path(
-                source
-            ).unlink()
-
-        except OSError:
-
-            pass
-
-        self.message(
-            "База экспортирована.\n\n"
-            +
-            filename
-            +
-            "\n\n"
-            +
-            "Папка: Downloads"
-        )
 
     # =====================================================
     # IMPORT DATABASE
@@ -3068,7 +2779,6 @@ class MainApp(App):
             finally:
 
                 output.close()
-
                 input_stream.close()
 
             self._replace_database(
