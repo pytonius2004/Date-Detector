@@ -7,6 +7,11 @@ import sqlite3
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
+
+# =========================================================
+# KIVY CONFIG
+# =========================================================
+
 os.environ.setdefault("KIVY_GL_BACKEND", "sdl2")
 os.environ.setdefault("KIVY_GRAPHICS", "gles")
 os.environ.setdefault("KIVY_NO_ARGS", "1")
@@ -17,21 +22,30 @@ Config.set("graphics", "multisamples", "0")
 Config.set("graphics", "resizable", "1")
 Config.set("kivy", "exit_on_escape", "0")
 
+
+# =========================================================
+# KIVY
+# =========================================================
+
 from kivy.app import App
 from kivy.clock import Clock, mainthread
 from kivy.core.window import Window
 from kivy.metrics import dp
 from kivy.properties import StringProperty
+
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.popup import Popup
-from kivy.uix.screenmanager import Screen
-from kivy.uix.screenmanager import ScreenManager
-from kivy.uix.screenmanager import FadeTransition
+from kivy.uix.screenmanager import (
+    Screen,
+    ScreenManager,
+    FadeTransition,
+)
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.textinput import TextInput
 from kivy.uix.widget import Widget
+
 from kivy.utils import platform
 
 
@@ -45,19 +59,21 @@ PYJNIUS_AVAILABLE = False
 PYJNIUS_ERROR = ""
 
 autoclass = None
-jarray = None
+cast = None
 activity_helper = None
+
 
 if ANDROID:
 
     try:
-        from jnius import autoclass
-        from jnius import jarray
+        from jnius import autoclass, cast
 
         PYJNIUS_AVAILABLE = True
 
     except Exception as exc:
+
         PYJNIUS_AVAILABLE = False
+
         PYJNIUS_ERROR = (
             type(exc).__name__
             + ": "
@@ -78,6 +94,7 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки товаров"
+
 DB_NAME = "inventory.db"
 
 DATE_DB_FORMAT = "%Y-%m-%d"
@@ -92,19 +109,15 @@ REQUEST_IMPORT_DB = 4102
 # =========================================================
 
 def normalize_barcode(value):
-    """
-    Normalize barcode without destroying leading zeroes.
-    """
 
     if value is None:
         return ""
 
-    value = str(value).strip()
-
-    return value
+    return str(value).strip()
 
 
 def parse_user_date(value):
+
     value = value.strip()
 
     for fmt in (
@@ -113,13 +126,16 @@ def parse_user_date(value):
         "%d/%m/%Y",
         "%d-%m-%Y",
     ):
+
         try:
+
             return datetime.strptime(
                 value,
                 fmt
             ).strftime(
                 DATE_DB_FORMAT
             )
+
         except ValueError:
             pass
 
@@ -132,6 +148,7 @@ def format_date(value):
         return "—"
 
     try:
+
         return datetime.strptime(
             value,
             DATE_DB_FORMAT
@@ -140,61 +157,8 @@ def format_date(value):
         )
 
     except ValueError:
+
         return value
-
-
-def format_date_input(value):
-    """
-    Format a partially entered date.
-
-    Examples:
-
-        1       -> 1
-        12      -> 12.
-        123     -> 12.3
-        1234    -> 12.34.
-        12345   -> 12.34.5
-        123456  -> 12.34.56
-        1234567 -> 12.34.567
-        12345678 -> 12.34.5678
-
-    Separators typed by the user are preserved when useful.
-    """
-
-    if value is None:
-        return ""
-
-    value = str(value)
-
-    digits = "".join(
-        ch for ch in value
-        if ch.isdigit()
-    )[:8]
-
-    if not digits:
-        return ""
-
-    result = ""
-
-    for index, digit in enumerate(digits):
-
-        if index == 2:
-            result += "."
-
-        elif index == 4:
-            result += "."
-
-        result += digit
-
-    # Preserve a separator if the user literally typed one
-    # at the end after the first or second part.
-    if value and value[-1] in ".-":
-
-        if len(digits) in (2, 4):
-            if not result.endswith("."):
-                result += "."
-
-    return result
 
 
 # =========================================================
@@ -202,41 +166,126 @@ def format_date_input(value):
 # =========================================================
 
 class DateInput(TextInput):
-    """
-    Date field that keeps the user's dots and automatically
-    formats the input as DD.MM.YYYY.
-    """
 
-    _formatting = False
+    _internal_change = False
 
-    def on_text(self, instance, value):
+    def insert_text(
+        self,
+        substring,
+        from_undo=False
+    ):
 
-        if self._formatting:
+        if self._internal_change:
+
+            return super().insert_text(
+                substring,
+                from_undo=from_undo
+            )
+
+        # Разрешаем только цифры и разделители.
+        filtered = "".join(
+            c
+            for c in substring
+            if c.isdigit() or c in ".-/"
+        )
+
+        if not filtered:
             return
 
-        formatted = format_date_input(
-            value
+        super().insert_text(
+            filtered,
+            from_undo=from_undo
         )
+
+    def on_text(
+        self,
+        instance,
+        value
+    ):
+
+        if self._internal_change:
+            return
+
+        digits = "".join(
+            ch
+            for ch in value
+            if ch.isdigit()
+        )[:8]
+
+        if not digits:
+            return
+
+        formatted = ""
+
+        if len(digits) <= 2:
+
+            formatted = digits
+
+        elif len(digits) <= 4:
+
+            formatted = (
+                digits[:2]
+                +
+                "."
+                +
+                digits[2:]
+            )
+
+        else:
+
+            formatted = (
+                digits[:2]
+                +
+                "."
+                +
+                digits[2:4]
+                +
+                "."
+                +
+                digits[4:]
+            )
+
+        # Если пользователь только что нажал точку после дня
+        # или месяца — оставляем её.
+        if value.endswith((".", "-", "/")):
+
+            if len(digits) == 2:
+
+                formatted = (
+                    digits
+                    +
+                    "."
+                )
+
+            elif len(digits) == 4:
+
+                formatted = (
+                    digits[:2]
+                    +
+                    "."
+                    +
+                    digits[2:4]
+                    +
+                    "."
+                )
 
         if formatted == value:
             return
 
-        self._formatting = True
+        self._internal_change = True
 
         try:
-
-            cursor_position = len(formatted)
 
             self.text = formatted
 
             self.cursor = (
-                cursor_position,
+                len(formatted),
                 0
             )
 
         finally:
 
-            self._formatting = False
+            self._internal_change = False
 
 
 # =========================================================
@@ -318,7 +367,10 @@ class Database:
 
         self.conn.commit()
 
-    def get_product(self, barcode):
+    def get_product(
+        self,
+        barcode
+    ):
 
         barcode = normalize_barcode(
             barcode
@@ -439,7 +491,9 @@ class Database:
             FROM expirations
             WHERE barcode = ?
               AND written_off = 0
-            ORDER BY exp_date ASC, id ASC
+            ORDER BY
+                exp_date ASC,
+                id ASC
             """,
             (barcode,),
         ).fetchall()
@@ -458,9 +512,10 @@ class Database:
             SELECT *
             FROM expirations
             WHERE barcode = ?
-            ORDER BY written_off ASC,
-                     exp_date ASC,
-                     id ASC
+            ORDER BY
+                written_off ASC,
+                exp_date ASC,
+                id ASC
             """,
             (barcode,),
         ).fetchall()
@@ -480,7 +535,9 @@ class Database:
             FROM expirations
             WHERE barcode = ?
               AND written_off = 0
-            ORDER BY exp_date ASC, id ASC
+            ORDER BY
+                exp_date ASC,
+                id ASC
             LIMIT 1
             """,
             (barcode,),
@@ -524,8 +581,9 @@ class Database:
                     FROM expirations e
                     WHERE e.barcode = p.barcode
                       AND e.written_off = 0
-                    ORDER BY e.exp_date ASC,
-                             e.id ASC
+                    ORDER BY
+                        e.exp_date ASC,
+                        e.id ASC
                     LIMIT 1
                 ) AS next_exp
 
@@ -539,8 +597,9 @@ class Database:
                         FROM expirations e2
                         WHERE e2.barcode = p.barcode
                           AND e2.written_off = 0
-                        ORDER BY e2.exp_date ASC,
-                                 e2.id ASC
+                        ORDER BY
+                            e2.exp_date ASC,
+                            e2.id ASC
                         LIMIT 1
                     ) IS NULL
                     THEN 1
@@ -575,6 +634,7 @@ class Database:
         try:
 
             with target_conn:
+
                 self.conn.backup(
                     target_conn
                 )
@@ -617,7 +677,7 @@ class Database:
 
 
 # =========================================================
-# BASE SCREEN
+# SCREENS
 # =========================================================
 
 class BaseScreen(Screen):
@@ -631,13 +691,10 @@ class BaseScreen(Screen):
         self.app = App.get_running_app()
 
 
-# =========================================================
-# HOME SCREEN
-# =========================================================
-
 class HomeScreen(BaseScreen):
 
     def on_pre_enter(self, *_):
+
         self.refresh()
 
     def refresh(self):
@@ -647,7 +704,8 @@ class HomeScreen(BaseScreen):
         today = date.today()
 
         yesterday = (
-            today -
+            today
+            -
             timedelta(days=1)
         )
 
@@ -895,13 +953,7 @@ class HomeScreen(BaseScreen):
         return button
 
 
-# =========================================================
-# ADD PRODUCT
-# =========================================================
-
 class AddProductScreen(BaseScreen):
-
-    _autofill_event = None
 
     def clear_form(self):
 
@@ -922,21 +974,18 @@ class AddProductScreen(BaseScreen):
             barcode
         )
 
-        # Immediate lookup.
+        # Подставляем сразу.
         self.autofill_product(
             barcode
         )
 
-        # Second lookup after Kivy has finished updating
-        # TextInput bindings.
-        if self._autofill_event is not None:
-
-            self._autofill_event.cancel()
-
-        self._autofill_event = Clock.schedule_once(
+        # И ещё раз после обновления Kivy.
+        Clock.schedule_once(
             lambda *_:
-            self.autofill_product(barcode),
-            0.05
+            self.autofill_product(
+                barcode
+            ),
+            0.1
         )
 
     def autofill_product(
@@ -955,7 +1004,6 @@ class AddProductScreen(BaseScreen):
         )
 
         if not barcode:
-
             return
 
         product = (
@@ -964,23 +1012,23 @@ class AddProductScreen(BaseScreen):
             )
         )
 
-        if product is not None:
+        if product is None:
 
-            saved_name = (
-                product["name"]
-                or
-                ""
-            )
+            return
 
-            if saved_name:
+        name = (
+            product["name"]
+            or
+            ""
+        ).strip()
 
-                self.name_input.text = (
-                    saved_name
-                )
+        if name:
 
-    def on_barcode_changed(
+            self.name_input.text = name
+
+    def on_barcode_change(
         self,
-        _instance,
+        instance,
         value
     ):
 
@@ -988,14 +1036,15 @@ class AddProductScreen(BaseScreen):
             value
         )
 
-        if self._autofill_event is not None:
+        if not barcode:
+            return
 
-            self._autofill_event.cancel()
-
-        self._autofill_event = Clock.schedule_once(
+        Clock.schedule_once(
             lambda *_:
-            self.autofill_product(barcode),
-            0.08
+            self.autofill_product(
+                barcode
+            ),
+            0.05
         )
 
     def save(self):
@@ -1022,18 +1071,29 @@ class AddProductScreen(BaseScreen):
 
             return
 
+        # Ещё одна финальная попытка подставить
+        # название перед сохранением.
         if not name:
 
-            # Try one last database lookup before
-            # telling the user the name is missing.
-            self.autofill_product(
-                barcode
+            product = (
+                self.app.db.get_product(
+                    barcode
+                )
             )
 
-            name = (
-                self.name_input.text
-                .strip()
-            )
+            if product:
+
+                name = (
+                    product["name"]
+                    or
+                    ""
+                ).strip()
+
+                if name:
+
+                    self.name_input.text = (
+                        name
+                    )
 
         if not name:
 
@@ -1050,7 +1110,8 @@ class AddProductScreen(BaseScreen):
         if not exp_date:
 
             self.app.message(
-                "Введите дату в формате ДД.ММ.ГГГГ."
+                "Введите дату в формате "
+                "ДД.ММ.ГГГГ."
             )
 
             return
@@ -1078,10 +1139,6 @@ class AddProductScreen(BaseScreen):
 
         self.app.open_home()
 
-
-# =========================================================
-# PRODUCT SCREEN
-# =========================================================
 
 class ProductScreen(BaseScreen):
 
@@ -1219,16 +1276,12 @@ class ProductScreen(BaseScreen):
         self.app.open_home()
 
 
-# =========================================================
-# SETTINGS SCREEN
-# =========================================================
-
 class SettingsScreen(BaseScreen):
     pass
 
 
 # =========================================================
-# MAIN APP
+# APP
 # =========================================================
 
 class MainApp(App):
@@ -1260,11 +1313,16 @@ class MainApp(App):
                     self._on_activity_result
                 )
 
-            except Exception:
-                pass
+            except Exception as exc:
+
+                print(
+                    "activity.bind error:",
+                    exc
+                )
 
         Window.bind(
-            on_keyboard=self._on_keyboard
+            on_keyboard=
+            self._on_keyboard
         )
 
         manager = ScreenManager(
@@ -1293,6 +1351,10 @@ class MainApp(App):
 
         return manager
 
+    # =====================================================
+    # BACK
+    # =====================================================
+
     def _on_keyboard(
         self,
         _window,
@@ -1303,6 +1365,7 @@ class MainApp(App):
     ):
 
         if key != 27:
+
             return False
 
         if self.sm.current != "home":
@@ -1314,7 +1377,7 @@ class MainApp(App):
         return False
 
     # =====================================================
-    # HOME UI
+    # HOME
     # =====================================================
 
     def create_home_screen(self):
@@ -1334,17 +1397,14 @@ class MainApp(App):
             spacing=dp(8)
         )
 
-        title_row = BoxLayout(
-            size_hint_y=None,
-            height=dp(48)
-        )
-
         title = Label(
             text="Сроки товаров",
             font_size="23sp",
             bold=True,
             halign="center",
-            valign="middle"
+            valign="middle",
+            size_hint_y=None,
+            height=dp(55)
         )
 
         title.bind(
@@ -1356,17 +1416,13 @@ class MainApp(App):
             )
         )
 
-        title_row.add_widget(
-            title
-        )
-
         root.add_widget(
-            title_row
+            title
         )
 
         actions = BoxLayout(
             size_hint_y=None,
-            height=dp(52),
+            height=dp(56),
             spacing=dp(8)
         )
 
@@ -1438,7 +1494,7 @@ class MainApp(App):
         return screen
 
     # =====================================================
-    # ADD UI
+    # ADD
     # =====================================================
 
     def create_add_screen(self):
@@ -1456,7 +1512,7 @@ class MainApp(App):
         back = Button(
             text="← Назад",
             size_hint_y=None,
-            height=dp(45)
+            height=dp(48)
         )
 
         back.bind(
@@ -1468,32 +1524,78 @@ class MainApp(App):
             back
         )
 
-        root.add_widget(
-            Label(
-                text="Добавить срок",
-                font_size="23sp",
-                bold=True,
-                size_hint_y=None,
-                height=dp(45)
+        title = Label(
+            text="Добавить срок",
+            font_size="23sp",
+            bold=True,
+            size_hint_y=None,
+            height=dp(52),
+            halign="center",
+            valign="middle"
+        )
+
+        title.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
             )
+        )
+
+        root.add_widget(
+            title
+        )
+
+        info = Label(
+            text=(
+                "Штрихкод можно отсканировать "
+                "или ввести вручную.\n"
+                "Если товар уже есть в базе, "
+                "название заполнится автоматически."
+            ),
+            size_hint_y=None,
+            height=dp(82),
+            halign="center",
+            valign="middle",
+            font_size="14sp"
+        )
+
+        info.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                (
+                    value[0] - dp(20),
+                    None
+                )
+            )
+        )
+
+        root.add_widget(
+            info
         )
 
         barcode = TextInput(
             hint_text="Штрихкод",
             multiline=False,
             size_hint_y=None,
-            height=dp(52)
+            height=dp(52),
+            font_size="18sp"
         )
 
         barcode.bind(
-            text=screen.on_barcode_changed
+            text=
+            screen.on_barcode_change
         )
 
         name = TextInput(
             hint_text="Наименование товара",
             multiline=False,
             size_hint_y=None,
-            height=dp(52)
+            height=dp(52),
+            font_size="18sp"
         )
 
         date_input = DateInput(
@@ -1501,22 +1603,8 @@ class MainApp(App):
             multiline=False,
             size_hint_y=None,
             height=dp(52),
-            input_type="text"
-        )
-
-        root.add_widget(
-            Label(
-                text=(
-                    "Штрихкод можно отсканировать "
-                    "или ввести вручную.\n"
-                    "Для существующего товара "
-                    "название заполнится автоматически."
-                ),
-                size_hint_y=None,
-                height=dp(72),
-                halign="center",
-                valign="middle"
-            )
+            input_type="number",
+            font_size="18sp"
         )
 
         root.add_widget(
@@ -1568,7 +1656,7 @@ class MainApp(App):
         return screen
 
     # =====================================================
-    # PRODUCT UI
+    # PRODUCT
     # =====================================================
 
     def create_product_screen(self):
@@ -1586,7 +1674,7 @@ class MainApp(App):
         back = Button(
             text="← Назад",
             size_hint_y=None,
-            height=dp(45)
+            height=dp(48)
         )
 
         back.bind(
@@ -1723,7 +1811,7 @@ class MainApp(App):
         return screen
 
     # =====================================================
-    # SETTINGS UI
+    # SETTINGS
     # =====================================================
 
     def create_settings_screen(self):
@@ -1741,7 +1829,7 @@ class MainApp(App):
         back = Button(
             text="← Назад",
             size_hint_y=None,
-            height=dp(45)
+            height=dp(48)
         )
 
         back.bind(
@@ -1878,8 +1966,12 @@ class MainApp(App):
 
             Clock.schedule_once(
                 lambda *_:
-                screen.barcode_input.focus(),
-                0.15
+                setattr(
+                    screen.barcode_input,
+                    "focus",
+                    True
+                ),
+                0.1
             )
 
     def open_product(
@@ -1892,9 +1984,7 @@ class MainApp(App):
         self.sm.get_screen(
             "product"
         ).load(
-            normalize_barcode(
-                barcode
-            )
+            barcode
         )
 
     def open_settings(self):
@@ -1910,8 +2000,8 @@ class MainApp(App):
         if not ANDROID:
 
             self.message(
-                "Внутренняя ошибка: "
-                "устройство не определено как Android."
+                "Устройство не определено "
+                "как Android."
             )
 
             return
@@ -1941,7 +2031,8 @@ class MainApp(App):
                 "BarcodeScannerActivity"
             )
 
-            current_activity = (
+            current_activity = cast(
+                "android.app.Activity",
                 PythonActivity.mActivity
             )
 
@@ -2066,6 +2157,7 @@ class MainApp(App):
 
             self.open_home()
 
+    @mainthread
     def handle_import_result(
         self,
         result_code,
@@ -2097,7 +2189,7 @@ class MainApp(App):
             )
 
     # =====================================================
-    # EXPORT
+    # EXPORT DATABASE
     # =====================================================
 
     def export_database(self):
@@ -2105,6 +2197,16 @@ class MainApp(App):
         if not ANDROID:
 
             self._desktop_export()
+
+            return
+
+        if not PYJNIUS_AVAILABLE:
+
+            self.message(
+                "PyJNIus не загрузился.\n\n"
+                +
+                PYJNIUS_ERROR
+            )
 
             return
 
@@ -2170,7 +2272,8 @@ class MainApp(App):
             "org.kivy.android.PythonActivity"
         )
 
-        current_activity = (
+        current_activity = cast(
+            "android.app.Activity",
             PythonActivity.mActivity
         )
 
@@ -2194,6 +2297,7 @@ class MainApp(App):
             "application/octet-stream"
         )
 
+        # PUBLIC DOWNLOADS
         values.put(
             "relative_path",
             "Download/"
@@ -2237,14 +2341,16 @@ class MainApp(App):
 
         try:
 
-            data = Path(
-                source
-            ).read_bytes()
+            # PyJNIus умеет преобразовывать bytearray
+            # в Java byte[].
+            data = bytearray(
+                Path(
+                    source
+                ).read_bytes()
+            )
 
             output_stream.write(
-                jarray("b")(
-                    data
-                )
+                data
             )
 
             output_stream.flush()
@@ -2268,7 +2374,9 @@ class MainApp(App):
         )
 
         try:
+
             Path(source).unlink()
+
         except OSError:
             pass
 
@@ -2316,7 +2424,9 @@ class MainApp(App):
         )
 
         try:
+
             Path(source).unlink()
+
         except OSError:
             pass
 
@@ -2326,7 +2436,7 @@ class MainApp(App):
         )
 
     # =====================================================
-    # IMPORT
+    # IMPORT DATABASE
     # =====================================================
 
     def import_database(self):
@@ -2355,12 +2465,13 @@ class MainApp(App):
                 "org.kivy.android.PythonActivity"
             )
 
-            Intent = autoclass(
-                "android.content.Intent"
+            current_activity = cast(
+                "android.app.Activity",
+                PythonActivity.mActivity
             )
 
-            current_activity = (
-                PythonActivity.mActivity
+            Intent = autoclass(
+                "android.content.Intent"
             )
 
             intent = Intent(
@@ -2372,7 +2483,7 @@ class MainApp(App):
             )
 
             intent.setType(
-                "application/octet-stream"
+                "*/*"
             )
 
             current_activity.startActivityForResult(
@@ -2399,7 +2510,8 @@ class MainApp(App):
                 "org.kivy.android.PythonActivity"
             )
 
-            current_activity = (
+            current_activity = cast(
+                "android.app.Activity",
                 PythonActivity.mActivity
             )
 
@@ -2417,7 +2529,8 @@ class MainApp(App):
             if input_stream is None:
 
                 raise RuntimeError(
-                    "Не удалось открыть файл."
+                    "Android не смог "
+                    "открыть файл."
                 )
 
             temp = (
@@ -2432,28 +2545,20 @@ class MainApp(App):
 
             try:
 
-                buffer = jarray(
-                    "b"
-                )(
-                    [0] * 8192
-                )
-
+                # Для чтения по одному байту.
+                # Медленнее, зато не зависит от jarray.
                 while True:
 
-                    count = (
-                        input_stream.read(
-                            buffer
-                        )
-                    )
+                    value = input_stream.read()
 
-                    if count <= 0:
+                    if value == -1:
                         break
 
                     output.write(
                         bytes(
-                            value & 0xFF
-                            for value
-                            in buffer[:count]
+                            (
+                                value & 0xFF,
+                            )
                         )
                     )
 
@@ -2479,7 +2584,9 @@ class MainApp(App):
         source
     ):
 
-        source = Path(source)
+        source = Path(
+            source
+        )
 
         if not source.exists():
 
@@ -2514,7 +2621,9 @@ class MainApp(App):
             )
 
             try:
+
                 source.unlink()
+
             except OSError:
                 pass
 
@@ -2585,21 +2694,35 @@ class MainApp(App):
             )
         )
 
-        buttons.add_widget(cancel)
-        buttons.add_widget(clear)
+        buttons.add_widget(
+            cancel
+        )
 
-        content.add_widget(label)
-        content.add_widget(buttons)
+        buttons.add_widget(
+            clear
+        )
+
+        content.add_widget(
+            label
+        )
+
+        content.add_widget(
+            buttons
+        )
 
         popup = Popup(
             title=APP_TITLE,
             content=content,
-            size_hint=(0.90, 0.55),
+            size_hint=(
+                0.90,
+                0.55
+            ),
             auto_dismiss=False
         )
 
         cancel.bind(
-            on_release=popup.dismiss
+            on_release=
+            popup.dismiss
         )
 
         def do_clear(*_):
@@ -2615,7 +2738,8 @@ class MainApp(App):
             self.open_home()
 
         clear.bind(
-            on_release=do_clear
+            on_release=
+            do_clear
         )
 
         popup.open()
@@ -2656,18 +2780,27 @@ class MainApp(App):
             height=dp(48)
         )
 
-        content.add_widget(label)
-        content.add_widget(ok)
+        content.add_widget(
+            label
+        )
+
+        content.add_widget(
+            ok
+        )
 
         popup = Popup(
             title=APP_TITLE,
             content=content,
-            size_hint=(0.90, 0.55),
+            size_hint=(
+                0.90,
+                0.55
+            ),
             auto_dismiss=False
         )
 
         ok.bind(
-            on_release=popup.dismiss
+            on_release=
+            popup.dismiss
         )
 
         popup.open()
@@ -2752,5 +2885,10 @@ class MainApp(App):
             self.db.close()
 
 
+# =========================================================
+# START
+# =========================================================
+
 if __name__ == "__main__":
+
     MainApp().run()
