@@ -1,9 +1,7 @@
 [app]
 
 title = Сроки товаров
-
 package.name = expiringgoods
-
 package.domain = org.example
 
 source.dir = .
@@ -12,7 +10,7 @@ source.include_exts = py,png,jpg,jpeg,webp,kv,atlas,json,xml
 
 source.exclude_dirs = .git,.github,.buildozer,bin,venv,__pycache__
 
-version = 0.0.5
+version = 0.0.6
 
 requirements = python3==3.11.6,hostpython3==3.11.6,kivy==2.3.1,plyer,pyjnius,filetype
 
@@ -25,13 +23,11 @@ presplash.filename = icon.png
 icon.filename = icon.png
 
 android.api = 35
-
 android.minapi = 23
 
 android.sdk_path = /usr/local/lib/android/sdk
 
 android.ndk = 25b
-
 android.ndk_api = 23
 
 android.archs = arm64-v8a
@@ -39,7 +35,6 @@ android.archs = arm64-v8a
 android.permissions = CAMERA
 
 android.private_storage = True
-
 android.allow_backup = True
 
 android.enable_androidx = True
@@ -57,12 +52,9 @@ android.gradle_dependencies = androidx.activity:activity:1.10.1,androidx.camera:
 android.add_compile_options = "sourceCompatibility = 1.8", "targetCompatibility = 1.8"
 
 p4a.branch = master
-
 p4a.commit = v2024.01.21
-
 
 [buildozer]
 
 log_level = 2
-
 warn_on_root = 1
