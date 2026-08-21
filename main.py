@@ -35,6 +35,7 @@ from kivy.metrics import dp
 from kivy.properties import ListProperty, StringProperty
 
 from kivy.uix.behaviors import ButtonBehavior
+from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.modalview import ModalView
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
@@ -220,6 +221,28 @@ DATE_USER_FORMAT = "%d.%m.%y"
 
 REQUEST_SCAN_BARCODE = 7001
 REQUEST_IMPORT_DB = 4102
+
+DEPARTMENTS = (
+    "Фрукты и овощи",
+    "Мясные и рыбные продукты",
+    "Молочные продукты, яйца, сливочное масло",
+    "Сыры",
+    "Хлеб, булка, кондитерские изделия",
+    "Готовые продукты",
+    "Большие упаковки",
+    "Бакалея и консервы",
+    "Мировая кухня, приправы и бульоны",
+    "Соусы, масло",
+    "Сладости, печенье, чипсы",
+    "Замороженные продтовары",
+    "Напитки",
+    "Детские товары",
+    "Товары для домашних питомцев",
+    "Личная гигиена",
+    "Хозяйственные и бытовые товары",
+    "Товары для досуга",
+    "Товары для праздников",
+)
 
 
 # =========================================================
@@ -947,6 +970,7 @@ class Database:
             CREATE TABLE IF NOT EXISTS products (
                 barcode TEXT PRIMARY KEY,
                 name TEXT NOT NULL DEFAULT '',
+                department TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL
             );
 
@@ -978,6 +1002,19 @@ class Database:
             );
             """
         )
+
+        product_columns = {
+            row["name"]
+            for row in self.conn.execute(
+                "PRAGMA table_info(products)"
+            ).fetchall()
+        }
+
+        if "department" not in product_columns:
+            self.conn.execute(
+                "ALTER TABLE products "
+                "ADD COLUMN department TEXT NOT NULL DEFAULT ''"
+            )
 
         self.conn.commit()
 
@@ -1032,50 +1069,38 @@ class Database:
     def save_product(
         self,
         barcode,
-        name
+        name,
+        department=None
     ):
 
-        barcode = normalize_barcode(
-            barcode
-        )
-
+        barcode = normalize_barcode(barcode)
         name = name.strip()
+        department = str(department).strip() if department is not None else None
 
-        existing = self.get_product(
-            barcode
-        )
+        existing = self.get_product(barcode)
 
         if existing:
-
-            self.conn.execute(
-                """
-                UPDATE products
-                SET name = ?
-                WHERE barcode = ?
-                """,
-                (
-                    name,
-                    existing["barcode"],
-                ),
-            )
-
-        else:
-
-            self.conn.execute(
-                """
-                INSERT INTO products(
-                    barcode,
-                    name,
-                    created_at
+            if department is None:
+                self.conn.execute(
+                    "UPDATE products SET name = ? WHERE barcode = ?",
+                    (name, existing["barcode"]),
                 )
-                VALUES (?, ?, ?)
+            else:
+                self.conn.execute(
+                    "UPDATE products SET name = ?, department = ? WHERE barcode = ?",
+                    (name, department, existing["barcode"]),
+                )
+        else:
+            self.conn.execute(
+                """
+                INSERT INTO products(barcode, name, department, created_at)
+                VALUES (?, ?, ?, ?)
                 """,
                 (
                     barcode,
                     name,
-                    datetime.now().isoformat(
-                        timespec="seconds"
-                    ),
+                    department or "",
+                    datetime.now().isoformat(timespec="seconds"),
                 ),
             )
 
@@ -1253,48 +1278,42 @@ class Database:
 
         return True
 
-    def get_product_list(self):
+    def get_product_list(
+        self,
+        department=None
+    ):
+
+        department = str(department).strip() if department else ""
 
         return self.conn.execute(
             """
             SELECT
                 p.barcode,
                 p.name,
-
+                p.department,
                 (
                     SELECT e.exp_date
                     FROM expirations e
                     WHERE e.barcode = p.barcode
                       AND e.written_off = 0
-                    ORDER BY
-                        e.exp_date ASC,
-                        e.id ASC
+                    ORDER BY e.exp_date ASC, e.id ASC
                     LIMIT 1
                 ) AS next_exp
-
             FROM products p
-
+            WHERE ? = '' OR p.department = ? OR p.department = ''
             ORDER BY
-
-                CASE
-                    WHEN (
-                        SELECT e2.exp_date
-                        FROM expirations e2
-                        WHERE e2.barcode = p.barcode
-                          AND e2.written_off = 0
-                        ORDER BY
-                            e2.exp_date ASC,
-                            e2.id ASC
-                        LIMIT 1
-                    ) IS NULL
-                    THEN 1
-                    ELSE 0
-                END ASC,
-
+                CASE WHEN (
+                    SELECT e2.exp_date
+                    FROM expirations e2
+                    WHERE e2.barcode = p.barcode
+                      AND e2.written_off = 0
+                    ORDER BY e2.exp_date ASC, e2.id ASC
+                    LIMIT 1
+                ) IS NULL THEN 1 ELSE 0 END ASC,
                 next_exp ASC,
-
                 p.name COLLATE NOCASE ASC
-            """
+            """,
+            (department, department),
         ).fetchall()
 
     def backup_to(
@@ -1391,6 +1410,10 @@ class BaseScreen(Screen):
         )
 
 
+class DepartmentScreen(BaseScreen):
+    pass
+
+
 class HomeScreen(BaseScreen):
 
     def __init__(
@@ -1418,6 +1441,13 @@ class HomeScreen(BaseScreen):
 
     def refresh(self):
 
+        if hasattr(self, "department_button"):
+            self.department_button.text = (
+                self.app.current_department
+                or
+                "Выбрать отдел"
+            )
+
         self.product_list.clear_widgets()
 
         today = date.today()
@@ -1434,7 +1464,9 @@ class HomeScreen(BaseScreen):
         completed = []
 
         for product in (
-            self.app.db.get_product_list()
+            self.app.db.get_product_list(
+                self.app.current_department
+            )
         ):
 
             if not product[
@@ -1829,7 +1861,8 @@ class AddProductScreen(BaseScreen):
 
         self.app.db.save_product(
             barcode,
-            name
+            name,
+            self.app.current_department
         )
 
         if existing_product:
@@ -2051,6 +2084,8 @@ class MainApp(App):
             DB_NAME
         )
 
+        self.current_department = None
+
         self.db = Database(
             self.db_path
         )
@@ -2084,6 +2119,10 @@ class MainApp(App):
             transition=FadeTransition(
                 duration=0.10
             )
+        )
+
+        manager.add_widget(
+            self.create_department_screen()
         )
 
         manager.add_widget(
@@ -2121,16 +2160,17 @@ class MainApp(App):
     ):
 
         if key != 27:
-
             return False
 
-        if self.sm.current != "home":
+        if self.sm.current == "departments":
+            return False
 
-            self.open_home()
-
+        if self.sm.current == "home":
+            self.open_departments()
             return True
 
-        return False
+        self.open_home()
+        return True
 
 
     # =====================================================
@@ -2198,6 +2238,74 @@ class MainApp(App):
 
 
     # =====================================================
+    # DEPARTMENT SELECTION
+    # =====================================================
+
+    def create_department_screen(self):
+
+        screen = DepartmentScreen(name="departments")
+
+        root = BoxLayout(
+            orientation="vertical",
+            padding=safe_padding(horizontal=14, top=7, bottom=12),
+            spacing=dp(12),
+        )
+
+        root.add_widget(self.create_header())
+
+        title = Label(
+            text="Выберите отдел",
+            color=TEXT,
+            bold=True,
+            font_size="22sp",
+            size_hint_y=None,
+            height=dp(48),
+            halign="left",
+            valign="middle",
+        )
+        title.bind(size=lambda instance, value: setattr(instance, "text_size", value))
+        root.add_widget(title)
+
+        scroll = ScrollView(do_scroll_x=False)
+        departments_list = BoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            spacing=dp(8),
+            padding=(0, dp(2), 0, dp(10)),
+        )
+        departments_list.bind(minimum_height=departments_list.setter("height"))
+
+        for department_name in DEPARTMENTS:
+            button = RoundedButton(
+                text=department_name,
+                size_hint_y=None,
+                height=dp(56),
+                font_size="14sp",
+                halign="left",
+                valign="middle",
+                padding=(dp(18), dp(10)),
+                normal_color=CARD,
+                down_color=BUTTON_BG_DOWN,
+            )
+            button.bind(
+                size=lambda instance, value: setattr(
+                    instance,
+                    "text_size",
+                    (value[0] - dp(36), value[1])
+                )
+            )
+            button.bind(
+                on_release=lambda _button, name=department_name: self.select_department(name)
+            )
+            departments_list.add_widget(button)
+
+        scroll.add_widget(departments_list)
+        root.add_widget(scroll)
+        screen.add_widget(root)
+        return screen
+
+
+    # =====================================================
     # HOME UI
     # =====================================================
 
@@ -2220,6 +2328,18 @@ class MainApp(App):
         root.add_widget(
             self.create_header()
         )
+
+        department_button = RoundedButton(
+            text=(self.current_department or "Выбрать отдел"),
+            size_hint_y=None,
+            height=dp(44),
+            font_size="13sp",
+            normal_color=CARD,
+            down_color=BUTTON_BG_DOWN,
+        )
+        department_button.bind(on_release=lambda *_: self.open_departments())
+        root.add_widget(department_button)
+        screen.department_button = department_button
 
         actions = BoxLayout(
             size_hint_y=None,
@@ -2793,9 +2913,9 @@ class MainApp(App):
         card = BoxLayout(
             orientation="vertical",
             size_hint=(0.88, None),
-            height=dp(326),
-            padding=dp(16),
-            spacing=dp(9),
+            height=dp(310),
+            padding=dp(14),
+            spacing=dp(8),
         )
 
         with card.canvas.before:
@@ -2828,7 +2948,7 @@ class MainApp(App):
             font_size="20sp",
             halign="left",
             valign="middle",
-            color=WHITE,
+            color=TEXT,
         )
         title.bind(
             size=lambda instance, value:
@@ -2850,14 +2970,14 @@ class MainApp(App):
                 "all",
                 BUTTON_BG,
                 BUTTON_BG_DOWN,
-                WHITE,
+                TEXT,
             ),
             (
                 "Просроченный товар",
                 "expired",
                 ACCENT_RED,
                 ACCENT_RED_DOWN,
-                WHITE,
+                TEXT,
             ),
             (
                 "Истекающий товар",
@@ -2871,18 +2991,14 @@ class MainApp(App):
                 "no_date",
                 (0.12, 0.62, 0.30, 1),
                 (0.08, 0.50, 0.23, 1),
-                WHITE,
+                TEXT,
             ),
         )
 
         for title_text, mode, normal, down, text_color in options:
 
             button = RoundedButton(
-                text=(
-                    "✓  " + title_text
-                    if home.filter_mode == mode
-                    else title_text
-                ),
+                text=title_text,
                 size_hint_y=None,
                 height=dp(55),
                 font_size="15sp",
@@ -2918,7 +3034,19 @@ class MainApp(App):
     # NAVIGATION
     # =====================================================
 
+    def open_departments(self):
+        self.sm.current = "departments"
+
+    def select_department(self, department):
+        self.current_department = department
+        self.sm.current = "home"
+        self.sm.get_screen("home").refresh()
+
     def open_home(self):
+
+        if not self.current_department:
+            self.open_departments()
+            return
 
         self.sm.current = (
             "home"
