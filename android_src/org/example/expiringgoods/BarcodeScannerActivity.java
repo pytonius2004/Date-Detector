@@ -34,27 +34,21 @@ import com.google.mlkit.vision.common.InputImage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
 import java.util.concurrent.atomic.AtomicBoolean;
 
 
-public class BarcodeScannerActivity
-        extends ComponentActivity {
+public class BarcodeScannerActivity extends ComponentActivity {
 
     private static final int CAMERA_PERMISSION_REQUEST = 6001;
 
     private PreviewView previewView;
-
     private TextView instructionText;
-
     private Button manualButton;
 
     private ExecutorService cameraExecutor;
-
     private BarcodeScanner barcodeScanner;
 
     private ProcessCameraProvider cameraProvider;
-
     private ImageAnalysis imageAnalysis;
 
     private final AtomicBoolean resultSent =
@@ -62,21 +56,15 @@ public class BarcodeScannerActivity
 
 
     @Override
-    protected void onCreate(
-            Bundle savedInstanceState
-    ) {
+    protected void onCreate(Bundle savedInstanceState) {
 
-        super.onCreate(
-                savedInstanceState
-        );
-
+        super.onCreate(savedInstanceState);
 
         // =================================================
-        // Root layout
+        // ROOT
         // =================================================
 
-        FrameLayout root =
-                new FrameLayout(this);
+        FrameLayout root = new FrameLayout(this);
 
         root.setBackgroundColor(
                 Color.BLACK
@@ -84,16 +72,14 @@ public class BarcodeScannerActivity
 
 
         // =================================================
-        // Camera preview
+        // CAMERA PREVIEW
         // =================================================
 
-        previewView =
-                new PreviewView(this);
+        previewView = new PreviewView(this);
 
         previewView.setImplementationMode(
                 PreviewView.ImplementationMode.COMPATIBLE
         );
-
 
         FrameLayout.LayoutParams cameraParams =
                 new FrameLayout.LayoutParams(
@@ -108,11 +94,10 @@ public class BarcodeScannerActivity
 
 
         // =================================================
-        // Instruction text
+        // TOP INSTRUCTION
         // =================================================
 
-        instructionText =
-                new TextView(this);
+        instructionText = new TextView(this);
 
         instructionText.setText(
                 "Наведите камеру на штрихкод"
@@ -131,16 +116,15 @@ public class BarcodeScannerActivity
         );
 
         instructionText.setPadding(
-                24,
-                20,
-                24,
-                20
+                dpToPx(16),
+                dpToPx(12),
+                dpToPx(16),
+                dpToPx(12)
         );
 
         instructionText.setBackgroundColor(
-                0x88000000
+                0x99000000
         );
-
 
         FrameLayout.LayoutParams textParams =
                 new FrameLayout.LayoutParams(
@@ -151,8 +135,14 @@ public class BarcodeScannerActivity
         textParams.gravity =
                 Gravity.TOP;
 
-        textParams.topMargin = 40;
+        textParams.leftMargin =
+                dpToPx(12);
 
+        textParams.rightMargin =
+                dpToPx(12);
+
+        textParams.topMargin =
+                dpToPx(24);
 
         root.addView(
                 instructionText,
@@ -161,11 +151,10 @@ public class BarcodeScannerActivity
 
 
         // =================================================
-        // Manual input button
+        // MANUAL INPUT BUTTON
         // =================================================
 
-        manualButton =
-                new Button(this);
+        manualButton = new Button(this);
 
         manualButton.setText(
                 "Добавить вручную"
@@ -179,39 +168,56 @@ public class BarcodeScannerActivity
                 Color.WHITE
         );
 
-        manualButton.setBackgroundColor(
-                0xDD222222
-        );
-
         manualButton.setAllCaps(
                 false
         );
 
+        manualButton.setGravity(
+                Gravity.CENTER
+        );
+
+        manualButton.setPadding(
+                dpToPx(12),
+                0,
+                dpToPx(12),
+                0
+        );
+
+        manualButton.setBackgroundColor(
+                0xEE202020
+        );
 
         FrameLayout.LayoutParams manualParams =
                 new FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
-                        70
+                        dpToPx(64)
                 );
 
         manualParams.gravity =
                 Gravity.BOTTOM;
 
-        manualParams.leftMargin = 30;
-        manualParams.rightMargin = 30;
-        manualParams.bottomMargin = 35;
+        manualParams.leftMargin =
+                dpToPx(20);
 
+        manualParams.rightMargin =
+                dpToPx(20);
+
+        manualParams.bottomMargin =
+                dpToPx(24);
 
         root.addView(
                 manualButton,
                 manualParams
         );
 
-
         manualButton.setOnClickListener(
                 view -> returnManualInput()
         );
 
+
+        // =================================================
+        // CONTENT
+        // =================================================
 
         setContentView(
                 root
@@ -219,12 +225,16 @@ public class BarcodeScannerActivity
 
 
         // =================================================
-        // Executors / ML Kit
+        // CAMERA EXECUTOR
         // =================================================
 
         cameraExecutor =
                 Executors.newSingleThreadExecutor();
 
+
+        // =================================================
+        // ML KIT CONFIG
+        // =================================================
 
         BarcodeScannerOptions options =
                 new BarcodeScannerOptions.Builder()
@@ -239,19 +249,39 @@ public class BarcodeScannerActivity
                         )
                         .build();
 
-
         barcodeScanner =
                 BarcodeScanning.getClient(
                         options
                 );
 
 
+        // =================================================
+        // CAMERA PERMISSION
+        // =================================================
+
         checkCameraPermission();
     }
 
 
     // =====================================================
-    // Camera permission
+    // DP -> PX
+    // =====================================================
+
+    private int dpToPx(int dp) {
+
+        float density =
+                getResources()
+                        .getDisplayMetrics()
+                        .density;
+
+        return Math.round(
+                dp * density
+        );
+    }
+
+
+    // =====================================================
+    // CAMERA PERMISSION
     // =====================================================
 
     private void checkCameraPermission() {
@@ -293,7 +323,6 @@ public class BarcodeScannerActivity
                 grantResults
         );
 
-
         if (
                 requestCode
                 ==
@@ -329,7 +358,7 @@ public class BarcodeScannerActivity
 
 
     // =====================================================
-    // Start camera
+    // START CAMERA
     // =====================================================
 
     private void startCamera() {
@@ -340,7 +369,6 @@ public class BarcodeScannerActivity
                         this
                 );
 
-
         cameraProviderFuture.addListener(
                 () -> {
 
@@ -349,17 +377,14 @@ public class BarcodeScannerActivity
                         cameraProvider =
                                 cameraProviderFuture.get();
 
-
                         Preview preview =
                                 new Preview.Builder()
                                         .build();
-
 
                         preview.setSurfaceProvider(
                                 previewView
                                         .getSurfaceProvider()
                         );
-
 
                         imageAnalysis =
                                 new ImageAnalysis.Builder()
@@ -369,44 +394,37 @@ public class BarcodeScannerActivity
                                         )
                                         .build();
 
-
                         imageAnalysis.setAnalyzer(
                                 cameraExecutor,
                                 this::analyzeFrame
                         );
 
-
-                        CameraSelector selector =
+                        CameraSelector cameraSelector =
                                 CameraSelector
                                         .DEFAULT_BACK_CAMERA;
 
-
                         cameraProvider.unbindAll();
-
 
                         cameraProvider.bindToLifecycle(
                                 this,
-                                selector,
+                                cameraSelector,
                                 preview,
                                 imageAnalysis
                         );
 
-
-                    }
-                    catch (
+                    } catch (
                             ExecutionException
                                     |
-                            InterruptedException error
+                            InterruptedException e
                     ) {
 
                         Toast.makeText(
                                 this,
-                                "Не удалось запустить камеру:\n"
+                                "Не удалось запустить камеру: "
                                         +
-                                        error.getMessage(),
+                                        e.getMessage(),
                                 Toast.LENGTH_LONG
                         ).show();
-
 
                         setResult(
                                 RESULT_CANCELED
@@ -424,7 +442,7 @@ public class BarcodeScannerActivity
 
 
     // =====================================================
-    // Analyze frame
+    // ANALYZE CAMERA FRAME
     // =====================================================
 
     private void analyzeFrame(
@@ -440,7 +458,6 @@ public class BarcodeScannerActivity
             return;
         }
 
-
         if (
                 imageProxy.getImage()
                 ==
@@ -452,7 +469,6 @@ public class BarcodeScannerActivity
             return;
         }
 
-
         InputImage image =
                 InputImage.fromMediaImage(
                         imageProxy.getImage(),
@@ -460,7 +476,6 @@ public class BarcodeScannerActivity
                                 .getImageInfo()
                                 .getRotationDegrees()
                 );
-
 
         barcodeScanner
                 .process(image)
@@ -475,7 +490,6 @@ public class BarcodeScannerActivity
                                 return;
                             }
 
-
                             for (
                                     Barcode barcode
                                     :
@@ -484,7 +498,6 @@ public class BarcodeScannerActivity
 
                                 String rawValue =
                                         barcode.getRawValue();
-
 
                                 if (
                                         rawValue != null
@@ -503,7 +516,8 @@ public class BarcodeScannerActivity
                                     ) {
 
                                         returnBarcode(
-                                                rawValue.trim()
+                                                rawValue
+                                                        .trim()
                                         );
                                     }
 
@@ -515,19 +529,19 @@ public class BarcodeScannerActivity
 
                 .addOnFailureListener(
                         error -> {
-                            // Continue scanning.
+                            // Ничего не закрываем.
+                            // Просто продолжаем сканирование.
                         }
                 )
 
                 .addOnCompleteListener(
-                        task ->
-                                imageProxy.close()
+                        task -> imageProxy.close()
                 );
     }
 
 
     // =====================================================
-    // Return barcode to Python
+    // RETURN BARCODE
     // =====================================================
 
     private void returnBarcode(
@@ -552,12 +566,10 @@ public class BarcodeScannerActivity
                             false
                     );
 
-
                     setResult(
                             RESULT_OK,
                             result
                     );
-
 
                     finish();
                 }
@@ -566,7 +578,7 @@ public class BarcodeScannerActivity
 
 
     // =====================================================
-    // Manual input
+    // MANUAL INPUT
     // =====================================================
 
     private void returnManualInput() {
@@ -581,7 +593,6 @@ public class BarcodeScannerActivity
             return;
         }
 
-
         runOnUiThread(
                 () -> {
 
@@ -595,12 +606,10 @@ public class BarcodeScannerActivity
                             true
                     );
 
-
                     setResult(
                             RESULT_OK,
                             result
                     );
-
 
                     finish();
                 }
@@ -609,23 +618,10 @@ public class BarcodeScannerActivity
 
 
     // =====================================================
-    // Stop camera
+    // STOP CAMERA
     // =====================================================
 
     private void stopCamera() {
-
-        try {
-
-            if (
-                    cameraProvider != null
-            ) {
-
-                cameraProvider.unbindAll();
-            }
-
-        } catch (Exception ignored) {
-        }
-
 
         try {
 
@@ -638,18 +634,54 @@ public class BarcodeScannerActivity
 
         } catch (Exception ignored) {
         }
+
+        try {
+
+            if (
+                    cameraProvider != null
+            ) {
+
+                cameraProvider.unbindAll();
+            }
+
+        } catch (Exception ignored) {
+        }
     }
 
 
     // =====================================================
-    // Destroy
+    // ANDROID BACK
+    // =====================================================
+
+    @Override
+    public void onBackPressed() {
+
+        if (
+                resultSent.compareAndSet(
+                        false,
+                        true
+                )
+        ) {
+
+            stopCamera();
+
+            setResult(
+                    RESULT_CANCELED
+            );
+        }
+
+        super.onBackPressed();
+    }
+
+
+    // =====================================================
+    // DESTROY
     // =====================================================
 
     @Override
     protected void onDestroy() {
 
         stopCamera();
-
 
         if (
                 barcodeScanner != null
@@ -658,14 +690,12 @@ public class BarcodeScannerActivity
             barcodeScanner.close();
         }
 
-
         if (
                 cameraExecutor != null
         ) {
 
             cameraExecutor.shutdown();
         }
-
 
         super.onDestroy();
     }
