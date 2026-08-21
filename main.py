@@ -108,6 +108,47 @@ REQUEST_IMPORT_DB = 4102
 
 
 # =========================================================
+# ANDROID SAFE AREA
+# =========================================================
+#
+# Samsung / современные Android могут рисовать Kivy
+# под статус-баром и нижней системной навигацией.
+#
+# Поэтому для Android резервируем безопасное место.
+#
+# Верх:
+# статус-бар + небольшой запас.
+#
+# Низ:
+# панель жестов / навигационные кнопки + запас.
+# =========================================================
+
+if ANDROID:
+
+    SAFE_TOP = dp(32)
+    SAFE_BOTTOM = dp(34)
+
+else:
+
+    SAFE_TOP = 0
+    SAFE_BOTTOM = 0
+
+
+def safe_padding(
+    horizontal=12,
+    top=12,
+    bottom=12
+):
+
+    return (
+        dp(horizontal),
+        dp(top) + SAFE_TOP,
+        dp(horizontal),
+        dp(bottom) + SAFE_BOTTOM,
+    )
+
+
+# =========================================================
 # BARCODE HELPERS
 # =========================================================
 
@@ -1716,13 +1757,14 @@ class MainApp(App):
 
         root = BoxLayout(
             orientation="vertical",
-            padding=(
-                dp(10),
-                dp(8),
-                dp(10),
-                dp(10)
+            padding=safe_padding(
+                horizontal=10,
+                top=8,
+                bottom=10
             ),
-            spacing=dp(8)
+            spacing=dp(
+                8
+            )
         )
 
         title = Label(
@@ -1841,8 +1883,10 @@ class MainApp(App):
 
         root = BoxLayout(
             orientation="vertical",
-            padding=dp(
-                12
+            padding=safe_padding(
+                horizontal=12,
+                top=8,
+                bottom=12
             ),
             spacing=dp(
                 8
@@ -2031,8 +2075,10 @@ class MainApp(App):
 
         root = BoxLayout(
             orientation="vertical",
-            padding=dp(
-                12
+            padding=safe_padding(
+                horizontal=12,
+                top=8,
+                bottom=12
             ),
             spacing=dp(
                 8
@@ -2202,8 +2248,10 @@ class MainApp(App):
 
         root = BoxLayout(
             orientation="vertical",
-            padding=dp(
-                12
+            padding=safe_padding(
+                horizontal=12,
+                top=8,
+                bottom=12
             ),
             spacing=dp(
                 10
@@ -2699,8 +2747,6 @@ class MainApp(App):
 
         values = ContentValues()
 
-        # Для строк лучше явно использовать put(String, String)
-        # через обычные Python-строки.
         values.put(
             "_display_name",
             str(
@@ -2713,7 +2759,7 @@ class MainApp(App):
             "application/octet-stream"
         )
 
-        # Это именно публичная папка Download.
+        # Публичная папка Downloads.
         values.put(
             "relative_path",
             "Download/"
@@ -2773,7 +2819,7 @@ class MainApp(App):
             ).read_bytes()
 
             # Не используем jarray.
-            # Пишем байты через OutputStream.write(int).
+            # Пишем по одному байту через OutputStream.write(int).
             for byte_value in data:
 
                 output_stream.write(
