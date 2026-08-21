@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 # =========================================================
-# KIVY CONFIG
+# KIVY
 # =========================================================
 
 os.environ.setdefault("KIVY_GL_BACKEND", "sdl2")
@@ -20,11 +20,6 @@ from kivy.config import Config
 Config.set("graphics", "multisamples", "0")
 Config.set("graphics", "resizable", "1")
 Config.set("kivy", "exit_on_escape", "0")
-
-
-# =========================================================
-# KIVY
-# =========================================================
 
 from kivy.app import App
 from kivy.core.window import Window
@@ -44,84 +39,61 @@ from kivy.utils import platform
 
 
 # =========================================================
-# ANDROID
+# ANDROID / PYJNIUS
 # =========================================================
 
 ANDROID = platform == "android"
 
-android_autoclass = None
-android_cast = None
-android_jarray = None
-android_activity_helper = None
+PYJNIUS_AVAILABLE = False
+PYJNIUS_ERROR = ""
+
+autoclass = None
+jarray = None
+activity_helper = None
 
 if ANDROID:
 
+    # -----------------------------------------------------
+    # Import PyJNIus.
+    #
+    # IMPORTANT:
+    # Keep the actual exception so we can show it.
+    # -----------------------------------------------------
+
     try:
+
         from jnius import autoclass
-        from jnius import cast
-        from jnius import jarray
 
-        android_autoclass = autoclass
-        android_cast = cast
-        android_jarray = jarray
+        try:
+            from jnius import jarray
+        except Exception:
+            jarray = None
 
-    except Exception as exc:
-        print("PyJNIus import error:", exc)
-
-    try:
-        from android import activity
-
-        android_activity_helper = activity
-
-    except Exception as exc:
-        print("android.activity import error:", exc)
-
-
-# =========================================================
-# ANDROID HELPERS
-# =========================================================
-
-def get_python_activity_class():
-
-    if not ANDROID:
-        return None
-
-    if android_autoclass is None:
-        return None
-
-    try:
-        return android_autoclass(
-            "org.kivy.android.PythonActivity"
-        )
+        PYJNIUS_AVAILABLE = True
 
     except Exception as exc:
 
-        print(
-            "PythonActivity class error:",
-            exc
+        PYJNIUS_AVAILABLE = False
+
+        PYJNIUS_ERROR = (
+            type(exc).__name__
+            +
+            ": "
+            +
+            str(exc)
         )
 
-        return None
-
-
-def get_android_sdk_int():
-
-    if not ANDROID:
-        return 0
+    # -----------------------------------------------------
+    # android.activity is optional for the scanner itself.
+    # -----------------------------------------------------
 
     try:
 
-        Build = android_autoclass(
-            "android.os.Build"
-        )
-
-        return int(
-            Build.VERSION.SDK_INT
-        )
+        from android import activity as activity_helper
 
     except Exception:
 
-        return 0
+        activity_helper = None
 
 
 # =========================================================
@@ -172,6 +144,7 @@ def parse_user_date(value):
 def format_date(value):
 
     if not value:
+
         return "—"
 
     try:
@@ -373,9 +346,7 @@ class Database:
             FROM expirations
             WHERE barcode = ?
               AND written_off = 0
-            ORDER BY
-                exp_date ASC,
-                id ASC
+            ORDER BY exp_date ASC, id ASC
             """,
             (barcode,),
         ).fetchall()
@@ -409,9 +380,7 @@ class Database:
             FROM expirations
             WHERE barcode = ?
               AND written_off = 0
-            ORDER BY
-                exp_date ASC,
-                id ASC
+            ORDER BY exp_date ASC, id ASC
             LIMIT 1
             """,
             (barcode,),
@@ -455,25 +424,20 @@ class Database:
                     FROM expirations e
                     WHERE e.barcode = p.barcode
                       AND e.written_off = 0
-                    ORDER BY
-                        e.exp_date ASC,
-                        e.id ASC
+                    ORDER BY e.exp_date ASC, e.id ASC
                     LIMIT 1
                 ) AS next_exp
 
             FROM products p
 
             ORDER BY
-
                 CASE
                     WHEN (
                         SELECT e2.exp_date
                         FROM expirations e2
                         WHERE e2.barcode = p.barcode
                           AND e2.written_off = 0
-                        ORDER BY
-                            e2.exp_date ASC,
-                            e2.id ASC
+                        ORDER BY e2.exp_date ASC, e2.id ASC
                         LIMIT 1
                     ) IS NULL
                     THEN 1
@@ -597,9 +561,7 @@ class HomeScreen(BaseScreen):
 
             if not product["next_exp"]:
 
-                completed.append(
-                    product
-                )
+                completed.append(product)
 
                 continue
 
@@ -612,9 +574,7 @@ class HomeScreen(BaseScreen):
 
             except ValueError:
 
-                completed.append(
-                    product
-                )
+                completed.append(product)
 
                 continue
 
@@ -761,9 +721,7 @@ class HomeScreen(BaseScreen):
                 1
             )
 
-            status = (
-                "ИСТЁК ВЧЕРА — СПИСАНИЕ"
-            )
+            status = "ИСТЁК ВЧЕРА — СПИСАНИЕ"
 
         else:
 
@@ -865,10 +823,13 @@ class AddProductScreen(BaseScreen):
         barcode = barcode.strip()
 
         if not barcode:
+
             return
 
-        product = self.app.db.get_product(
-            barcode
+        product = (
+            self.app.db.get_product(
+                barcode
+            )
         )
 
         if product:
@@ -935,8 +896,7 @@ class AddProductScreen(BaseScreen):
         ):
 
             self.app.message(
-                "Такой срок у этого товара "
-                "уже существует."
+                "Такой срок уже существует."
             )
 
             return
@@ -970,6 +930,7 @@ class ProductScreen(BaseScreen):
         )
 
         if not product:
+
             return
 
         self.product_name_label.text = (
@@ -1114,19 +1075,19 @@ class MainApp(App):
             self.db_path
         )
 
-        # ---------------------------------------------
-        # Android callback
-        # ---------------------------------------------
+        # -------------------------------------------------
+        # Android result callback
+        # -------------------------------------------------
 
         if (
             ANDROID
             and
-            android_activity_helper is not None
+            activity_helper is not None
         ):
 
             try:
 
-                android_activity_helper.bind(
+                activity_helper.bind(
                     on_activity_result=
                     self._on_activity_result
                 )
@@ -1134,7 +1095,7 @@ class MainApp(App):
             except Exception as exc:
 
                 print(
-                    "activity.bind failed:",
+                    "activity.bind error:",
                     exc
                 )
 
@@ -1182,6 +1143,7 @@ class MainApp(App):
     ):
 
         if key != 27:
+
             return False
 
         if self.sm.current != "home":
@@ -1306,9 +1268,7 @@ class MainApp(App):
             scroll
         )
 
-        screen.product_list = (
-            product_list
-        )
+        screen.product_list = product_list
 
         screen.add_widget(
             root
@@ -1392,7 +1352,7 @@ class MainApp(App):
                     "Штрихкод можно отсканировать "
                     "или ввести вручную.\n"
                     "Для существующего товара "
-                    "название подставится автоматически."
+                    "название заполнится автоматически."
                 ),
                 size_hint_y=None,
                 height=dp(72),
@@ -1758,11 +1718,7 @@ class MainApp(App):
         self.sm.current = "settings"
 
     # =====================================================
-    # BARCODE SCANNER
-    #
-    # IMPORTANT:
-    # We DO NOT check whether mActivity is None and abort.
-    # We use it directly, as recommended by PyJNIus docs.
+    # SCANNER
     # =====================================================
 
     def start_barcode_scanner(self):
@@ -1770,45 +1726,73 @@ class MainApp(App):
         if not ANDROID:
 
             self.message(
-                "Эта функция доступна только "
-                "на Android."
+                "Внутренняя ошибка: "
+                "Kivy определил устройство "
+                "как не-Android."
             )
 
             return
 
-        if android_autoclass is None:
+        if not PYJNIUS_AVAILABLE:
 
             self.message(
-                "PyJNIus недоступен в APK."
+                "PyJNIus не загрузился.\n\n"
+                "Реальная ошибка:\n"
+                +
+                (
+                    PYJNIUS_ERROR
+                    or
+                    "Неизвестная ошибка."
+                )
             )
 
             return
 
         try:
 
+            # ---------------------------------------------
+            # Test a Java class first.
+            # ---------------------------------------------
+
             PythonActivity = (
-                android_autoclass(
+                autoclass(
                     "org.kivy.android.PythonActivity"
                 )
             )
 
             Intent = (
-                android_autoclass(
+                autoclass(
                     "android.content.Intent"
                 )
             )
 
             ScannerActivity = (
-                android_autoclass(
+                autoclass(
                     "org.example.expiringgoods."
                     "BarcodeScannerActivity"
                 )
             )
 
-            # This is the actual current Android Activity.
+            # ---------------------------------------------
+            # Current Kivy Activity.
+            # ---------------------------------------------
+
             current_activity = (
                 PythonActivity.mActivity
             )
+
+            if current_activity is None:
+
+                self.message(
+                    "PythonActivity.mActivity "
+                    "вернул None."
+                )
+
+                return
+
+            # ---------------------------------------------
+            # Start native scanner.
+            # ---------------------------------------------
 
             intent = Intent(
                 current_activity,
@@ -1824,6 +1808,10 @@ class MainApp(App):
 
             self.message(
                 "Ошибка запуска сканера:\n\n"
+                +
+                type(exc).__name__
+                +
+                "\n\n"
                 +
                 str(exc)
             )
@@ -1870,12 +1858,8 @@ class MainApp(App):
 
             if barcode:
 
-                barcode = str(
-                    barcode
-                ).strip()
-
                 self.open_add(
-                    barcode
+                    str(barcode).strip()
                 )
 
             return
@@ -1911,7 +1895,7 @@ class MainApp(App):
                 )
 
     # =====================================================
-    # EXPORT DATABASE TO DOWNLOADS
+    # EXPORT
     # =====================================================
 
     def export_database(self):
@@ -1974,20 +1958,24 @@ class MainApp(App):
         filename
     ):
 
-        current_activity = (
-            android_autoclass(
+        PythonActivity = (
+            autoclass(
                 "org.kivy.android.PythonActivity"
-            ).mActivity
+            )
+        )
+
+        current_activity = (
+            PythonActivity.mActivity
         )
 
         ContentValues = (
-            android_autoclass(
+            autoclass(
                 "android.content.ContentValues"
             )
         )
 
         MediaStore = (
-            android_autoclass(
+            autoclass(
                 "android.provider.MediaStore"
             )
         )
@@ -2004,7 +1992,6 @@ class MainApp(App):
             "application/octet-stream"
         )
 
-        # Public Android Downloads folder.
         values.put(
             "relative_path",
             "Download/"
@@ -2052,15 +2039,23 @@ class MainApp(App):
 
         try:
 
-            data = (
-                Path(source).read_bytes()
-            )
+            data = Path(
+                source
+            ).read_bytes()
 
-            output_stream.write(
-                android_jarray("b")(
-                    data
+            if android_jarray is not None:
+
+                output_stream.write(
+                    android_jarray("b")(
+                        data
+                    )
                 )
-            )
+
+            else:
+
+                raise RuntimeError(
+                    "PyJNIus jarray недоступен."
+                )
 
             output_stream.flush()
 
@@ -2087,13 +2082,14 @@ class MainApp(App):
             Path(source).unlink()
 
         except OSError:
-
             pass
 
         self.message(
             "База экспортирована.\n\n"
             +
-            f"{filename}\n\n"
+            filename
+            +
+            "\n\n"
             +
             "Папка: Downloads"
         )
@@ -2105,7 +2101,7 @@ class MainApp(App):
     ):
 
         Environment = (
-            android_autoclass(
+            autoclass(
                 "android.os.Environment"
             )
         )
@@ -2118,9 +2114,7 @@ class MainApp(App):
         )
 
         destination = (
-            Path(
-                str(downloads)
-            )
+            Path(str(downloads))
             /
             filename
         )
@@ -2136,11 +2130,8 @@ class MainApp(App):
         )
 
         try:
-
             Path(source).unlink()
-
         except OSError:
-
             pass
 
         self.message(
@@ -2162,16 +2153,26 @@ class MainApp(App):
 
             return
 
+        if not PYJNIUS_AVAILABLE:
+
+            self.message(
+                "PyJNIus не загрузился.\n\n"
+                +
+                PYJNIUS_ERROR
+            )
+
+            return
+
         try:
 
             PythonActivity = (
-                android_autoclass(
+                autoclass(
                     "org.kivy.android.PythonActivity"
                 )
             )
 
             Intent = (
-                android_autoclass(
+                autoclass(
                     "android.content.Intent"
                 )
             )
@@ -2203,6 +2204,10 @@ class MainApp(App):
                 "Не удалось открыть "
                 "выбор файла:\n\n"
                 +
+                type(exc).__name__
+                +
+                "\n\n"
+                +
                 str(exc)
             )
 
@@ -2211,10 +2216,24 @@ class MainApp(App):
         uri
     ):
 
-        current_activity = (
-            android_autoclass(
+        if not PYJNIUS_AVAILABLE:
+
+            self.message(
+                "PyJNIus недоступен:\n"
+                +
+                PYJNIUS_ERROR
+            )
+
+            return
+
+        PythonActivity = (
+            autoclass(
                 "org.kivy.android.PythonActivity"
-            ).mActivity
+            )
+        )
+
+        current_activity = (
+            PythonActivity.mActivity
         )
 
         resolver = (
@@ -2292,9 +2311,7 @@ class MainApp(App):
         except Exception as exc:
 
             try:
-
                 temp.unlink()
-
             except OSError:
                 pass
 
@@ -2309,7 +2326,9 @@ class MainApp(App):
         source
     ):
 
-        source = Path(source)
+        source = Path(
+            source
+        )
 
         if not source.exists():
 
@@ -2368,7 +2387,7 @@ class MainApp(App):
             )
 
     # =====================================================
-    # CLEAR DATABASE
+    # CLEAR DB
     # =====================================================
 
     def confirm_clear_database(self):
@@ -2420,29 +2439,16 @@ class MainApp(App):
             )
         )
 
-        buttons.add_widget(
-            cancel
-        )
+        buttons.add_widget(cancel)
+        buttons.add_widget(clear)
 
-        buttons.add_widget(
-            clear
-        )
-
-        content.add_widget(
-            label
-        )
-
-        content.add_widget(
-            buttons
-        )
+        content.add_widget(label)
+        content.add_widget(buttons)
 
         popup = Popup(
             title=APP_TITLE,
             content=content,
-            size_hint=(
-                0.90,
-                0.55
-            ),
+            size_hint=(0.90, 0.55),
             auto_dismiss=False
         )
 
@@ -2504,21 +2510,13 @@ class MainApp(App):
             height=dp(48)
         )
 
-        content.add_widget(
-            label
-        )
-
-        content.add_widget(
-            ok
-        )
+        content.add_widget(label)
+        content.add_widget(ok)
 
         popup = Popup(
             title=APP_TITLE,
             content=content,
-            size_hint=(
-                0.90,
-                0.55
-            ),
+            size_hint=(0.90, 0.55),
             auto_dismiss=False
         )
 
@@ -2529,7 +2527,7 @@ class MainApp(App):
         popup.open()
 
     # =====================================================
-    # DESKTOP EXPORT
+    # DESKTOP
     # =====================================================
 
     def _desktop_export(self):
@@ -2577,12 +2575,12 @@ class MainApp(App):
         if (
             ANDROID
             and
-            android_activity_helper is not None
+            activity_helper is not None
         ):
 
             try:
 
-                android_activity_helper.unbind(
+                activity_helper.unbind(
                     on_activity_result=
                     self._on_activity_result
                 )
