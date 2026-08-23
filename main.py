@@ -142,6 +142,13 @@ GREEN = (
     1,
 )
 
+THUMBNAIL_BG = (
+    0.28,
+    0.29,
+    0.32,
+    1,
+)
+
 # Основной фирменный акцент из иконки приложения: #83121e
 ACCENT_RED = (
     131 / 255,
@@ -221,6 +228,8 @@ DATE_USER_FORMAT = "%d.%m.%y"
 
 REQUEST_SCAN_BARCODE = 7001
 REQUEST_IMPORT_DB = 4102
+REQUEST_PICK_PRODUCT_PHOTO = 7201
+REQUEST_TAKE_PRODUCT_PHOTO = 7202
 
 DEPARTMENTS = (
     "Фрукты и овощи",
@@ -571,6 +580,48 @@ class RoundedImageButton(ButtonBehavior, BoxLayout):
         )
 
 
+class ProductThumbnail(BoxLayout):
+
+    def __init__(self, source="", **kwargs):
+        super().__init__(**kwargs)
+        self.size_hint_x = None
+        self.width = dp(72)
+        self.padding = dp(4)
+
+        with self.canvas.before:
+            self._bg_color = Color(*THUMBNAIL_BG)
+            self._bg_rect = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(14)],
+            )
+
+        self.bind(
+            pos=self._update_bg,
+            size=self._update_bg,
+        )
+
+        source = str(source or "").strip()
+
+        if source and Path(source).exists():
+            self.add_widget(
+                Image(
+                    source=source,
+                    fit_mode="contain",
+                )
+            )
+        else:
+            placeholder = Label(
+                text="",
+                color=TEXT_SECONDARY,
+            )
+            self.add_widget(placeholder)
+
+    def _update_bg(self, *_):
+        self._bg_rect.pos = self.pos
+        self._bg_rect.size = self.size
+
+
 class ProductCard(
     ButtonBehavior,
     BoxLayout
@@ -589,6 +640,7 @@ class ProductCard(
         product_name,
         barcode,
         exp_date,
+        photo_path="",
         **kwargs
     ):
 
@@ -596,37 +648,23 @@ class ProductCard(
             **kwargs
         )
 
-        self.orientation = (
-            "horizontal"
-        )
-
+        self.orientation = "horizontal"
         self.size_hint_y = None
-
-        self.height = dp(
-            112
-        )
-
+        self.height = dp(116)
         self.padding = (
-            dp(17),
+            dp(12),
             dp(12),
         )
-
-        self.spacing = dp(
-            10
-        )
+        self.spacing = dp(11)
 
         with self.canvas.before:
-
             self._bg_color = Color(
                 *self.background_color
             )
-
             self._bg_rect = RoundedRectangle(
                 pos=self.pos,
                 size=self.size,
-                radius=[
-                    dp(17),
-                ],
+                radius=[dp(17)],
             )
 
         self.bind(
@@ -635,173 +673,109 @@ class ProductCard(
             background_color=self._update_color,
         )
 
-        # -------------------------------------------------
-        # LEFT SIDE
-        # -------------------------------------------------
+        # Серый квадрат, пока фото товара не добавлено.
+        self.thumbnail = ProductThumbnail(
+            source=photo_path,
+        )
+        self.add_widget(self.thumbnail)
 
         left = BoxLayout(
             orientation="vertical"
         )
 
         self.name_label = Label(
-            text=(
-                product_name
-                or
-                "Без названия"
-            ),
+            text=(product_name or "Без названия"),
             color=self.foreground_color,
             bold=True,
-            font_size="18sp",
+            font_size="17sp",
             halign="left",
             valign="middle",
             size_hint_y=0.55,
         )
-
         self.name_label.bind(
             size=lambda instance, value:
-            setattr(
-                instance,
-                "text_size",
-                value
-            )
+            setattr(instance, "text_size", value)
         )
 
         self.barcode_label = Label(
-            text=(
-                f"Штрихкод: {barcode}"
-            ),
+            text=f"Штрихкод: {barcode}",
             color=self.foreground_color,
-            font_size="13sp",
+            font_size="12sp",
             halign="left",
             valign="middle",
             size_hint_y=0.45,
         )
-
         self.barcode_label.bind(
             size=lambda instance, value:
-            setattr(
-                instance,
-                "text_size",
-                value
-            )
+            setattr(instance, "text_size", value)
         )
 
-        left.add_widget(
-            self.name_label
-        )
-
-        left.add_widget(
-            self.barcode_label
-        )
-
-        # -------------------------------------------------
-        # RIGHT SIDE
-        # -------------------------------------------------
+        left.add_widget(self.name_label)
+        left.add_widget(self.barcode_label)
 
         right = BoxLayout(
             orientation="vertical",
-            size_hint_x=0.38,
+            size_hint_x=0.34,
         )
 
         self.valid_label = Label(
             text="Годен до:",
             color=self.foreground_color,
-            font_size="13sp",
+            font_size="12sp",
             halign="right",
             valign="bottom",
             size_hint_y=0.42,
         )
-
         self.valid_label.bind(
             size=lambda instance, value:
-            setattr(
-                instance,
-                "text_size",
-                value
-            )
+            setattr(instance, "text_size", value)
         )
 
         self.date_label = Label(
             text=exp_date,
             color=self.foreground_color,
             bold=True,
-            font_size="21sp",
+            font_size="19sp",
             halign="right",
             valign="top",
             size_hint_y=0.58,
         )
-
         self.date_label.bind(
             size=lambda instance, value:
-            setattr(
-                instance,
-                "text_size",
-                value
-            )
+            setattr(instance, "text_size", value)
         )
 
-        right.add_widget(
-            self.valid_label
-        )
+        right.add_widget(self.valid_label)
+        right.add_widget(self.date_label)
 
-        right.add_widget(
-            self.date_label
-        )
-
-        self.add_widget(
-            left
-        )
-
-        self.add_widget(
-            right
-        )
+        self.add_widget(left)
+        self.add_widget(right)
 
     def set_foreground(
         self,
         color
     ):
 
-        self.foreground_color = (
-            color
-        )
-
-        self.name_label.color = (
-            color
-        )
-
-        self.barcode_label.color = (
-            color
-        )
-
-        self.valid_label.color = (
-            color
-        )
-
-        self.date_label.color = (
-            color
-        )
+        self.foreground_color = color
+        self.name_label.color = color
+        self.barcode_label.color = color
+        self.valid_label.color = color
+        self.date_label.color = color
 
     def _update_card(
         self,
         *_
     ):
 
-        self._bg_rect.pos = (
-            self.pos
-        )
-
-        self._bg_rect.size = (
-            self.size
-        )
+        self._bg_rect.pos = self.pos
+        self._bg_rect.size = self.size
 
     def _update_color(
         self,
         *_
     ):
 
-        self._bg_color.rgba = (
-            self.background_color
-        )
+        self._bg_color.rgba = self.background_color
 
 
 # =========================================================
@@ -810,23 +784,30 @@ class ProductCard(
 
 class DateInput(TextInput):
 
+    def _digits_only(
+        self,
+        value
+    ):
+
+        return "".join(
+            char
+            for char in str(value)
+            if char.isdigit()
+        )[:6]
+
     def _format_digits(
         self,
         digits
     ):
 
-        digits = "".join(
-            char
-            for char in digits
-            if char.isdigit()
-        )[:6]
+        digits = self._digits_only(
+            digits
+        )
 
         if len(digits) <= 2:
-
             return digits
 
         if len(digits) <= 4:
-
             return (
                 digits[:2]
                 +
@@ -847,13 +828,66 @@ class DateInput(TextInput):
             digits[4:6]
         )
 
-    def _move_cursor_to_end(
+    def _digit_index_from_cursor(
         self,
-        *_
+        cursor_col=None
+    ):
+
+        if cursor_col is None:
+            cursor_col = self.cursor_col
+
+        cursor_col = max(
+            0,
+            min(
+                int(cursor_col),
+                len(self.text)
+            )
+        )
+
+        return sum(
+            1
+            for char in self.text[:cursor_col]
+            if char.isdigit()
+        )
+
+    def _cursor_col_from_digit_index(
+        self,
+        digit_index
+    ):
+
+        digit_index = max(
+            0,
+            int(digit_index)
+        )
+
+        if digit_index == 0:
+            return 0
+
+        seen = 0
+
+        for index, char in enumerate(
+            self.text
+        ):
+
+            if char.isdigit():
+                seen += 1
+
+                if seen >= digit_index:
+                    return index + 1
+
+        return len(
+            self.text
+        )
+
+    def _set_cursor_for_digit_index(
+        self,
+        digit_index
     ):
 
         self.cursor = (
-            len(self.text),
+            self._cursor_col_from_digit_index(
+                digit_index
+            ),
             0
         )
 
@@ -863,47 +897,88 @@ class DateInput(TextInput):
         from_undo=False
     ):
 
-        new_digits = "".join(
-            char
-            for char in substring
-            if char.isdigit()
+        incoming = self._digits_only(
+            substring
         )
 
-        if not new_digits:
-
+        if not incoming:
             return
 
-        current_digits = "".join(
-            char
-            for char in self.text
-            if char.isdigit()
+        current_digits = self._digits_only(
+            self.text
         )
+
+        # Если пользователь выделил часть даты — заменяем именно её.
+        if self.selection_text:
+
+            selection_start = min(
+                self.selection_from,
+                self.selection_to
+            )
+
+            selection_end = max(
+                self.selection_from,
+                self.selection_to
+            )
+
+            start_digit = sum(
+                1
+                for char in self.text[:selection_start]
+                if char.isdigit()
+            )
+
+            end_digit = sum(
+                1
+                for char in self.text[:selection_end]
+                if char.isdigit()
+            )
+
+            current_digits = (
+                current_digits[:start_digit]
+                +
+                current_digits[end_digit:]
+            )
+
+            digit_index = start_digit
+            self.cancel_selection()
+
+        else:
+
+            digit_index = (
+                self._digit_index_from_cursor()
+            )
 
         free_space = (
             6
             -
-            len(
-                current_digits
-            )
+            len(current_digits)
         )
 
         if free_space <= 0:
-
             return
 
-        all_digits = (
-            current_digits
+        incoming = incoming[:free_space]
+
+        new_digits = (
+            current_digits[:digit_index]
             +
-            new_digits[:free_space]
+            incoming
+            +
+            current_digits[digit_index:]
+        )
+
+        new_digit_index = (
+            digit_index
+            +
+            len(incoming)
         )
 
         self.text = self._format_digits(
-            all_digits
+            new_digits
         )
 
-        Clock.schedule_once(
-            self._move_cursor_to_end,
-            0
+        self._set_cursor_for_digit_index(
+            new_digit_index
         )
 
     def do_backspace(
@@ -912,23 +987,125 @@ class DateInput(TextInput):
         mode="bkspc"
     ):
 
-        digits = "".join(
-            char
-            for char in self.text
-            if char.isdigit()
-        )
+        if self.selection_text:
 
-        if not digits:
+            selection_start = min(
+                self.selection_from,
+                self.selection_to
+            )
+
+            selection_end = max(
+                self.selection_from,
+                self.selection_to
+            )
+
+            digits = self._digits_only(
+                self.text
+            )
+
+            start_digit = sum(
+                1
+                for char in self.text[:selection_start]
+                if char.isdigit()
+            )
+
+            end_digit = sum(
+                1
+                for char in self.text[:selection_end]
+                if char.isdigit()
+            )
+
+            new_digits = (
+                digits[:start_digit]
+                +
+                digits[end_digit:]
+            )
+
+            self.cancel_selection()
+
+            self.text = self._format_digits(
+                new_digits
+            )
+
+            self._set_cursor_for_digit_index(
+                start_digit
+            )
 
             return
 
-        self.text = self._format_digits(
-            digits[:-1]
+        digits = self._digits_only(
+            self.text
         )
 
-        Clock.schedule_once(
-            self._move_cursor_to_end,
-            0
+        if not digits:
+            return
+
+        digit_index = (
+            self._digit_index_from_cursor()
+        )
+
+        # Курсор в самом начале — удалять нечего.
+        if digit_index <= 0:
+            return
+
+        delete_index = (
+            digit_index
+            -
+            1
+        )
+
+        new_digits = (
+            digits[:delete_index]
+            +
+            digits[digit_index:]
+        )
+
+        self.text = self._format_digits(
+            new_digits
+        )
+
+        self._set_cursor_for_digit_index(
+            delete_index
+        )
+
+    def keyboard_on_key_down(
+        self,
+        window,
+        keycode,
+        text_value,
+        modifiers
+    ):
+
+        # Delete (вперёд), если физическая клавиатура его присылает.
+        if keycode[1] == "delete":
+
+            digits = self._digits_only(
+                self.text
+            )
+
+            digit_index = (
+                self._digit_index_from_cursor()
+            )
+
+            if digit_index < len(digits):
+
+                self.text = self._format_digits(
+                    digits[:digit_index]
+                    +
+                    digits[digit_index + 1:]
+                )
+
+                self._set_cursor_for_digit_index(
+                    digit_index
+                )
+
+            return True
+
+        return super().keyboard_on_key_down(
+            window,
+            keycode,
+            text_value,
+            modifiers
         )
 
 
@@ -971,6 +1148,7 @@ class Database:
                 barcode TEXT PRIMARY KEY,
                 name TEXT NOT NULL DEFAULT '',
                 department TEXT NOT NULL DEFAULT '',
+                photo_path TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL
             );
 
@@ -1014,6 +1192,12 @@ class Database:
             self.conn.execute(
                 "ALTER TABLE products "
                 "ADD COLUMN department TEXT NOT NULL DEFAULT ''"
+            )
+
+        if "photo_path" not in product_columns:
+            self.conn.execute(
+                "ALTER TABLE products "
+                "ADD COLUMN photo_path TEXT NOT NULL DEFAULT ''"
             )
 
         self.conn.commit()
@@ -1070,37 +1254,92 @@ class Database:
         self,
         barcode,
         name,
-        department=None
+        department=None,
+        photo_path=None
     ):
 
-        barcode = normalize_barcode(barcode)
-        name = name.strip()
-        department = str(department).strip() if department is not None else None
+        barcode = normalize_barcode(
+            barcode
+        )
 
-        existing = self.get_product(barcode)
+        name = name.strip()
+
+        department = (
+            str(department).strip()
+            if department is not None
+            else None
+        )
+
+        photo_path = (
+            str(photo_path).strip()
+            if photo_path is not None
+            else None
+        )
+
+        existing = self.get_product(
+            barcode
+        )
 
         if existing:
-            if department is None:
-                self.conn.execute(
-                    "UPDATE products SET name = ? WHERE barcode = ?",
-                    (name, existing["barcode"]),
+
+            final_department = (
+                department
+                if department is not None
+                else (
+                    existing["department"]
+                    or
+                    ""
                 )
-            else:
-                self.conn.execute(
-                    "UPDATE products SET name = ?, department = ? WHERE barcode = ?",
-                    (name, department, existing["barcode"]),
+            )
+
+            final_photo_path = (
+                photo_path
+                if photo_path is not None
+                else (
+                    existing["photo_path"]
+                    or
+                    ""
                 )
-        else:
+            )
+
             self.conn.execute(
                 """
-                INSERT INTO products(barcode, name, department, created_at)
-                VALUES (?, ?, ?, ?)
+                UPDATE products
+                SET
+                    name = ?,
+                    department = ?,
+                    photo_path = ?
+                WHERE barcode = ?
+                """,
+                (
+                    name,
+                    final_department,
+                    final_photo_path,
+                    existing["barcode"],
+                ),
+            )
+
+        else:
+
+            self.conn.execute(
+                """
+                INSERT INTO products(
+                    barcode,
+                    name,
+                    department,
+                    photo_path,
+                    created_at
+                )
+                VALUES (?, ?, ?, ?, ?)
                 """,
                 (
                     barcode,
                     name,
                     department or "",
-                    datetime.now().isoformat(timespec="seconds"),
+                    photo_path or "",
+                    datetime.now().isoformat(
+                        timespec="seconds"
+                    ),
                 ),
             )
 
@@ -1291,6 +1530,7 @@ class Database:
                 p.barcode,
                 p.name,
                 p.department,
+                p.photo_path,
                 (
                     SELECT e.exp_date
                     FROM expirations e
@@ -1314,6 +1554,55 @@ class Database:
                 p.name COLLATE NOCASE ASC
             """,
             (department, department),
+        ).fetchall()
+
+    def search_products(
+        self,
+        query,
+        limit=30
+    ):
+
+        query = str(query or "").strip()
+
+        if not query:
+            return []
+
+        like = "%" + query + "%"
+
+        return self.conn.execute(
+            """
+            SELECT
+                p.barcode,
+                p.name,
+                p.department,
+                p.photo_path,
+                (
+                    SELECT e.exp_date
+                    FROM expirations e
+                    WHERE e.barcode = p.barcode
+                      AND e.written_off = 0
+                    ORDER BY e.exp_date ASC, e.id ASC
+                    LIMIT 1
+                ) AS next_exp
+            FROM products p
+            WHERE p.name LIKE ? COLLATE NOCASE
+               OR p.barcode LIKE ?
+            ORDER BY
+                CASE
+                    WHEN lower(p.name) = lower(?) THEN 0
+                    WHEN lower(p.name) LIKE lower(?) THEN 1
+                    ELSE 2
+                END,
+                p.name COLLATE NOCASE ASC
+            LIMIT ?
+            """,
+            (
+                like,
+                like,
+                query,
+                query + "%",
+                int(limit),
+            ),
         ).fetchall()
 
     def backup_to(
@@ -1411,7 +1700,91 @@ class BaseScreen(Screen):
 
 
 class DepartmentScreen(BaseScreen):
-    pass
+
+    def on_pre_enter(self, *_):
+        if hasattr(self, "search_input"):
+            self.search_input.text = ""
+        self.refresh_search("")
+
+    def refresh_search(self, value=None):
+
+        if not hasattr(self, "search_results"):
+            return
+
+        if value is None and hasattr(self, "search_input"):
+            value = self.search_input.text
+
+        query = str(value or "").strip()
+        self.search_results.clear_widgets()
+
+        if not query:
+            self.search_results.height = 0
+            self.search_results.opacity = 0
+            return
+
+        rows = self.app.db.search_products(query)
+
+        if not rows:
+            label = Label(
+                text="Ничего не найдено",
+                color=TEXT_SECONDARY,
+                size_hint_y=None,
+                height=dp(44),
+                font_size="13sp",
+            )
+            self.search_results.add_widget(label)
+        else:
+            for product in rows:
+                department = product["department"] or "Без отдела"
+                button = RoundedButton(
+                    text=(
+                        f'{product["name"] or "Без названия"}\\n'
+                        f'{department}  •  {product["barcode"]}'
+                    ),
+                    size_hint_y=None,
+                    height=dp(62),
+                    font_size="13sp",
+                    halign="left",
+                    valign="middle",
+                    padding=(dp(14), dp(8)),
+                    normal_color=CARD,
+                    down_color=BUTTON_BG_DOWN,
+                )
+                button.bind(
+                    size=lambda instance, size:
+                    setattr(
+                        instance,
+                        "text_size",
+                        (size[0] - dp(28), size[1])
+                    )
+                )
+                button.bind(
+                    on_release=lambda _btn, row=product:
+                    self.app.open_search_result(row)
+                )
+                self.search_results.add_widget(button)
+
+        target_height = min(
+            dp(250),
+            sum(
+                getattr(child, "height", dp(50))
+                for child in self.search_results.children
+            )
+        )
+        self.search_results.height = max(dp(44), target_height)
+        self.search_results.opacity = 1
+
+    def submit_search(self):
+
+        query = self.search_input.text.strip()
+
+        if not query:
+            return
+
+        rows = self.app.db.search_products(query, limit=2)
+
+        if rows:
+            self.app.open_search_result(rows[0])
 
 
 class HomeScreen(BaseScreen):
@@ -1613,9 +1986,9 @@ class HomeScreen(BaseScreen):
 
         if exp_date is None:
 
-            bg = CARD_DISABLED
-            fg = TEXT_SECONDARY
-            date_text = "—"
+            bg = GREEN
+            fg = RED_TEXT
+            date_text = "Без даты"
 
         elif exp_date == today:
 
@@ -1664,6 +2037,11 @@ class HomeScreen(BaseScreen):
                 ]
             ),
             exp_date=date_text,
+            photo_path=(
+                product["photo_path"]
+                if "photo_path" in product.keys()
+                else ""
+            ),
         )
 
         card.background_color = (
@@ -1693,6 +2071,23 @@ class AddProductScreen(BaseScreen):
         self.barcode_input.text = ""
         self.name_input.text = ""
         self.date_input.text = ""
+
+        self.pending_photo_path = ""
+
+        if hasattr(
+            self,
+            "photo_preview"
+        ):
+            self.photo_preview.source = ""
+            self.photo_preview.opacity = 0
+
+        if hasattr(
+            self,
+            "photo_status"
+        ):
+            self.photo_status.text = (
+                "Фото не добавлено"
+            )
 
     def load_barcode(
         self,
@@ -1762,6 +2157,18 @@ class AddProductScreen(BaseScreen):
                 name
             )
 
+        photo_path = (
+            product["photo_path"]
+            or
+            ""
+        )
+
+        if photo_path:
+
+            self.set_photo(
+                photo_path
+            )
+
     def on_barcode_change(
         self,
         instance,
@@ -1782,6 +2189,73 @@ class AddProductScreen(BaseScreen):
                 barcode
             ),
             0.05
+        )
+
+    def set_photo(
+        self,
+        photo_path
+    ):
+
+        self.pending_photo_path = (
+            str(photo_path or "")
+        )
+
+        if not hasattr(
+            self,
+            "photo_preview"
+        ):
+            return
+
+        if (
+            self.pending_photo_path
+            and
+            Path(
+                self.pending_photo_path
+            ).exists()
+        ):
+
+            self.photo_preview.source = (
+                self.pending_photo_path
+            )
+
+            self.photo_preview.reload()
+            self.photo_preview.opacity = 1
+
+            if hasattr(
+                self,
+                "photo_status"
+            ):
+                self.photo_status.text = (
+                    "Фото добавлено"
+                )
+
+        else:
+
+            self.photo_preview.source = ""
+            self.photo_preview.opacity = 0
+
+            if hasattr(
+                self,
+                "photo_status"
+            ):
+                self.photo_status.text = (
+                    "Фото не добавлено"
+                )
+
+    def choose_photo(
+        self
+    ):
+
+        self.app.choose_product_photo(
+            self
+        )
+
+    def take_photo(
+        self
+    ):
+
+        self.app.take_product_photo(
+            self
         )
 
     def save(self):
@@ -1840,18 +2314,19 @@ class AddProductScreen(BaseScreen):
 
             return
 
-        exp_date = parse_user_date(
-            date_text
-        )
+        exp_date = None
 
-        if not exp_date:
-
-            self.app.message(
-                "Введите срок в формате ДД.ММ.ГГ.\n\n"
-                "Например: 280826 → 28.08.26"
+        if date_text:
+            exp_date = parse_user_date(
+                date_text
             )
 
-            return
+            if not exp_date:
+                self.app.message(
+                    "Введите срок в формате ДД.ММ.ГГ.\n\n"
+                    "Например: 280826 → 28.08.26"
+                )
+                return
 
         existing_product = (
             self.app.db.get_product(
@@ -1862,7 +2337,12 @@ class AddProductScreen(BaseScreen):
         self.app.db.save_product(
             barcode,
             name,
-            self.app.current_department
+            self.app.current_department,
+            getattr(
+                self,
+                "pending_photo_path",
+                ""
+            )
         )
 
         if existing_product:
@@ -1879,20 +2359,24 @@ class AddProductScreen(BaseScreen):
                 barcode
             )
 
-        if not self.app.db.add_expiration(
-            barcode_for_expiration,
-            exp_date
-        ):
+        if exp_date:
+            if not self.app.db.add_expiration(
+                barcode_for_expiration,
+                exp_date
+            ):
+                self.app.message(
+                    "Такой срок у этого товара уже существует."
+                )
+                return
 
             self.app.message(
-                "Такой срок у этого товара уже существует."
+                "Срок успешно добавлен."
             )
-
-            return
-
-        self.app.message(
-            "Срок успешно добавлен."
-        )
+        else:
+            self.app.message(
+                "Товар сохранён без срока.\n"
+                "Он будет показан зелёным."
+            )
 
         self.app.open_home()
 
@@ -2085,6 +2569,7 @@ class MainApp(App):
         )
 
         self.current_department = None
+        self.pending_photo_screen = None
 
         self.db = Database(
             self.db_path
@@ -2169,6 +2654,10 @@ class MainApp(App):
             self.open_departments()
             return True
 
+        if self.sm.current == "settings":
+            self.open_departments()
+            return True
+
         self.open_home()
         return True
 
@@ -2248,10 +2737,70 @@ class MainApp(App):
         root = BoxLayout(
             orientation="vertical",
             padding=safe_padding(horizontal=14, top=7, bottom=12),
-            spacing=dp(12),
+            spacing=dp(10),
         )
 
         root.add_widget(self.create_header())
+
+        # Поиск товара находится именно на стартовом экране.
+        search_input = TextInput(
+            hint_text="Поиск товара",
+            multiline=False,
+            size_hint_y=None,
+            height=dp(52),
+            font_size="16sp",
+            padding=(dp(15), dp(13)),
+        )
+        root.add_widget(search_input)
+        screen.search_input = search_input
+
+        search_results_scroll = ScrollView(
+            do_scroll_x=False,
+            size_hint_y=None,
+            height=0,
+            opacity=0,
+        )
+        search_results = BoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            spacing=dp(6),
+        )
+        search_results.bind(
+            minimum_height=search_results.setter("height")
+        )
+        search_results_scroll.add_widget(search_results)
+        root.add_widget(search_results_scroll)
+
+        screen.search_results = search_results
+        screen.search_results_scroll = search_results_scroll
+
+        def update_search(_instance, value):
+            screen.refresh_search(value)
+            if value.strip():
+                search_results_scroll.height = min(
+                    dp(250),
+                    max(dp(50), search_results.height)
+                )
+                search_results_scroll.opacity = 1
+            else:
+                search_results_scroll.height = 0
+                search_results_scroll.opacity = 0
+
+        search_input.bind(text=update_search)
+        search_input.bind(
+            on_text_validate=lambda *_: screen.submit_search()
+        )
+
+        settings_button = RoundedButton(
+            text="Настройки",
+            size_hint_y=None,
+            height=dp(52),
+            font_size="15sp",
+        )
+        settings_button.bind(
+            on_release=lambda *_: self.open_settings()
+        )
+        root.add_widget(settings_button)
 
         title = Label(
             text="Выберите отдел",
@@ -2259,21 +2808,27 @@ class MainApp(App):
             bold=True,
             font_size="22sp",
             size_hint_y=None,
-            height=dp(48),
+            height=dp(46),
             halign="left",
             valign="middle",
         )
-        title.bind(size=lambda instance, value: setattr(instance, "text_size", value))
+        title.bind(
+            size=lambda instance, value:
+            setattr(instance, "text_size", value)
+        )
         root.add_widget(title)
 
         scroll = ScrollView(do_scroll_x=False)
+
         departments_list = BoxLayout(
             orientation="vertical",
             size_hint_y=None,
             spacing=dp(8),
             padding=(0, dp(2), 0, dp(10)),
         )
-        departments_list.bind(minimum_height=departments_list.setter("height"))
+        departments_list.bind(
+            minimum_height=departments_list.setter("height")
+        )
 
         for department_name in DEPARTMENTS:
             button = RoundedButton(
@@ -2288,19 +2843,22 @@ class MainApp(App):
                 down_color=BUTTON_BG_DOWN,
             )
             button.bind(
-                size=lambda instance, value: setattr(
+                size=lambda instance, value:
+                setattr(
                     instance,
                     "text_size",
                     (value[0] - dp(36), value[1])
                 )
             )
             button.bind(
-                on_release=lambda _button, name=department_name: self.select_department(name)
+                on_release=lambda _button, name=department_name:
+                self.select_department(name)
             )
             departments_list.add_widget(button)
 
         scroll.add_widget(departments_list)
         root.add_widget(scroll)
+
         screen.add_widget(root)
         return screen
 
@@ -2352,50 +2910,27 @@ class MainApp(App):
             font_size="16sp",
             normal_color=ACCENT_RED,
             down_color=ACCENT_RED_DOWN,
-            size_hint_x=0.48,
+            size_hint_x=0.82,
         )
-
         add_button.bind(
             on_release=lambda *_:
             self.start_barcode_scanner()
         )
 
-        settings_button = RoundedButton(
-            text="Настройки",
-            font_size="15sp",
-            size_hint_x=0.38,
-        )
-
-        settings_button.bind(
-            on_release=lambda *_:
-            self.open_settings()
-        )
-
         sort_button = RoundedImageButton(
             image_source="sort.png",
-            size_hint_x=0.14,
+            size_hint_x=0.18,
         )
-
         sort_button.bind(
             on_release=lambda *_:
             self.open_sort_popup()
         )
 
-        actions.add_widget(
-            add_button
-        )
+        actions.add_widget(add_button)
+        actions.add_widget(sort_button)
 
-        actions.add_widget(
-            settings_button
-        )
+        root.add_widget(actions)
 
-        actions.add_widget(
-            sort_button
-        )
-
-        root.add_widget(
-            actions
-        )
 
         scroll = ScrollView(
             do_scroll_x=False,
@@ -2489,7 +3024,7 @@ class MainApp(App):
         info = Label(
             text=(
                 "Отсканируй штрихкод или введи его вручную.\n"
-                "Для известного товара название заполнится автоматически."
+                "Дата и фото необязательны."
             ),
             color=TEXT_SECONDARY,
             font_size="13sp",
@@ -2545,7 +3080,7 @@ class MainApp(App):
         )
 
         date_input = DateInput(
-            hint_text="ДД.ММ.ГГ",
+            hint_text="ДД.ММ.ГГ (необязательно)",
             multiline=False,
             input_type="number",
             size_hint_y=None,
@@ -2567,6 +3102,144 @@ class MainApp(App):
 
         root.add_widget(
             date_input
+        )
+
+        photo_title = Label(
+            text="Фото товара (необязательно)",
+            color=TEXT_SECONDARY,
+            font_size="12sp",
+            size_hint_y=None,
+            height=dp(25),
+            halign="left",
+            valign="middle",
+        )
+        photo_title.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+        root.add_widget(
+            photo_title
+        )
+
+        photo_row = BoxLayout(
+            size_hint_y=None,
+            height=dp(96),
+            spacing=dp(10),
+        )
+
+        preview_holder = BoxLayout(
+            size_hint_x=None,
+            width=dp(96),
+            padding=dp(5),
+        )
+
+        with preview_holder.canvas.before:
+
+            Color(
+                *THUMBNAIL_BG
+            )
+
+            preview_bg = RoundedRectangle(
+                pos=preview_holder.pos,
+                size=preview_holder.size,
+                radius=[dp(15)],
+            )
+
+        preview_holder.bind(
+            pos=lambda instance, value:
+            setattr(
+                preview_bg,
+                "pos",
+                value
+            ),
+            size=lambda instance, value:
+            setattr(
+                preview_bg,
+                "size",
+                value
+            ),
+        )
+
+        photo_preview = Image(
+            source="",
+            fit_mode="contain",
+            opacity=0,
+        )
+
+        preview_holder.add_widget(
+            photo_preview
+        )
+
+        photo_controls = BoxLayout(
+            orientation="vertical",
+            spacing=dp(7),
+        )
+
+        camera_photo_button = RoundedButton(
+            text="Сделать фото",
+            font_size="13sp",
+        )
+
+        camera_photo_button.bind(
+            on_release=lambda *_:
+            screen.take_photo()
+        )
+
+        gallery_photo_button = RoundedButton(
+            text="Выбрать из галереи",
+            font_size="13sp",
+        )
+
+        gallery_photo_button.bind(
+            on_release=lambda *_:
+            screen.choose_photo()
+        )
+
+        photo_status = Label(
+            text="Фото не добавлено",
+            color=TEXT_SECONDARY,
+            font_size="11sp",
+            size_hint_y=None,
+            height=dp(20),
+            halign="left",
+            valign="middle",
+        )
+
+        photo_status.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        photo_controls.add_widget(
+            camera_photo_button
+        )
+
+        photo_controls.add_widget(
+            gallery_photo_button
+        )
+
+        photo_controls.add_widget(
+            photo_status
+        )
+
+        photo_row.add_widget(
+            preview_holder
+        )
+
+        photo_row.add_widget(
+            photo_controls
+        )
+
+        root.add_widget(
+            photo_row
         )
 
         root.add_widget(
@@ -2602,6 +3275,16 @@ class MainApp(App):
         screen.date_input = (
             date_input
         )
+
+        screen.photo_preview = (
+            photo_preview
+        )
+
+        screen.photo_status = (
+            photo_status
+        )
+
+        screen.pending_photo_path = ""
 
         screen.add_widget(
             root
@@ -3037,6 +3720,21 @@ class MainApp(App):
     def open_departments(self):
         self.sm.current = "departments"
 
+    def open_search_result(self, product):
+
+        department = (
+            product["department"]
+            if product["department"]
+            else None
+        )
+
+        if department:
+            self.current_department = department
+
+        self.open_product(
+            product["barcode"]
+        )
+
     def select_department(self, department):
         self.current_department = department
         self.sm.current = "home"
@@ -3108,6 +3806,348 @@ class MainApp(App):
 
         self.sm.current = (
             "settings"
+        )
+
+
+    # =====================================================
+    # PRODUCT PHOTO
+    # =====================================================
+
+    def _product_photo_dir(
+        self
+    ):
+
+        folder = (
+            Path(
+                self.user_data_dir
+            )
+            /
+            "product_photos"
+        )
+
+        folder.mkdir(
+            parents=True,
+            exist_ok=True
+        )
+
+        return folder
+
+    def choose_product_photo(
+        self,
+        screen
+    ):
+
+        if not ANDROID:
+
+            self.message(
+                "Выбор фото из галереи доступен на Android."
+            )
+
+            return
+
+        if not PYJNIUS_AVAILABLE:
+
+            self.message(
+                "PyJNIus недоступен."
+            )
+
+            return
+
+        try:
+
+            self.pending_photo_screen = (
+                screen
+            )
+
+            PythonActivity = autoclass(
+                "org.kivy.android.PythonActivity"
+            )
+
+            Intent = autoclass(
+                "android.content.Intent"
+            )
+
+            current_activity = cast(
+                "android.app.Activity",
+                PythonActivity.mActivity
+            )
+
+            intent = Intent(
+                Intent.ACTION_OPEN_DOCUMENT
+            )
+
+            intent.addCategory(
+                Intent.CATEGORY_OPENABLE
+            )
+
+            intent.setType(
+                "image/*"
+            )
+
+            current_activity.startActivityForResult(
+                intent,
+                REQUEST_PICK_PRODUCT_PHOTO
+            )
+
+        except Exception as exc:
+
+            self.pending_photo_screen = None
+
+            self.message(
+                "Не удалось открыть галерею:\\n\\n"
+                +
+                str(exc)
+            )
+
+    def take_product_photo(
+        self,
+        screen
+    ):
+
+        if not ANDROID:
+
+            self.message(
+                "Камера для фото доступна на Android."
+            )
+
+            return
+
+        if not PYJNIUS_AVAILABLE:
+
+            self.message(
+                "PyJNIus недоступен."
+            )
+
+            return
+
+        try:
+
+            self.pending_photo_screen = (
+                screen
+            )
+
+            PythonActivity = autoclass(
+                "org.kivy.android.PythonActivity"
+            )
+
+            Intent = autoclass(
+                "android.content.Intent"
+            )
+
+            MediaStore = autoclass(
+                "android.provider.MediaStore"
+            )
+
+            current_activity = cast(
+                "android.app.Activity",
+                PythonActivity.mActivity
+            )
+
+            intent = Intent(
+                MediaStore.ACTION_IMAGE_CAPTURE
+            )
+
+            current_activity.startActivityForResult(
+                intent,
+                REQUEST_TAKE_PRODUCT_PHOTO
+            )
+
+        except Exception as exc:
+
+            self.pending_photo_screen = None
+
+            self.message(
+                "Не удалось открыть камеру:\\n\\n"
+                +
+                str(exc)
+            )
+
+    def _copy_content_uri_to_photo(
+        self,
+        uri
+    ):
+
+        PythonActivity = autoclass(
+            "org.kivy.android.PythonActivity"
+        )
+
+        current_activity = cast(
+            "android.app.Activity",
+            PythonActivity.mActivity
+        )
+
+        resolver = (
+            current_activity
+            .getContentResolver()
+        )
+
+        parcel_fd = (
+            resolver
+            .openFileDescriptor(
+                uri,
+                "r"
+            )
+        )
+
+        if parcel_fd is None:
+
+            raise RuntimeError(
+                "Не удалось открыть выбранное изображение."
+            )
+
+        target = (
+            self._product_photo_dir()
+            /
+            (
+                "product_"
+                +
+                datetime.now().strftime(
+                    "%Y%m%d_%H%M%S_%f"
+                )
+                +
+                ".jpg"
+            )
+        )
+
+        duplicated_fd = None
+
+        try:
+
+            duplicated_fd = os.dup(
+                parcel_fd.getFd()
+            )
+
+            with os.fdopen(
+                duplicated_fd,
+                "rb",
+                closefd=True
+            ) as source_file:
+
+                duplicated_fd = None
+
+                with target.open(
+                    "wb"
+                ) as target_file:
+
+                    shutil.copyfileobj(
+                        source_file,
+                        target_file,
+                        length=1024 * 1024
+                    )
+
+        finally:
+
+            if duplicated_fd is not None:
+
+                try:
+                    os.close(
+                        duplicated_fd
+                    )
+                except OSError:
+                    pass
+
+            parcel_fd.close()
+
+        return str(
+            target
+        )
+
+    def _save_camera_thumbnail(
+        self,
+        intent
+    ):
+
+        extras = (
+            intent.getExtras()
+            if intent is not None
+            else None
+        )
+
+        if extras is None:
+
+            raise RuntimeError(
+                "Камера не вернула изображение."
+            )
+
+        bitmap = (
+            extras.get(
+                "data"
+            )
+        )
+
+        if bitmap is None:
+
+            raise RuntimeError(
+                "Камера не вернула изображение."
+            )
+
+        target = (
+            self._product_photo_dir()
+            /
+            (
+                "product_"
+                +
+                datetime.now().strftime(
+                    "%Y%m%d_%H%M%S_%f"
+                )
+                +
+                ".jpg"
+            )
+        )
+
+        FileOutputStream = autoclass(
+            "java.io.FileOutputStream"
+        )
+
+        CompressFormat = autoclass(
+            "android.graphics.Bitmap$CompressFormat"
+        )
+
+        output_stream = FileOutputStream(
+            str(target)
+        )
+
+        try:
+
+            ok = bitmap.compress(
+                CompressFormat.JPEG,
+                92,
+                output_stream
+            )
+
+            output_stream.flush()
+
+            if not ok:
+
+                raise RuntimeError(
+                    "Не удалось сохранить фотографию."
+                )
+
+        finally:
+
+            output_stream.close()
+
+        return str(
+            target
+        )
+
+    @mainthread
+    def _apply_product_photo(
+        self,
+        path
+    ):
+
+        screen = (
+            self.pending_photo_screen
+        )
+
+        self.pending_photo_screen = None
+
+        if screen is None:
+            return
+
+        screen.set_photo(
+            path
         )
 
 
@@ -3212,6 +4252,92 @@ class MainApp(App):
                 result_code,
                 intent
             )
+
+            return
+
+        if (
+            request_code
+            ==
+            REQUEST_PICK_PRODUCT_PHOTO
+        ):
+
+            if (
+                result_code == -1
+                and
+                intent is not None
+            ):
+
+                try:
+
+                    uri = intent.getData()
+
+                    if uri is not None:
+
+                        path = (
+                            self._copy_content_uri_to_photo(
+                                uri
+                            )
+                        )
+
+                        self._apply_product_photo(
+                            path
+                        )
+
+                except Exception as exc:
+
+                    self.pending_photo_screen = None
+
+                    self.message(
+                        "Ошибка выбора фото:\n\n"
+                        +
+                        str(exc)
+                    )
+
+            else:
+
+                self.pending_photo_screen = None
+
+            return
+
+        if (
+            request_code
+            ==
+            REQUEST_TAKE_PRODUCT_PHOTO
+        ):
+
+            if (
+                result_code == -1
+                and
+                intent is not None
+            ):
+
+                try:
+
+                    path = (
+                        self._save_camera_thumbnail(
+                            intent
+                        )
+                    )
+
+                    self._apply_product_photo(
+                        path
+                    )
+
+                except Exception as exc:
+
+                    self.pending_photo_screen = None
+
+                    self.message(
+                        "Ошибка сохранения фото:\n\n"
+                        +
+                        str(exc)
+                    )
+
+            else:
+
+                self.pending_photo_screen = None
+
+            return
 
     @mainthread
     def handle_scanner_result(
