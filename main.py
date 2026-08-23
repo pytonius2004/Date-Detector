@@ -216,6 +216,7 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки Годности"
+BUILD_MARKER = "ready_v3"
 
 HEADER_TITLE = "Pyton Detector"
 
