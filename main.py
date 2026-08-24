@@ -39,7 +39,7 @@ from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.modalview import ModalView
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
-from kivy.uix.image import Image
+from kivy.uix.image import Image, AsyncImage
 from kivy.uix.label import Label
 from kivy.uix.popup import Popup
 from kivy.uix.screenmanager import (
@@ -216,7 +216,7 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки Годности"
-BUILD_MARKER = "ready_v3"
+BUILD_MARKER = "optimized_photos_v4"
 
 HEADER_TITLE = "Pyton Detector"
 
@@ -583,8 +583,14 @@ class RoundedImageButton(ButtonBehavior, BoxLayout):
 
 class ProductThumbnail(BoxLayout):
 
-    def __init__(self, source="", **kwargs):
+    def __init__(
+        self,
+        source="",
+        remote_source="",
+        **kwargs
+    ):
         super().__init__(**kwargs)
+
         self.size_hint_x = None
         self.width = dp(72)
         self.padding = dp(4)
@@ -602,21 +608,37 @@ class ProductThumbnail(BoxLayout):
             size=self._update_bg,
         )
 
-        source = str(source or "").strip()
+        local_source = str(source or "").strip()
+        remote_source = str(remote_source or "").strip()
 
-        if source and Path(source).exists():
+        if (
+            local_source
+            and
+            Path(local_source).exists()
+        ):
+            image = Image(
+                source=local_source,
+                fit_mode="cover",
+            )
+            self.add_widget(image)
+
+        elif remote_source.startswith(
+            ("http://", "https://")
+        ):
+            image = AsyncImage(
+                source=remote_source,
+                fit_mode="cover",
+                nocache=False,
+            )
+            self.add_widget(image)
+
+        else:
             self.add_widget(
-                Image(
-                    source=source,
-                    fit_mode="contain",
+                Label(
+                    text="",
+                    color=TEXT_SECONDARY,
                 )
             )
-        else:
-            placeholder = Label(
-                text="",
-                color=TEXT_SECONDARY,
-            )
-            self.add_widget(placeholder)
 
     def _update_bg(self, *_):
         self._bg_rect.pos = self.pos
@@ -642,6 +664,7 @@ class ProductCard(
         barcode,
         exp_date,
         photo_path="",
+        photo_url="",
         **kwargs
     ):
 
@@ -677,6 +700,7 @@ class ProductCard(
         # Серый квадрат, пока фото товара не добавлено.
         self.thumbnail = ProductThumbnail(
             source=photo_path,
+            remote_source=photo_url,
         )
         self.add_widget(self.thumbnail)
 
@@ -1150,6 +1174,7 @@ class Database:
                 name TEXT NOT NULL DEFAULT '',
                 department TEXT NOT NULL DEFAULT '',
                 photo_path TEXT NOT NULL DEFAULT '',
+                photo_url TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL
             );
 
@@ -1179,6 +1204,18 @@ class Database:
                 written_off,
                 exp_date
             );
+
+            CREATE INDEX IF NOT EXISTS
+            idx_products_department
+            ON products(
+                department
+            );
+
+            CREATE INDEX IF NOT EXISTS
+            idx_products_name
+            ON products(
+                name COLLATE NOCASE
+            );
             """
         )
 
@@ -1200,6 +1237,24 @@ class Database:
                 "ALTER TABLE products "
                 "ADD COLUMN photo_path TEXT NOT NULL DEFAULT ''"
             )
+
+        if "photo_url" not in product_columns:
+            self.conn.execute(
+                "ALTER TABLE products "
+                "ADD COLUMN photo_url TEXT NOT NULL DEFAULT ''"
+            )
+
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS "
+            "idx_products_department "
+            "ON products(department)"
+        )
+
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS "
+            "idx_products_name "
+            "ON products(name COLLATE NOCASE)"
+        )
 
         self.conn.commit()
 
@@ -1256,14 +1311,15 @@ class Database:
         barcode,
         name,
         department=None,
-        photo_path=None
+        photo_path=None,
+        photo_url=None
     ):
 
         barcode = normalize_barcode(
             barcode
         )
 
-        name = name.strip()
+        name = str(name or "").strip()
 
         department = (
             str(department).strip()
@@ -1274,6 +1330,12 @@ class Database:
         photo_path = (
             str(photo_path).strip()
             if photo_path is not None
+            else None
+        )
+
+        photo_url = (
+            str(photo_url).strip()
+            if photo_url is not None
             else None
         )
 
@@ -1303,19 +1365,33 @@ class Database:
                 )
             )
 
+            existing_keys = existing.keys()
+
+            final_photo_url = (
+                photo_url
+                if photo_url is not None
+                else (
+                    existing["photo_url"]
+                    if "photo_url" in existing_keys
+                    else ""
+                )
+            )
+
             self.conn.execute(
                 """
                 UPDATE products
                 SET
                     name = ?,
                     department = ?,
-                    photo_path = ?
+                    photo_path = ?,
+                    photo_url = ?
                 WHERE barcode = ?
                 """,
                 (
                     name,
                     final_department,
                     final_photo_path,
+                    final_photo_url,
                     existing["barcode"],
                 ),
             )
@@ -1329,15 +1405,17 @@ class Database:
                     name,
                     department,
                     photo_path,
+                    photo_url,
                     created_at
                 )
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
                     barcode,
                     name,
                     department or "",
                     photo_path or "",
+                    photo_url or "",
                     datetime.now().isoformat(
                         timespec="seconds"
                     ),
@@ -1520,42 +1598,212 @@ class Database:
 
     def get_product_list(
         self,
-        department=None
+        department=None,
+        filter_mode="all",
+        limit=40,
+        offset=0
     ):
 
-        department = str(department).strip() if department else ""
+        department = (
+            str(department).strip()
+            if department
+            else ""
+        )
+
+        filter_mode = str(
+            filter_mode or "all"
+        )
+
+        today_value = date.today().strftime(
+            DATE_DB_FORMAT
+        )
+
+        where_filter = "1=1"
+        params = [
+            department,
+            department,
+        ]
+
+        if filter_mode == "expired":
+            where_filter = (
+                "next_exp IS NOT NULL "
+                "AND next_exp < ?"
+            )
+            params.append(
+                today_value
+            )
+
+        elif filter_mode == "expiring":
+            # Истекающий = сегодня ИЛИ завтра.
+            tomorrow_value = (
+                date.today()
+                +
+                timedelta(days=1)
+            ).strftime(
+                DATE_DB_FORMAT
+            )
+
+            where_filter = (
+                "next_exp IS NOT NULL "
+                "AND next_exp >= ? "
+                "AND next_exp <= ?"
+            )
+
+            params.extend(
+                [
+                    today_value,
+                    tomorrow_value,
+                ]
+            )
+
+        elif filter_mode == "no_date":
+            where_filter = (
+                "next_exp IS NULL"
+            )
+
+        params.extend(
+            [
+                int(limit),
+                int(offset),
+            ]
+        )
+
+        query = f"""
+            WITH product_rows AS (
+                SELECT
+                    p.barcode,
+                    p.name,
+                    p.department,
+                    p.photo_path,
+                    p.photo_url,
+                    (
+                        SELECT e.exp_date
+                        FROM expirations e
+                        WHERE e.barcode = p.barcode
+                          AND e.written_off = 0
+                        ORDER BY e.exp_date ASC, e.id ASC
+                        LIMIT 1
+                    ) AS next_exp
+                FROM products p
+                WHERE (
+                    ? = ''
+                    OR p.department = ?
+                    OR p.department = ''
+                )
+            )
+            SELECT *
+            FROM product_rows
+            WHERE {where_filter}
+            ORDER BY
+                CASE
+                    WHEN next_exp IS NULL
+                    THEN 1
+                    ELSE 0
+                END ASC,
+                next_exp ASC,
+                name COLLATE NOCASE ASC
+            LIMIT ?
+            OFFSET ?
+        """
 
         return self.conn.execute(
-            """
-            SELECT
-                p.barcode,
-                p.name,
-                p.department,
-                p.photo_path,
-                (
-                    SELECT e.exp_date
-                    FROM expirations e
-                    WHERE e.barcode = p.barcode
-                      AND e.written_off = 0
-                    ORDER BY e.exp_date ASC, e.id ASC
-                    LIMIT 1
-                ) AS next_exp
-            FROM products p
-            WHERE ? = '' OR p.department = ? OR p.department = ''
-            ORDER BY
-                CASE WHEN (
-                    SELECT e2.exp_date
-                    FROM expirations e2
-                    WHERE e2.barcode = p.barcode
-                      AND e2.written_off = 0
-                    ORDER BY e2.exp_date ASC, e2.id ASC
-                    LIMIT 1
-                ) IS NULL THEN 1 ELSE 0 END ASC,
-                next_exp ASC,
-                p.name COLLATE NOCASE ASC
-            """,
-            (department, department),
+            query,
+            params,
         ).fetchall()
+
+    def count_product_list(
+        self,
+        department=None,
+        filter_mode="all"
+    ):
+
+        department = (
+            str(department).strip()
+            if department
+            else ""
+        )
+
+        filter_mode = str(
+            filter_mode or "all"
+        )
+
+        today_value = date.today().strftime(
+            DATE_DB_FORMAT
+        )
+
+        where_filter = "1=1"
+        params = [
+            department,
+            department,
+        ]
+
+        if filter_mode == "expired":
+            where_filter = (
+                "next_exp IS NOT NULL "
+                "AND next_exp < ?"
+            )
+            params.append(
+                today_value
+            )
+
+        elif filter_mode == "expiring":
+
+            tomorrow_value = (
+                date.today()
+                +
+                timedelta(days=1)
+            ).strftime(
+                DATE_DB_FORMAT
+            )
+
+            where_filter = (
+                "next_exp IS NOT NULL "
+                "AND next_exp >= ? "
+                "AND next_exp <= ?"
+            )
+
+            params.extend(
+                [
+                    today_value,
+                    tomorrow_value,
+                ]
+            )
+
+        elif filter_mode == "no_date":
+            where_filter = (
+                "next_exp IS NULL"
+            )
+
+        query = f"""
+            WITH product_rows AS (
+                SELECT
+                    p.barcode,
+                    (
+                        SELECT e.exp_date
+                        FROM expirations e
+                        WHERE e.barcode = p.barcode
+                          AND e.written_off = 0
+                        ORDER BY e.exp_date ASC, e.id ASC
+                        LIMIT 1
+                    ) AS next_exp
+                FROM products p
+                WHERE (
+                    ? = ''
+                    OR p.department = ?
+                    OR p.department = ''
+                )
+            )
+            SELECT COUNT(*)
+            FROM product_rows
+            WHERE {where_filter}
+        """
+
+        return int(
+            self.conn.execute(
+                query,
+                params,
+            ).fetchone()[0]
+        )
 
     def search_products(
         self,
@@ -1577,6 +1825,7 @@ class Database:
                 p.name,
                 p.department,
                 p.photo_path,
+                p.photo_url,
                 (
                     SELECT e.exp_date
                     FROM expirations e
@@ -1790,6 +2039,8 @@ class DepartmentScreen(BaseScreen):
 
 class HomeScreen(BaseScreen):
 
+    PAGE_SIZE = 36
+
     def __init__(
         self,
         **kwargs
@@ -1798,12 +2049,14 @@ class HomeScreen(BaseScreen):
             **kwargs
         )
         self.filter_mode = "all"
+        self.loaded_count = 0
+        self.total_count = 0
+        self._load_generation = 0
 
     def on_pre_enter(
         self,
         *_
     ):
-
         self.refresh()
 
     def set_filter(
@@ -1815,7 +2068,12 @@ class HomeScreen(BaseScreen):
 
     def refresh(self):
 
-        if hasattr(self, "department_button"):
+        self._load_generation += 1
+
+        if hasattr(
+            self,
+            "department_button"
+        ):
             self.department_button.text = (
                 self.app.current_department
                 or
@@ -1824,165 +2082,143 @@ class HomeScreen(BaseScreen):
 
         self.product_list.clear_widgets()
 
-        today = date.today()
+        self.loaded_count = 0
 
-        yesterday = (
-            today
-            -
-            timedelta(
-                days=1
+        self.total_count = (
+            self.app.db.count_product_list(
+                self.app.current_department,
+                self.filter_mode,
             )
         )
 
-        active = []
-        completed = []
+        if self.total_count == 0:
+            self._show_empty()
+            return
 
-        for product in (
-            self.app.db.get_product_list(
-                self.app.current_department
-            )
-        ):
+        # Сначала рисуем только первую небольшую пачку.
+        # Поэтому отдел с 400-500 товарами открывается быстро.
+        self.load_more()
 
-            if not product[
-                "next_exp"
-            ]:
+    def load_more(self):
 
-                completed.append(
-                    product
-                )
+        if self.loaded_count >= self.total_count:
+            return
 
-                continue
+        generation = self._load_generation
 
+        rows = self.app.db.get_product_list(
+            self.app.current_department,
+            self.filter_mode,
+            limit=self.PAGE_SIZE,
+            offset=self.loaded_count,
+        )
+
+        if generation != self._load_generation:
+            return
+
+        # Если снизу уже была кнопка "Показать ещё" — убираем её.
+        if hasattr(self, "more_button"):
             try:
+                self.product_list.remove_widget(
+                    self.more_button
+                )
+            except Exception:
+                pass
+            self.more_button = None
 
-                exp_date = (
-                    datetime.strptime(
-                        product[
-                            "next_exp"
-                        ],
-                        DATE_DB_FORMAT
+        today = date.today()
+        tomorrow = (
+            today
+            +
+            timedelta(days=1)
+        )
+
+        for product in rows:
+
+            exp_date = None
+
+            if product["next_exp"]:
+                try:
+                    exp_date = datetime.strptime(
+                        product["next_exp"],
+                        DATE_DB_FORMAT,
                     ).date()
-                )
-
-            except ValueError:
-
-                completed.append(
-                    product
-                )
-
-                continue
-
-            active.append(
-                (
-                    product,
-                    exp_date,
-                )
-            )
-
-        # Фильтр главного списка.
-        # expired: дата раньше сегодняшней
-        # expiring: срок сегодня
-        # no_date: активного срока нет
-        if self.filter_mode == "expired":
-            active = [
-                item
-                for item in active
-                if item[1] < today
-            ]
-            completed = []
-
-        elif self.filter_mode == "expiring":
-            active = [
-                item
-                for item in active
-                if item[1] == today
-            ]
-            completed = []
-
-        elif self.filter_mode == "no_date":
-            active = []
-            # completed уже содержит товары без активной даты
-
-        for product, exp_date in active:
+                except ValueError:
+                    exp_date = None
 
             self.product_list.add_widget(
                 self.make_product_card(
                     product,
                     exp_date,
                     today,
-                    yesterday
+                    tomorrow,
                 )
             )
 
-        if completed:
+        self.loaded_count += len(rows)
 
-            separator = Label(
-                text="Все сроки списаны",
+        if self.loaded_count < self.total_count:
+
+            self.more_button = RoundedButton(
+                text=(
+                    "Показать ещё"
+                    f"  ({self.loaded_count}/{self.total_count})"
+                ),
+                size_hint_y=None,
+                height=dp(52),
+                font_size="14sp",
+                normal_color=BUTTON_BG,
+                down_color=BUTTON_BG_DOWN,
+            )
+
+            self.more_button.bind(
+                on_release=lambda *_:
+                self.load_more()
+            )
+
+            self.product_list.add_widget(
+                self.more_button
+            )
+
+    def _show_empty(self):
+
+        empty = BoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            height=dp(210),
+            padding=dp(20),
+        )
+
+        empty.add_widget(
+            Label(
+                text="Пока ничего нет",
+                color=TEXT,
+                bold=True,
+                font_size="20sp",
+            )
+        )
+
+        empty.add_widget(
+            Label(
+                text=(
+                    "В этом списке пока нет товаров"
+                ),
                 color=TEXT_SECONDARY,
-                size_hint_y=None,
-                height=dp(44),
-                font_size="13sp",
+                halign="center",
+                font_size="14sp",
             )
+        )
 
-            self.product_list.add_widget(
-                separator
-            )
-
-            for product in completed:
-
-                self.product_list.add_widget(
-                    self.make_product_card(
-                        product,
-                        None,
-                        today,
-                        yesterday
-                    )
-                )
-
-        if (
-            not active
-            and
-            not completed
-        ):
-
-            empty = BoxLayout(
-                orientation="vertical",
-                size_hint_y=None,
-                height=dp(210),
-                padding=dp(20),
-            )
-
-            empty.add_widget(
-                Label(
-                    text="Пока ничего нет",
-                    color=TEXT,
-                    bold=True,
-                    font_size="20sp",
-                )
-            )
-
-            empty.add_widget(
-                Label(
-                    text=(
-                        "Отсканируй первый товар\n"
-                        "и добавь его срок годности"
-                    ),
-                    color=TEXT_SECONDARY,
-                    halign="center",
-                    font_size="14sp",
-                )
-            )
-
-            self.product_list.add_widget(
-                empty
-            )
+        self.product_list.add_widget(
+            empty
+        )
 
     def make_product_card(
         self,
         product,
         exp_date,
         today,
-        yesterday
+        tomorrow
     ):
 
         if exp_date is None:
@@ -1991,74 +2227,68 @@ class HomeScreen(BaseScreen):
             fg = RED_TEXT
             date_text = "Без даты"
 
+        elif exp_date < today:
+
+            bg = RED
+            fg = RED_TEXT
+            date_text = format_date(
+                product["next_exp"]
+            )
+
         elif exp_date == today:
 
             bg = YELLOW
             fg = YELLOW_TEXT
-
             date_text = format_date(
-                product[
-                    "next_exp"
-                ]
+                product["next_exp"]
             )
 
-        elif exp_date == yesterday:
+        elif exp_date == tomorrow:
 
-            bg = RED
+            # По просьбе: то, что истекает завтра — зелёное.
+            bg = GREEN
             fg = RED_TEXT
-
             date_text = format_date(
-                product[
-                    "next_exp"
-                ]
+                product["next_exp"]
             )
 
         else:
 
             bg = CARD
             fg = TEXT
-
             date_text = format_date(
-                product[
-                    "next_exp"
-                ]
+                product["next_exp"]
             )
+
+        keys = product.keys()
 
         card = ProductCard(
             product_name=(
-                product[
-                    "name"
-                ]
+                product["name"]
                 or
                 "Без названия"
             ),
-            barcode=(
-                product[
-                    "barcode"
-                ]
-            ),
+            barcode=product["barcode"],
             exp_date=date_text,
             photo_path=(
                 product["photo_path"]
-                if "photo_path" in product.keys()
+                if "photo_path" in keys
+                else ""
+            ),
+            photo_url=(
+                product["photo_url"]
+                if "photo_url" in keys
                 else ""
             ),
         )
 
-        card.background_color = (
-            bg
-        )
-
-        card.set_foreground(
-            fg
-        )
+        card.background_color = bg
+        card.set_foreground(fg)
 
         card.bind(
             on_release=lambda *_:
             self.app.open_product(
-                product[
-                    "barcode"
-                ]
+                product["barcode"]
             )
         )
 
@@ -2067,7 +2297,97 @@ class HomeScreen(BaseScreen):
 
 class AddProductScreen(BaseScreen):
 
+    def __init__(
+        self,
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+        self._auto_save_event = None
+        self._auto_save_signature = None
+        self._save_in_progress = False
+
+    def on_date_change(
+        self,
+        instance,
+        value
+    ):
+
+        digits = "".join(
+            char
+            for char in str(value or "")
+            if char.isdigit()
+        )
+
+        if len(digits) != 6:
+            return
+
+        if self._auto_save_event is not None:
+            try:
+                self._auto_save_event.cancel()
+            except Exception:
+                pass
+
+        self._auto_save_event = Clock.schedule_once(
+            self._try_auto_save,
+            0.28
+        )
+
+    def _try_auto_save(
+        self,
+        *_
+    ):
+
+        self._auto_save_event = None
+
+        if self._save_in_progress:
+            return
+
+        barcode = normalize_barcode(
+            self.barcode_input.text
+        )
+
+        name = self.name_input.text.strip()
+        date_text = self.date_input.text.strip()
+
+        # Ещё раз пробуем автозаполнение названия,
+        # если товар уже известен базе.
+        if barcode and not name:
+            self.autofill_product(
+                barcode
+            )
+            name = self.name_input.text.strip()
+
+        parsed = parse_user_date(
+            date_text
+        )
+
+        if (
+            not barcode
+            or
+            not name
+            or
+            not parsed
+        ):
+            return
+
+        signature = (
+            barcode,
+            name,
+            parsed,
+        )
+
+        if signature == self._auto_save_signature:
+            return
+
+        self._auto_save_signature = signature
+        self.save(
+            automatic=True
+        )
+
     def clear_form(self):
+
+        self._auto_save_signature = None
+        self._save_in_progress = False
 
         self.barcode_input.text = ""
         self.name_input.text = ""
@@ -2164,11 +2484,36 @@ class AddProductScreen(BaseScreen):
             ""
         )
 
+        photo_url = (
+            product["photo_url"]
+            if "photo_url" in product.keys()
+            else ""
+        ) or ""
+
         if photo_path:
 
             self.set_photo(
                 photo_path
             )
+
+        elif photo_url and hasattr(
+            self,
+            "photo_preview"
+        ):
+
+            self.photo_preview.source = (
+                photo_url
+            )
+
+            self.photo_preview.opacity = 1
+
+            if hasattr(
+                self,
+                "photo_status"
+            ):
+                self.photo_status.text = (
+                    "Фото из каталога"
+                )
 
     def on_barcode_change(
         self,
@@ -2259,7 +2604,7 @@ class AddProductScreen(BaseScreen):
             self
         )
 
-    def save(self):
+    def save(self, automatic=False):
 
         barcode = normalize_barcode(
             self.barcode_input.text
@@ -2274,6 +2619,10 @@ class AddProductScreen(BaseScreen):
             self.date_input.text
             .strip()
         )
+
+        if self._save_in_progress:
+            return
+
 
         if not barcode:
 
@@ -2335,6 +2684,8 @@ class AddProductScreen(BaseScreen):
             )
         )
 
+        self._save_in_progress = True
+
         self.app.db.save_product(
             barcode,
             name,
@@ -2365,20 +2716,24 @@ class AddProductScreen(BaseScreen):
                 barcode_for_expiration,
                 exp_date
             ):
+                self._save_in_progress = False
                 self.app.message(
                     "Такой срок у этого товара уже существует."
                 )
                 return
 
-            self.app.message(
-                "Срок успешно добавлен."
-            )
+            if not automatic:
+                self.app.message(
+                    "Срок успешно добавлен."
+                )
         else:
-            self.app.message(
-                "Товар сохранён без срока.\n"
-                "Он будет показан зелёным."
-            )
+            if not automatic:
+                self.app.message(
+                    "Товар сохранён без срока.\n"
+                    "Он будет показан зелёным."
+                )
 
+        self._save_in_progress = False
         self.app.open_home()
 
 
@@ -2996,7 +3351,7 @@ class MainApp(App):
         )
 
         back = RoundedButton(
-            text="< Назад",
+            text="Назад",
             size_hint_y=None,
             height=dp(50),
             font_size="15sp",
@@ -3093,6 +3448,11 @@ class MainApp(App):
             ),
         )
 
+        date_input.bind(
+            text=
+            screen.on_date_change
+        )
+
         root.add_widget(
             barcode
         )
@@ -3165,10 +3525,11 @@ class MainApp(App):
             ),
         )
 
-        photo_preview = Image(
+        photo_preview = AsyncImage(
             source="",
-            fit_mode="contain",
+            fit_mode="cover",
             opacity=0,
+            nocache=False,
         )
 
         preview_holder.add_widget(
@@ -3315,7 +3676,7 @@ class MainApp(App):
         )
 
         back = RoundedButton(
-            text="< Назад",
+            text="Назад",
             size_hint_y=None,
             height=dp(50),
         )
@@ -3479,7 +3840,7 @@ class MainApp(App):
         )
 
         back = RoundedButton(
-            text="< Назад",
+            text="Назад",
             size_hint_y=None,
             height=dp(50),
         )
