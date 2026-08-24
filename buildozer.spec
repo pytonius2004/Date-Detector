@@ -11,7 +11,7 @@ source.include_exts = py,png,jpg,jpeg,webp,kv,atlas,json,db,ttf
 
 source.exclude_dirs = .git,.github,.buildozer,bin,venv,__pycache__
 
-version = 0.0.6
+version = 0.0.7
 
 
 # =========================================================
@@ -26,6 +26,7 @@ requirements = python3==3.11.6,hostpython3==3.11.6,kivy==2.3.1,plyer,pyjnius,fil
 # =========================================================
 
 orientation = portrait
+
 fullscreen = 0
 
 presplash.filename = icon.png
@@ -39,9 +40,6 @@ icon.filename = icon.png
 android.api = 35
 android.minapi = 23
 
-# ВАЖНО:
-# Используем Android SDK, который уже установлен GitHub Actions.
-# Иначе Buildozer начинает качать свой SDK и снова спрашивает лицензии.
 android.sdk_path = /usr/local/lib/android/sdk
 
 android.ndk = 25b
@@ -68,26 +66,32 @@ android.enable_androidx = True
 
 
 # =========================================================
-# JAVA BARCODE SCANNER
+# JAVA SOURCE
 # =========================================================
 
 android.add_src = android_src
+
+
+# =========================================================
+# BARCODE SCANNER ACTIVITY
+# =========================================================
 
 android.add_activities = org.example.expiringgoods.BarcodeScannerActivity
 
 
 # =========================================================
 # CAMERAX + GOOGLE ML KIT
+#
+# ВАЖНО:
+# Все Kotlin-библиотеки принудительно ставим на 1.8.22.
+# Это убирает конфликт:
+#
+# kotlin-stdlib 1.8.22
+# VS
+# kotlin-stdlib-jdk7/jdk8 1.6.21
 # =========================================================
 
-android.gradle_dependencies = androidx.activity:activity:1.8.2,androidx.camera:camera-core:1.3.4,androidx.camera:camera-camera2:1.3.4,androidx.camera:camera-lifecycle:1.3.4,androidx.camera:camera-view:1.3.4,com.google.mlkit:barcode-scanning:17.2.0,org.jetbrains.kotlin:kotlin-stdlib:1.8.22
-
-
-# =========================================================
-# KOTLIN
-# =========================================================
-
-android.gradle_options = kotlin.stdlib.default.dependency=false
+android.gradle_dependencies = androidx.activity:activity:1.8.2,androidx.camera:camera-core:1.3.4,androidx.camera:camera-camera2:1.3.4,androidx.camera:camera-lifecycle:1.3.4,androidx.camera:camera-view:1.3.4,com.google.mlkit:barcode-scanning:17.2.0,org.jetbrains.kotlin:kotlin-stdlib:1.8.22,org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22,org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22
 
 
 # =========================================================
@@ -97,6 +101,10 @@ android.gradle_options = kotlin.stdlib.default.dependency=false
 p4a.branch = master
 p4a.commit = v2024.01.21
 
+
+# =========================================================
+# BUILDOZER
+# =========================================================
 
 [buildozer]
 
