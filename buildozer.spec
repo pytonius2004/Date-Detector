@@ -1,52 +1,151 @@
 [app]
 
+# ---------------------------------------------------------
+# ОСНОВНОЕ
+# ---------------------------------------------------------
+
 title = Сроки Годности
 
 package.name = expiringgoods
 package.domain = org.example
 
+version = 0.0.6
+
+
+# ---------------------------------------------------------
+# ФАЙЛЫ ПРИЛОЖЕНИЯ
+# ---------------------------------------------------------
+
 source.dir = .
 
-source.include_exts = py,png,jpg,jpeg,webp,kv,atlas,json,db
+source.include_exts = py,png,jpg,jpeg,kv,atlas,json,db,ttf
 
-source.exclude_dirs = .git,.github,.buildozer,bin,venv,__pycache__
+# Не включаем мусор от Git/GitHub
+source.exclude_dirs = .git,.github,.buildozer,bin,__pycache__
 
-version = 0.0.5
 
-requirements = python3==3.11.6,hostpython3==3.11.6,kivy==2.3.1,plyer,pyjnius,filetype
+# ---------------------------------------------------------
+# ИКОНКА
+# ---------------------------------------------------------
+
+icon.filename = %(source.dir)s/icon.png
+
+presplash.filename = %(source.dir)s/icon.png
+
+
+# ---------------------------------------------------------
+# PYTHON / KIVY
+# ---------------------------------------------------------
+
+requirements = python3,kivy,pillow,pyjnius
+
+
+# ---------------------------------------------------------
+# ANDROID
+# ---------------------------------------------------------
 
 orientation = portrait
+
 fullscreen = 0
 
-presplash.filename = icon.png
-icon.filename = icon.png
+
+# ---------------------------------------------------------
+# ANDROID API
+# ---------------------------------------------------------
 
 android.api = 35
+
 android.minapi = 23
 
-android.sdk_path = /usr/local/lib/android/sdk
-
 android.ndk = 25b
+
 android.ndk_api = 23
+
+
+# ---------------------------------------------------------
+# ARCH
+# ---------------------------------------------------------
 
 android.archs = arm64-v8a
 
+
+# ---------------------------------------------------------
+# PERMISSIONS
+# ---------------------------------------------------------
+
 android.permissions = CAMERA,INTERNET
 
-android.private_storage = True
-android.allow_backup = True
+
+# ---------------------------------------------------------
+# ANDROIDX
+# ---------------------------------------------------------
 
 android.enable_androidx = True
 
+
+# ---------------------------------------------------------
+# JAVA-КОД СКАНЕРА
+# ---------------------------------------------------------
+
 android.add_src = android_src
+
+
+# ---------------------------------------------------------
+# ACTIVITY СКАНЕРА
+# ---------------------------------------------------------
 
 android.add_activities = org.example.expiringgoods.BarcodeScannerActivity
 
-android.gradle_dependencies = androidx.activity:activity:1.8.2,androidx.camera:camera-core:1.3.4,androidx.camera:camera-camera2:1.3.4,androidx.camera:camera-lifecycle:1.3.4,androidx.camera:camera-view:1.3.4,com.google.mlkit:barcode-scanning:17.2.0
 
-p4a.branch = master
-p4a.commit = v2024.01.21
+# ---------------------------------------------------------
+# CAMERAX + ML KIT
+# ---------------------------------------------------------
 
+android.gradle_dependencies = androidx.activity:activity:1.8.2, \
+    androidx.camera:camera-core:1.3.4, \
+    androidx.camera:camera-camera2:1.3.4, \
+    androidx.camera:camera-lifecycle:1.3.4, \
+    androidx.camera:camera-view:1.3.4, \
+    com.google.mlkit:barcode-scanning:17.2.0, \
+    org.jetbrains.kotlin:kotlin-stdlib:1.8.22
+
+
+# ---------------------------------------------------------
+# УСТРАНЕНИЕ КОНФЛИКТА KOTLIN
+#
+# Старые kotlin-stdlib-jdk7 / jdk8 1.6.21 конфликтовали
+# с kotlin-stdlib 1.8.22.
+# ---------------------------------------------------------
+
+android.gradle_options = kotlin.stdlib.default.dependency=false
+
+
+# ---------------------------------------------------------
+# ANDROID PACKAGING
+# ---------------------------------------------------------
+
+android.copy_libs = 1
+
+
+# ---------------------------------------------------------
+# PYTHON-FOR-ANDROID
+# ---------------------------------------------------------
+
+p4a.bootstrap = sdl2
+
+
+# ---------------------------------------------------------
+# BUILDOZER
+# ---------------------------------------------------------
+
+log_level = 2
+
+warn_on_root = 1
+
+
+# =========================================================
+# BUILDOZER
+# =========================================================
 
 [buildozer]
 
