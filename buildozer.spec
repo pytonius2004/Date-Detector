@@ -11,7 +11,7 @@ source.include_exts = py,png,jpg,jpeg,webp,kv,atlas,json,db
 
 source.exclude_dirs = .git,.github,.buildozer,bin,venv,__pycache__
 
-version = 0.0.4
+version = 0.0.5
 
 requirements = python3==3.11.6,hostpython3==3.11.6,kivy==2.3.1,plyer,pyjnius,filetype
 
@@ -31,7 +31,7 @@ android.ndk_api = 23
 
 android.archs = arm64-v8a
 
-android.permissions = CAMERA
+android.permissions = CAMERA,INTERNET
 
 android.private_storage = True
 android.allow_backup = True
@@ -42,7 +42,7 @@ android.add_src = android_src
 
 android.add_activities = org.example.expiringgoods.BarcodeScannerActivity
 
-android.gradle_dependencies = androidx.activity:activity:1.10.1,androidx.camera:camera-core:1.4.2,androidx.camera:camera-camera2:1.4.2,androidx.camera:camera-lifecycle:1.4.2,androidx.camera:camera-view:1.4.2,com.google.mlkit:barcode-scanning:17.3.0
+android.gradle_dependencies = androidx.activity:activity:1.8.2,androidx.camera:camera-core:1.3.4,androidx.camera:camera-camera2:1.3.4,androidx.camera:camera-lifecycle:1.3.4,androidx.camera:camera-view:1.3.4,com.google.mlkit:barcode-scanning:17.2.0
 
 p4a.branch = master
 p4a.commit = v2024.01.21
