@@ -216,7 +216,7 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки Годности"
-BUILD_MARKER = "dynamic_cards_photos_v5"
+BUILD_MARKER = "details_actions_urls_v6"
 
 HEADER_TITLE = "Pyton Detector"
 
@@ -587,16 +587,21 @@ class ProductThumbnail(BoxLayout):
         self,
         source="",
         remote_source="",
+        thumb_width=84,
+        thumb_height=92,
         **kwargs
     ):
         super().__init__(**kwargs)
 
-        self.size_hint_x = None
-        self.width = dp(72)
+        self.size_hint = (None, None)
+        self.width = dp(thumb_width)
+        self.height = dp(thumb_height)
         self.padding = dp(4)
 
         with self.canvas.before:
-            self._bg_color = Color(*THUMBNAIL_BG)
+            self._bg_color = Color(
+                *THUMBNAIL_BG
+            )
             self._bg_rect = RoundedRectangle(
                 pos=self.pos,
                 size=self.size,
@@ -608,8 +613,13 @@ class ProductThumbnail(BoxLayout):
             size=self._update_bg,
         )
 
-        local_source = str(source or "").strip()
-        remote_source = str(remote_source or "").strip()
+        local_source = str(
+            source or ""
+        ).strip()
+
+        remote_source = str(
+            remote_source or ""
+        ).strip()
 
         if (
             local_source
@@ -686,11 +696,27 @@ class ProductCard(
             background_color=self._update_color,
         )
 
+        thumb_holder = AnchorLayout(
+            size_hint_x=None,
+            width=dp(90),
+            anchor_x="center",
+            anchor_y="center",
+        )
+
         self.thumbnail = ProductThumbnail(
             source=photo_path,
             remote_source=photo_url,
+            thumb_width=84,
+            thumb_height=92,
         )
-        self.add_widget(self.thumbnail)
+
+        thumb_holder.add_widget(
+            self.thumbnail
+        )
+
+        self.add_widget(
+            thumb_holder
+        )
 
         left = BoxLayout(
             orientation="vertical",
@@ -727,8 +753,12 @@ class ProductCard(
             width=self._sync_barcode_width,
         )
 
-        left.add_widget(self.name_label)
-        left.add_widget(self.barcode_label)
+        left.add_widget(
+            self.name_label
+        )
+        left.add_widget(
+            self.barcode_label
+        )
 
         right = BoxLayout(
             orientation="vertical",
@@ -745,7 +775,11 @@ class ProductCard(
         )
         self.valid_label.bind(
             size=lambda instance, value:
-            setattr(instance, "text_size", value)
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
         )
 
         self.date_label = Label(
@@ -759,17 +793,30 @@ class ProductCard(
         )
         self.date_label.bind(
             size=lambda instance, value:
-            setattr(instance, "text_size", value)
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
         )
 
-        right.add_widget(self.valid_label)
-        right.add_widget(self.date_label)
+        right.add_widget(
+            self.valid_label
+        )
+        right.add_widget(
+            self.date_label
+        )
 
-        self.add_widget(left)
-        self.add_widget(right)
+        self.add_widget(
+            left
+        )
+        self.add_widget(
+            right
+        )
 
         Clock.schedule_once(
-            lambda *_: self._refresh_text_layout(),
+            lambda *_:
+            self._refresh_text_layout(),
             0
         )
 
@@ -817,7 +864,9 @@ class ProductCard(
             texture_size[1] + dp(8)
         )
 
-        self.name_label.height = name_height
+        self.name_label.height = (
+            name_height
+        )
 
         wanted = (
             dp(24)
@@ -847,7 +896,9 @@ class ProductCard(
         self._bg_rect.size = self.size
 
     def _update_color(self, *_):
-        self._bg_color.rgba = self.background_color
+        self._bg_color.rgba = (
+            self.background_color
+        )
 
 
 # =========================================================
@@ -1222,6 +1273,7 @@ class Database:
                 department TEXT NOT NULL DEFAULT '',
                 photo_path TEXT NOT NULL DEFAULT '',
                 photo_url TEXT NOT NULL DEFAULT '',
+                product_url TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL
             );
 
@@ -1289,6 +1341,12 @@ class Database:
             self.conn.execute(
                 "ALTER TABLE products "
                 "ADD COLUMN photo_url TEXT NOT NULL DEFAULT ''"
+            )
+
+        if "product_url" not in product_columns:
+            self.conn.execute(
+                "ALTER TABLE products "
+                "ADD COLUMN product_url TEXT NOT NULL DEFAULT ''"
             )
 
         self.conn.execute(
@@ -1641,6 +1699,31 @@ class Database:
 
         self.conn.commit()
 
+        return True
+
+    def delete_next_expiration(
+        self,
+        barcode
+    ):
+
+        row = self.get_next_expiration(
+            barcode
+        )
+
+        if not row:
+            return False
+
+        self.conn.execute(
+            """
+            DELETE FROM expirations
+            WHERE id = ?
+            """,
+            (
+                row["id"],
+            ),
+        )
+
+        self.conn.commit()
         return True
 
     def get_product_list(
@@ -2802,7 +2885,6 @@ class ProductScreen(BaseScreen):
         )
 
         if not product:
-
             return
 
         self.barcode = (
@@ -2825,6 +2907,42 @@ class ProductScreen(BaseScreen):
             self.barcode
         )
 
+        keys = product.keys()
+
+        photo_path = (
+            product["photo_path"]
+            if "photo_path" in keys
+            else ""
+        ) or ""
+
+        photo_url = (
+            product["photo_url"]
+            if "photo_url" in keys
+            else ""
+        ) or ""
+
+        if (
+            photo_path
+            and
+            Path(photo_path).exists()
+        ):
+            self.product_image.source = (
+                photo_path
+            )
+            self.product_image.opacity = 1
+
+        elif photo_url.startswith(
+            ("http://", "https://")
+        ):
+            self.product_image.source = (
+                photo_url
+            )
+            self.product_image.opacity = 1
+
+        else:
+            self.product_image.source = ""
+            self.product_image.opacity = 0
+
         active = (
             self.app.db.get_active_expirations(
                 self.barcode
@@ -2832,7 +2950,6 @@ class ProductScreen(BaseScreen):
         )
 
         if active:
-
             self.nearest_date_label.text = (
                 "Годен до: "
                 +
@@ -2842,9 +2959,7 @@ class ProductScreen(BaseScreen):
                     ]
                 )
             )
-
         else:
-
             self.nearest_date_label.text = (
                 "Активных сроков нет"
             )
@@ -2860,16 +2975,9 @@ class ProductScreen(BaseScreen):
             if item[
                 "written_off"
             ]:
-
-                status = (
-                    "СПИСАНО"
-                )
-
+                status = "СПИСАНО"
             else:
-
-                status = (
-                    "АКТИВЕН"
-                )
+                status = "АКТИВЕН"
 
             history.append(
                 format_date(
@@ -2884,23 +2992,24 @@ class ProductScreen(BaseScreen):
             )
 
         if history:
-
             self.history_label.text = (
                 "\n".join(
                     history
                 )
             )
-
         else:
-
             self.history_label.text = (
                 "История пока пустая."
             )
 
+        has_active = bool(active)
+
         self.writeoff_button.disabled = (
-            not bool(
-                active
-            )
+            not has_active
+        )
+
+        self.delete_expiration_button.disabled = (
+            not has_active
         )
 
     def write_off(self):
@@ -2946,6 +3055,25 @@ class ProductScreen(BaseScreen):
         )
 
         self.app.open_home()
+
+    def delete_expiration(self):
+
+        if not self.app.db.delete_next_expiration(
+            self.barcode
+        ):
+            self.app.message(
+                "У товара нет активных сроков."
+            )
+            return
+
+        self.app.message(
+            "Ближайший активный срок удалён."
+        )
+
+        self.load(
+            self.barcode
+        )
+
 
 
 class SettingsScreen(BaseScreen):
@@ -3772,6 +3900,54 @@ class MainApp(App):
             texture_size=update_product_title_layout,
         )
 
+        image_holder = AnchorLayout(
+            size_hint_y=None,
+            height=dp(190),
+            anchor_x="center",
+            anchor_y="center",
+        )
+
+        with image_holder.canvas.before:
+            detail_bg_color = Color(
+                *THUMBNAIL_BG
+            )
+            detail_bg_rect = RoundedRectangle(
+                pos=image_holder.pos,
+                size=(dp(170), dp(170)),
+                radius=[dp(18)],
+            )
+
+        def update_detail_bg(
+            instance,
+            *_args
+        ):
+            detail_bg_rect.pos = (
+                instance.center_x - dp(85),
+                instance.center_y - dp(85),
+            )
+            detail_bg_rect.size = (
+                dp(170),
+                dp(170),
+            )
+
+        image_holder.bind(
+            pos=update_detail_bg,
+            size=update_detail_bg,
+        )
+
+        product_image = AsyncImage(
+            source="",
+            fit_mode="contain",
+            size_hint=(None, None),
+            size=(dp(162), dp(162)),
+            opacity=0,
+            nocache=False,
+        )
+
+        image_holder.add_widget(
+            product_image
+        )
+
         product_barcode = Label(
             text="Штрихкод: —",
             color=TEXT_SECONDARY,
@@ -3790,6 +3966,10 @@ class MainApp(App):
 
         root.add_widget(
             product_name
+        )
+
+        root.add_widget(
+            image_holder
         )
 
         root.add_widget(
@@ -3842,11 +4022,16 @@ class MainApp(App):
             history_scroll
         )
 
-        writeoff = RoundedButton(
-            text="Списано",
+        action_row = BoxLayout(
+            orientation="horizontal",
             size_hint_y=None,
             height=dp(60),
-            font_size="17sp",
+            spacing=dp(10),
+        )
+
+        writeoff = RoundedButton(
+            text="Списано",
+            font_size="16sp",
             normal_color=RED,
             down_color=(
                 0.65,
@@ -3856,13 +4041,33 @@ class MainApp(App):
             ),
         )
 
+        delete_expiration = RoundedButton(
+            text="Удалить срок",
+            font_size="16sp",
+            normal_color=BUTTON_BG,
+            down_color=BUTTON_BG_DOWN,
+        )
+
         writeoff.bind(
             on_release=lambda *_:
             screen.write_off()
         )
 
-        root.add_widget(
+        delete_expiration.bind(
+            on_release=lambda *_:
+            screen.delete_expiration()
+        )
+
+        action_row.add_widget(
             writeoff
+        )
+
+        action_row.add_widget(
+            delete_expiration
+        )
+
+        root.add_widget(
+            action_row
         )
 
         screen.product_name_label = (
@@ -3881,8 +4086,16 @@ class MainApp(App):
             history
         )
 
+        screen.product_image = (
+            product_image
+        )
+
         screen.writeoff_button = (
             writeoff
+        )
+
+        screen.delete_expiration_button = (
+            delete_expiration
         )
 
         screen.add_widget(
