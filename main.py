@@ -216,7 +216,7 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки Годности"
-BUILD_MARKER = "details_actions_urls_v6"
+BUILD_MARKER = "statuses_autosave_search_v7"
 
 HEADER_TITLE = "Pyton Detector"
 
@@ -535,6 +535,37 @@ class RoundedButton(Button):
         self._color.rgba = (
             color
         )
+
+
+class RoundedTextInput(TextInput):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        self.background_normal = ""
+        self.background_active = ""
+        self.background_color = (0, 0, 0, 0)
+        self.foreground_color = TEXT
+        self.hint_text_color = TEXT_SECONDARY
+        self.cursor_color = TEXT
+        self.write_tab = False
+
+        with self.canvas.before:
+            self._search_bg_color = Color(*CARD)
+            self._search_bg = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(18)],
+            )
+
+        self.bind(
+            pos=self._update_search_bg,
+            size=self._update_search_bg,
+        )
+
+    def _update_search_bg(self, *_):
+        self._search_bg.pos = self.pos
+        self._search_bg.size = self.size
 
 
 # =========================================================
@@ -907,6 +938,11 @@ class ProductCard(
 
 class DateInput(TextInput):
 
+    __events__ = ("on_date_complete",)
+
+    def on_date_complete(self, value):
+        pass
+
     def _digits_only(
         self,
         value
@@ -1100,6 +1136,8 @@ class DateInput(TextInput):
             new_digits
         )
 
+        self._dispatch_if_complete()
+
         self._set_cursor_for_digit_index(
             new_digit_index
         )
@@ -1187,9 +1225,23 @@ class DateInput(TextInput):
             new_digits
         )
 
+        self._dispatch_if_complete()
+
         self._set_cursor_for_digit_index(
             delete_index
         )
+
+    def _dispatch_if_complete(self):
+
+        digits = self._digits_only(
+            self.text
+        )
+
+        if len(digits) == 6:
+            self.dispatch(
+                "on_date_complete",
+                self.text
+            )
 
     def keyboard_on_key_down(
         self,
@@ -1274,6 +1326,7 @@ class Database:
                 photo_path TEXT NOT NULL DEFAULT '',
                 photo_url TEXT NOT NULL DEFAULT '',
                 product_url TEXT NOT NULL DEFAULT '',
+                manual_no_date INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL
             );
 
@@ -1347,6 +1400,12 @@ class Database:
             self.conn.execute(
                 "ALTER TABLE products "
                 "ADD COLUMN product_url TEXT NOT NULL DEFAULT ''"
+            )
+
+        if "manual_no_date" not in product_columns:
+            self.conn.execute(
+                "ALTER TABLE products "
+                "ADD COLUMN manual_no_date INTEGER NOT NULL DEFAULT 0"
             )
 
         self.conn.execute(
@@ -1697,6 +1756,15 @@ class Database:
             ),
         )
 
+        self.conn.execute(
+            """
+            UPDATE products
+            SET manual_no_date = 0
+            WHERE barcode = ?
+            """,
+            (row["barcode"],),
+        )
+
         self.conn.commit()
 
         return True
@@ -1723,8 +1791,69 @@ class Database:
             ),
         )
 
+        self.conn.execute(
+            """
+            UPDATE products
+            SET manual_no_date = 1
+            WHERE barcode = ?
+            """,
+            (row["barcode"],),
+        )
+
         self.conn.commit()
         return True
+
+    def set_manual_no_date(
+        self,
+        barcode,
+        enabled
+    ):
+
+        product = self.get_product(
+            barcode
+        )
+
+        if product:
+            barcode = product["barcode"]
+
+        self.conn.execute(
+            """
+            UPDATE products
+            SET manual_no_date = ?
+            WHERE barcode = ?
+            """,
+            (
+                1 if enabled else 0,
+                barcode,
+            ),
+        )
+
+        self.conn.commit()
+
+    def has_written_off_history(
+        self,
+        barcode
+    ):
+
+        product = self.get_product(
+            barcode
+        )
+
+        if product:
+            barcode = product["barcode"]
+
+        row = self.conn.execute(
+            """
+            SELECT 1
+            FROM expirations
+            WHERE barcode = ?
+              AND written_off = 1
+            LIMIT 1
+            """,
+            (barcode,),
+        ).fetchone()
+
+        return bool(row)
 
     def get_product_list(
         self,
@@ -1806,6 +1935,13 @@ class Database:
                     p.department,
                     p.photo_path,
                     p.photo_url,
+                    p.manual_no_date,
+                    EXISTS(
+                        SELECT 1
+                        FROM expirations ew
+                        WHERE ew.barcode = p.barcode
+                          AND ew.written_off = 1
+                    ) AS has_written_off,
                     (
                         SELECT e.exp_date
                         FROM expirations e
@@ -1956,6 +2092,13 @@ class Database:
                 p.department,
                 p.photo_path,
                 p.photo_url,
+                p.manual_no_date,
+                EXISTS(
+                    SELECT 1
+                    FROM expirations ew
+                    WHERE ew.barcode = p.barcode
+                      AND ew.written_off = 1
+                ) AS has_written_off,
                 (
                     SELECT e.exp_date
                     FROM expirations e
@@ -2353,9 +2496,30 @@ class HomeScreen(BaseScreen):
 
         if exp_date is None:
 
-            bg = GREEN
-            fg = RED_TEXT
-            date_text = "Без даты"
+            manual_no_date = int(
+                product["manual_no_date"]
+                if "manual_no_date" in product.keys()
+                else 0
+            )
+
+            has_written_off = bool(
+                product["has_written_off"]
+                if "has_written_off" in product.keys()
+                else False
+            )
+
+            if (
+                has_written_off
+                and
+                not manual_no_date
+            ):
+                bg = BUTTON_BG
+                fg = TEXT
+                date_text = "Списано"
+            else:
+                bg = GREEN
+                fg = RED_TEXT
+                date_text = "Без даты"
 
         elif exp_date < today:
 
@@ -2459,7 +2623,7 @@ class AddProductScreen(BaseScreen):
 
         self._auto_save_event = Clock.schedule_once(
             self._try_auto_save,
-            0.28
+            0.03
         )
 
     def _try_auto_save(
@@ -2857,6 +3021,11 @@ class AddProductScreen(BaseScreen):
                     "Срок успешно добавлен."
                 )
         else:
+            self.app.db.set_manual_no_date(
+                barcode_for_expiration,
+                True
+            )
+
             if not automatic:
                 self.app.message(
                     "Товар сохранён без срока.\n"
@@ -3274,7 +3443,7 @@ class MainApp(App):
         root.add_widget(self.create_header())
 
         # Поиск товара находится именно на стартовом экране.
-        search_input = TextInput(
+        search_input = RoundedTextInput(
             hint_text="Поиск товара",
             multiline=False,
             size_hint_y=None,
@@ -3628,6 +3797,11 @@ class MainApp(App):
             screen.on_date_change
         )
 
+        date_input.bind(
+            on_date_complete=lambda _instance, _value:
+            screen._try_auto_save()
+        )
+
         root.add_widget(
             barcode
         )
@@ -3902,7 +4076,7 @@ class MainApp(App):
 
         image_holder = AnchorLayout(
             size_hint_y=None,
-            height=dp(190),
+            height=dp(220),
             anchor_x="center",
             anchor_y="center",
         )
@@ -3913,7 +4087,7 @@ class MainApp(App):
             )
             detail_bg_rect = RoundedRectangle(
                 pos=image_holder.pos,
-                size=(dp(170), dp(170)),
+                size=(dp(196), dp(196)),
                 radius=[dp(18)],
             )
 
@@ -3922,12 +4096,12 @@ class MainApp(App):
             *_args
         ):
             detail_bg_rect.pos = (
-                instance.center_x - dp(85),
-                instance.center_y - dp(85),
+                instance.center_x - dp(98),
+                instance.center_y - dp(98),
             )
             detail_bg_rect.size = (
-                dp(170),
-                dp(170),
+                dp(196),
+                dp(196),
             )
 
         image_holder.bind(
@@ -3939,7 +4113,7 @@ class MainApp(App):
             source="",
             fit_mode="contain",
             size_hint=(None, None),
-            size=(dp(162), dp(162)),
+            size=(dp(188), dp(188)),
             opacity=0,
             nocache=False,
         )
