@@ -2,6 +2,7 @@
 
 import os
 import shutil
+from io import BytesIO
 import sqlite3
 
 from datetime import date, datetime, timedelta
@@ -40,6 +41,7 @@ from kivy.uix.modalview import ModalView
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.image import Image, AsyncImage
+from kivy.core.image import Image as CoreImage
 from kivy.uix.label import Label
 from kivy.uix.popup import Popup
 from kivy.uix.screenmanager import (
@@ -216,7 +218,7 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки Годности"
-BUILD_MARKER = "statuses_autosave_search_v7"
+BUILD_MARKER = "embedded_images_mainnav_v8"
 
 HEADER_TITLE = "Pyton Detector"
 
@@ -618,6 +620,7 @@ class ProductThumbnail(BoxLayout):
         self,
         source="",
         remote_source="",
+        image_blob=None,
         thumb_width=84,
         thumb_height=92,
         **kwargs
@@ -657,29 +660,55 @@ class ProductThumbnail(BoxLayout):
             and
             Path(local_source).exists()
         ):
-            image = Image(
-                source=local_source,
-                fit_mode="cover",
-            )
-            self.add_widget(image)
-
-        elif remote_source.startswith(
-            ("http://", "https://")
-        ):
-            image = AsyncImage(
-                source=remote_source,
-                fit_mode="cover",
-                nocache=False,
-            )
-            self.add_widget(image)
-
-        else:
             self.add_widget(
-                Label(
-                    text="",
-                    color=TEXT_SECONDARY,
+                Image(
+                    source=local_source,
+                    fit_mode="cover",
                 )
             )
+            return
+
+        if image_blob:
+            try:
+                blob_bytes = bytes(
+                    image_blob
+                )
+
+                core_image = CoreImage(
+                    BytesIO(blob_bytes),
+                    ext="png"
+                )
+
+                self.add_widget(
+                    Image(
+                        texture=core_image.texture,
+                        fit_mode="cover",
+                    )
+                )
+                return
+
+            except Exception:
+                pass
+
+        # URL remains only as a fallback.
+        if remote_source.startswith(
+            ("http://", "https://")
+        ):
+            self.add_widget(
+                AsyncImage(
+                    source=remote_source,
+                    fit_mode="cover",
+                    nocache=False,
+                )
+            )
+            return
+
+        self.add_widget(
+            Label(
+                text="",
+                color=TEXT_SECONDARY,
+            )
+        )
 
     def _update_bg(self, *_):
         self._bg_rect.pos = self.pos
@@ -701,6 +730,7 @@ class ProductCard(
         exp_date,
         photo_path="",
         photo_url="",
+        image_blob=None,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -737,6 +767,7 @@ class ProductCard(
         self.thumbnail = ProductThumbnail(
             source=photo_path,
             remote_source=photo_url,
+            image_blob=image_blob,
             thumb_width=84,
             thumb_height=92,
         )
@@ -1327,6 +1358,7 @@ class Database:
                 photo_url TEXT NOT NULL DEFAULT '',
                 product_url TEXT NOT NULL DEFAULT '',
                 manual_no_date INTEGER NOT NULL DEFAULT 0,
+                image_blob BLOB,
                 created_at TEXT NOT NULL
             );
 
@@ -1406,6 +1438,12 @@ class Database:
             self.conn.execute(
                 "ALTER TABLE products "
                 "ADD COLUMN manual_no_date INTEGER NOT NULL DEFAULT 0"
+            )
+
+        if "image_blob" not in product_columns:
+            self.conn.execute(
+                "ALTER TABLE products "
+                "ADD COLUMN image_blob BLOB"
             )
 
         self.conn.execute(
@@ -1935,6 +1973,7 @@ class Database:
                     p.department,
                     p.photo_path,
                     p.photo_url,
+                    p.image_blob,
                     p.manual_no_date,
                     EXISTS(
                         SELECT 1
@@ -2092,6 +2131,7 @@ class Database:
                 p.department,
                 p.photo_path,
                 p.photo_url,
+                p.image_blob,
                 p.manual_no_date,
                 EXISTS(
                     SELECT 1
@@ -2573,6 +2613,11 @@ class HomeScreen(BaseScreen):
                 product["photo_url"]
                 if "photo_url" in keys
                 else ""
+            ),
+            image_blob=(
+                product["image_blob"]
+                if "image_blob" in keys
+                else None
             ),
         )
 
@@ -3090,25 +3135,58 @@ class ProductScreen(BaseScreen):
             else ""
         ) or ""
 
+        image_blob = (
+            product["image_blob"]
+            if "image_blob" in keys
+            else None
+        )
+
+        # Priority:
+        # 1. photo manually added on phone
+        # 2. picture embedded in SQLite by Selver scraper
+        # 3. remote URL fallback
         if (
             photo_path
             and
             Path(photo_path).exists()
         ):
+            self.product_image.texture = None
             self.product_image.source = (
                 photo_path
             )
             self.product_image.opacity = 1
 
+        elif image_blob:
+            try:
+                core_image = CoreImage(
+                    BytesIO(
+                        bytes(image_blob)
+                    ),
+                    ext="png"
+                )
+
+                self.product_image.source = ""
+                self.product_image.texture = (
+                    core_image.texture
+                )
+                self.product_image.opacity = 1
+
+            except Exception:
+                self.product_image.texture = None
+                self.product_image.source = ""
+                self.product_image.opacity = 0
+
         elif photo_url.startswith(
             ("http://", "https://")
         ):
+            self.product_image.texture = None
             self.product_image.source = (
                 photo_url
             )
             self.product_image.opacity = 1
 
         else:
+            self.product_image.texture = None
             self.product_image.source = ""
             self.product_image.opacity = 0
 
@@ -3444,7 +3522,7 @@ class MainApp(App):
 
         # Поиск товара находится именно на стартовом экране.
         search_input = RoundedTextInput(
-            hint_text="Поиск товара",
+            hint_text="Поиск",
             multiline=False,
             size_hint_y=None,
             height=dp(52),
@@ -5338,6 +5416,9 @@ class MainApp(App):
                 "Папка: Downloads"
             )
 
+            self.current_department = None
+            self.open_departments()
+
         except Exception as exc:
 
             self.message(
@@ -5639,7 +5720,8 @@ class MainApp(App):
                 "База успешно импортирована."
             )
 
-            self.open_home()
+            self.current_department = None
+            self.open_departments()
 
         except Exception as exc:
 
@@ -5885,6 +5967,9 @@ class MainApp(App):
                     destination
                 )
             )
+
+            self.current_department = None
+            self.open_departments()
 
         except Exception as exc:
 
