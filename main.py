@@ -216,7 +216,7 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки Годности"
-BUILD_MARKER = "optimized_photos_v4"
+BUILD_MARKER = "dynamic_cards_photos_v5"
 
 HEADER_TITLE = "Pyton Detector"
 
@@ -650,13 +650,8 @@ class ProductCard(
     BoxLayout
 ):
 
-    background_color = ListProperty(
-        CARD
-    )
-
-    foreground_color = ListProperty(
-        TEXT
-    )
+    background_color = ListProperty(CARD)
+    foreground_color = ListProperty(TEXT)
 
     def __init__(
         self,
@@ -667,18 +662,12 @@ class ProductCard(
         photo_url="",
         **kwargs
     ):
-
-        super().__init__(
-            **kwargs
-        )
+        super().__init__(**kwargs)
 
         self.orientation = "horizontal"
         self.size_hint_y = None
         self.height = dp(116)
-        self.padding = (
-            dp(12),
-            dp(12),
-        )
+        self.padding = (dp(12), dp(12))
         self.spacing = dp(11)
 
         with self.canvas.before:
@@ -697,7 +686,6 @@ class ProductCard(
             background_color=self._update_color,
         )
 
-        # Серый квадрат, пока фото товара не добавлено.
         self.thumbnail = ProductThumbnail(
             source=photo_path,
             remote_source=photo_url,
@@ -705,21 +693,19 @@ class ProductCard(
         self.add_widget(self.thumbnail)
 
         left = BoxLayout(
-            orientation="vertical"
+            orientation="vertical",
+            spacing=dp(4),
         )
 
         self.name_label = Label(
-            text=(product_name or "Без названия"),
+            text=product_name or "Без названия",
             color=self.foreground_color,
             bold=True,
             font_size="17sp",
             halign="left",
-            valign="middle",
-            size_hint_y=0.55,
-        )
-        self.name_label.bind(
-            size=lambda instance, value:
-            setattr(instance, "text_size", value)
+            valign="top",
+            size_hint_y=None,
+            height=dp(52),
         )
 
         self.barcode_label = Label(
@@ -728,11 +714,17 @@ class ProductCard(
             font_size="12sp",
             halign="left",
             valign="middle",
-            size_hint_y=0.45,
+            size_hint_y=None,
+            height=dp(30),
         )
+
+        self.name_label.bind(
+            width=self._sync_name_width,
+            texture_size=self._update_dynamic_height,
+        )
+
         self.barcode_label.bind(
-            size=lambda instance, value:
-            setattr(instance, "text_size", value)
+            width=self._sync_barcode_width,
         )
 
         left.add_widget(self.name_label)
@@ -776,30 +768,85 @@ class ProductCard(
         self.add_widget(left)
         self.add_widget(right)
 
+        Clock.schedule_once(
+            lambda *_: self._refresh_text_layout(),
+            0
+        )
+
+    def _sync_name_width(
+        self,
+        instance,
+        width
+    ):
+        instance.text_size = (
+            max(dp(20), width),
+            None
+        )
+
+    def _sync_barcode_width(
+        self,
+        instance,
+        width
+    ):
+        instance.text_size = (
+            max(dp(20), width),
+            instance.height
+        )
+
+    def _refresh_text_layout(self):
+        self._sync_name_width(
+            self.name_label,
+            self.name_label.width
+        )
+        self._sync_barcode_width(
+            self.barcode_label,
+            self.barcode_label.width
+        )
+        self._update_dynamic_height(
+            self.name_label,
+            self.name_label.texture_size
+        )
+
+    def _update_dynamic_height(
+        self,
+        _instance,
+        texture_size
+    ):
+        name_height = max(
+            dp(48),
+            texture_size[1] + dp(8)
+        )
+
+        self.name_label.height = name_height
+
+        wanted = (
+            dp(24)
+            +
+            name_height
+            +
+            self.barcode_label.height
+        )
+
+        self.height = max(
+            dp(116),
+            wanted
+        )
+
     def set_foreground(
         self,
         color
     ):
-
         self.foreground_color = color
         self.name_label.color = color
         self.barcode_label.color = color
         self.valid_label.color = color
         self.date_label.color = color
 
-    def _update_card(
-        self,
-        *_
-    ):
-
+    def _update_card(self, *_):
         self._bg_rect.pos = self.pos
         self._bg_rect.size = self.size
 
-    def _update_color(
-        self,
-        *_
-    ):
-
+    def _update_color(self, *_):
         self._bg_color.rgba = self.background_color
 
 
@@ -3695,8 +3742,34 @@ class MainApp(App):
             color=TEXT,
             font_size="26sp",
             bold=True,
+            halign="center",
+            valign="middle",
             size_hint_y=None,
             height=dp(58),
+        )
+
+        def update_product_title_layout(
+            instance,
+            *_args
+        ):
+            instance.text_size = (
+                max(
+                    dp(40),
+                    instance.width - dp(18)
+                ),
+                None
+            )
+
+            instance.height = max(
+                dp(58),
+                instance.texture_size[1]
+                +
+                dp(18)
+            )
+
+        product_name.bind(
+            width=update_product_title_layout,
+            texture_size=update_product_title_layout,
         )
 
         product_barcode = Label(
