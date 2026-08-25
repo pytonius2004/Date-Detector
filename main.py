@@ -2,7 +2,6 @@
 
 import os
 import shutil
-from io import BytesIO
 import sqlite3
 
 from datetime import date, datetime, timedelta
@@ -41,7 +40,6 @@ from kivy.uix.modalview import ModalView
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.image import Image, AsyncImage
-from kivy.core.image import Image as CoreImage
 from kivy.uix.label import Label
 from kivy.uix.popup import Popup
 from kivy.uix.screenmanager import (
@@ -218,7 +216,7 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки Годности"
-BUILD_MARKER = "embedded_images_mainnav_v8"
+BUILD_MARKER = "manual_image_url_search_hint_v10"
 
 HEADER_TITLE = "Pyton Detector"
 
@@ -620,7 +618,6 @@ class ProductThumbnail(BoxLayout):
         self,
         source="",
         remote_source="",
-        image_blob=None,
         thumb_width=84,
         thumb_height=92,
         **kwargs
@@ -668,29 +665,6 @@ class ProductThumbnail(BoxLayout):
             )
             return
 
-        if image_blob:
-            try:
-                blob_bytes = bytes(
-                    image_blob
-                )
-
-                core_image = CoreImage(
-                    BytesIO(blob_bytes),
-                    ext="png"
-                )
-
-                self.add_widget(
-                    Image(
-                        texture=core_image.texture,
-                        fit_mode="cover",
-                    )
-                )
-                return
-
-            except Exception:
-                pass
-
-        # URL remains only as a fallback.
         if remote_source.startswith(
             ("http://", "https://")
         ):
@@ -730,7 +704,6 @@ class ProductCard(
         exp_date,
         photo_path="",
         photo_url="",
-        image_blob=None,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -767,7 +740,6 @@ class ProductCard(
         self.thumbnail = ProductThumbnail(
             source=photo_path,
             remote_source=photo_url,
-            image_blob=image_blob,
             thumb_width=84,
             thumb_height=92,
         )
@@ -1358,7 +1330,6 @@ class Database:
                 photo_url TEXT NOT NULL DEFAULT '',
                 product_url TEXT NOT NULL DEFAULT '',
                 manual_no_date INTEGER NOT NULL DEFAULT 0,
-                image_blob BLOB,
                 created_at TEXT NOT NULL
             );
 
@@ -1440,11 +1411,6 @@ class Database:
                 "ADD COLUMN manual_no_date INTEGER NOT NULL DEFAULT 0"
             )
 
-        if "image_blob" not in product_columns:
-            self.conn.execute(
-                "ALTER TABLE products "
-                "ADD COLUMN image_blob BLOB"
-            )
 
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS "
@@ -1973,7 +1939,6 @@ class Database:
                     p.department,
                     p.photo_path,
                     p.photo_url,
-                    p.image_blob,
                     p.manual_no_date,
                     EXISTS(
                         SELECT 1
@@ -2131,7 +2096,6 @@ class Database:
                 p.department,
                 p.photo_path,
                 p.photo_url,
-                p.image_blob,
                 p.manual_no_date,
                 EXISTS(
                     SELECT 1
@@ -2596,6 +2560,18 @@ class HomeScreen(BaseScreen):
 
         keys = product.keys()
 
+        cached_photo = (
+            self.app.get_cached_photo_path(
+                product["barcode"]
+            )
+        )
+
+        local_photo = (
+            product["photo_path"]
+            if "photo_path" in keys
+            else ""
+        ) or ""
+
         card = ProductCard(
             product_name=(
                 product["name"]
@@ -2605,19 +2581,14 @@ class HomeScreen(BaseScreen):
             barcode=product["barcode"],
             exp_date=date_text,
             photo_path=(
-                product["photo_path"]
-                if "photo_path" in keys
-                else ""
+                local_photo
+                or
+                cached_photo
             ),
             photo_url=(
                 product["photo_url"]
                 if "photo_url" in keys
                 else ""
-            ),
-            image_blob=(
-                product["image_blob"]
-                if "image_blob" in keys
-                else None
             ),
         )
 
@@ -2644,6 +2615,7 @@ class AddProductScreen(BaseScreen):
         self._auto_save_event = None
         self._auto_save_signature = None
         self._save_in_progress = False
+        self.pending_photo_url = ""
 
     def on_date_change(
         self,
@@ -2733,6 +2705,7 @@ class AddProductScreen(BaseScreen):
         self.date_input.text = ""
 
         self.pending_photo_path = ""
+        self.pending_photo_url = ""
 
         if hasattr(
             self,
@@ -2829,6 +2802,10 @@ class AddProductScreen(BaseScreen):
             else ""
         ) or ""
 
+        self.pending_photo_url = (
+            photo_url
+        )
+
         if photo_path:
 
             self.set_photo(
@@ -2851,7 +2828,7 @@ class AddProductScreen(BaseScreen):
                 "photo_status"
             ):
                 self.photo_status.text = (
-                    "Фото из каталога"
+                    "URL картинки добавлен"
                 )
 
     def on_barcode_change(
@@ -2926,6 +2903,169 @@ class AddProductScreen(BaseScreen):
                 self.photo_status.text = (
                     "Фото не добавлено"
                 )
+
+    def add_image_url(
+        self
+    ):
+
+        content = BoxLayout(
+            orientation="vertical",
+            spacing=dp(10),
+            padding=dp(12),
+        )
+
+        url_input = RoundedTextInput(
+            text=(
+                getattr(
+                    self,
+                    "pending_photo_url",
+                    ""
+                )
+                or
+                ""
+            ),
+            hint_text="https://...",
+            multiline=False,
+            size_hint_y=None,
+            height=dp(52),
+            font_size="14sp",
+            padding=(
+                dp(12),
+                dp(13),
+            ),
+        )
+
+        info = Label(
+            text=(
+                "Вставь прямую ссылку на картинку товара."
+            ),
+            color=TEXT_SECONDARY,
+            font_size="12sp",
+            size_hint_y=None,
+            height=dp(38),
+            halign="center",
+            valign="middle",
+        )
+
+        info.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        buttons = BoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=dp(52),
+            spacing=dp(8),
+        )
+
+        cancel_button = RoundedButton(
+            text="Отмена",
+            font_size="14sp",
+        )
+
+        save_button = RoundedButton(
+            text="Сохранить URL",
+            font_size="14sp",
+            normal_color=ACCENT_RED,
+            down_color=ACCENT_RED_DOWN,
+        )
+
+        buttons.add_widget(
+            cancel_button
+        )
+
+        buttons.add_widget(
+            save_button
+        )
+
+        content.add_widget(
+            info
+        )
+
+        content.add_widget(
+            url_input
+        )
+
+        content.add_widget(
+            buttons
+        )
+
+        popup = Popup(
+            title="URL картинки",
+            content=content,
+            size_hint=(0.92, None),
+            height=dp(235),
+            auto_dismiss=False,
+        )
+
+        cancel_button.bind(
+            on_release=lambda *_:
+            popup.dismiss()
+        )
+
+        def save_url(*_):
+
+            url = (
+                url_input.text
+                .strip()
+            )
+
+            if (
+                url
+                and
+                not url.startswith(
+                    (
+                        "http://",
+                        "https://",
+                    )
+                )
+            ):
+                self.app.message(
+                    "URL должен начинаться с http:// или https://"
+                )
+                return
+
+            self.pending_photo_url = (
+                url
+            )
+
+            if url:
+                self.photo_preview.source = (
+                    url
+                )
+                self.photo_preview.opacity = 1
+                self.photo_status.text = (
+                    "URL картинки добавлен"
+                )
+            else:
+                self.photo_preview.source = ""
+                self.photo_preview.opacity = 0
+                self.photo_status.text = (
+                    "Фото не добавлено"
+                )
+
+            popup.dismiss()
+
+        save_button.bind(
+            on_release=save_url
+        )
+
+        popup.open()
+
+        Clock.schedule_once(
+            lambda *_:
+            setattr(
+                url_input,
+                "focus",
+                True
+            ),
+            0.15
+        )
 
     def choose_photo(
         self
@@ -3026,14 +3166,19 @@ class AddProductScreen(BaseScreen):
         self._save_in_progress = True
 
         self.app.db.save_product(
-            barcode,
-            name,
-            self.app.current_department,
-            getattr(
+            barcode=barcode,
+            name=name,
+            department=self.app.current_department,
+            photo_path=getattr(
                 self,
                 "pending_photo_path",
                 ""
-            )
+            ),
+            photo_url=getattr(
+                self,
+                "pending_photo_url",
+                ""
+            ),
         )
 
         if existing_product:
@@ -3135,16 +3280,6 @@ class ProductScreen(BaseScreen):
             else ""
         ) or ""
 
-        image_blob = (
-            product["image_blob"]
-            if "image_blob" in keys
-            else None
-        )
-
-        # Priority:
-        # 1. photo manually added on phone
-        # 2. picture embedded in SQLite by Selver scraper
-        # 3. remote URL fallback
         if (
             photo_path
             and
@@ -3155,26 +3290,6 @@ class ProductScreen(BaseScreen):
                 photo_path
             )
             self.product_image.opacity = 1
-
-        elif image_blob:
-            try:
-                core_image = CoreImage(
-                    BytesIO(
-                        bytes(image_blob)
-                    ),
-                    ext="png"
-                )
-
-                self.product_image.source = ""
-                self.product_image.texture = (
-                    core_image.texture
-                )
-                self.product_image.opacity = 1
-
-            except Exception:
-                self.product_image.texture = None
-                self.product_image.source = ""
-                self.product_image.opacity = 0
 
         elif photo_url.startswith(
             ("http://", "https://")
@@ -3335,6 +3450,48 @@ class SettingsScreen(BaseScreen):
 class MainApp(App):
 
     title = APP_TITLE
+
+    def get_photo_cache_dir(self):
+
+        cache_dir = (
+            Path(self.user_data_dir)
+            /
+            "product_images"
+        )
+
+        cache_dir.mkdir(
+            parents=True,
+            exist_ok=True
+        )
+
+        return cache_dir
+
+    def get_cached_photo_path(
+        self,
+        barcode
+    ):
+
+        barcode = normalize_barcode(
+            barcode
+        )
+
+        for suffix in (
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".webp",
+            ".img",
+        ):
+            path = (
+                self.get_photo_cache_dir()
+                /
+                f"{barcode}{suffix}"
+            )
+
+            if path.exists():
+                return str(path)
+
+        return ""
 
     def build(self):
 
@@ -3529,6 +3686,19 @@ class MainApp(App):
             font_size="16sp",
             padding=(dp(15), dp(13)),
         )
+        def update_search_hint(
+            instance,
+            focused
+        ):
+            if focused:
+                instance.hint_text = ""
+            elif not instance.text.strip():
+                instance.hint_text = "Поиск"
+
+        search_input.bind(
+            focus=update_search_hint
+        )
+
         root.add_widget(search_input)
         screen.search_input = search_input
 
@@ -4031,6 +4201,22 @@ class MainApp(App):
             photo_row
         )
 
+        image_url_button = RoundedButton(
+            text="Добавить URL картинки",
+            size_hint_y=None,
+            height=dp(46),
+            font_size="14sp",
+        )
+
+        image_url_button.bind(
+            on_release=lambda *_:
+            screen.add_image_url()
+        )
+
+        root.add_widget(
+            image_url_button
+        )
+
         root.add_widget(
             Widget()
         )
@@ -4074,6 +4260,7 @@ class MainApp(App):
         )
 
         screen.pending_photo_path = ""
+        screen.pending_photo_url = ""
 
         screen.add_widget(
             root
