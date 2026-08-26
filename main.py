@@ -42,6 +42,7 @@ from kivy.uix.button import Button
 from kivy.uix.image import Image, AsyncImage
 from kivy.uix.label import Label
 from kivy.uix.popup import Popup
+from kivy.uix.modalview import ModalView
 from kivy.uix.screenmanager import (
     Screen,
     ScreenManager,
@@ -216,7 +217,7 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки Годности"
-BUILD_MARKER = "manual_image_url_search_hint_v10"
+BUILD_MARKER = "ui_popup_hide_product_v11"
 
 HEADER_TITLE = "Pyton Detector"
 
@@ -568,6 +569,36 @@ class RoundedTextInput(TextInput):
         self._search_bg.size = self.size
 
 
+class RoundedPanel(BoxLayout):
+
+    background_color = ListProperty(CARD)
+
+    def __init__(self, radius=22, **kwargs):
+        super().__init__(**kwargs)
+        self._panel_radius = dp(radius)
+
+        with self.canvas.before:
+            self._panel_color = Color(*self.background_color)
+            self._panel_rect = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[self._panel_radius],
+            )
+
+        self.bind(
+            pos=self._update_panel_canvas,
+            size=self._update_panel_canvas,
+            background_color=self._update_panel_color,
+        )
+
+    def _update_panel_canvas(self, *_):
+        self._panel_rect.pos = self.pos
+        self._panel_rect.size = self.size
+
+    def _update_panel_color(self, *_):
+        self._panel_color.rgba = self.background_color
+
+
 # =========================================================
 # PRODUCT CARD
 # =========================================================
@@ -660,7 +691,7 @@ class ProductThumbnail(BoxLayout):
             self.add_widget(
                 Image(
                     source=local_source,
-                    fit_mode="cover",
+                    fit_mode="contain",
                 )
             )
             return
@@ -671,7 +702,7 @@ class ProductThumbnail(BoxLayout):
             self.add_widget(
                 AsyncImage(
                     source=remote_source,
-                    fit_mode="cover",
+                    fit_mode="contain",
                     nocache=False,
                 )
             )
@@ -1330,6 +1361,7 @@ class Database:
                 photo_url TEXT NOT NULL DEFAULT '',
                 product_url TEXT NOT NULL DEFAULT '',
                 manual_no_date INTEGER NOT NULL DEFAULT 0,
+                hidden INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL
             );
 
@@ -1409,6 +1441,12 @@ class Database:
             self.conn.execute(
                 "ALTER TABLE products "
                 "ADD COLUMN manual_no_date INTEGER NOT NULL DEFAULT 0"
+            )
+
+        if "hidden" not in product_columns:
+            self.conn.execute(
+                "ALTER TABLE products "
+                "ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0"
             )
 
 
@@ -1552,7 +1590,8 @@ class Database:
                     name = ?,
                     department = ?,
                     photo_path = ?,
-                    photo_url = ?
+                    photo_url = ?,
+                    hidden = 0
                 WHERE barcode = ?
                 """,
                 (
@@ -1807,6 +1846,39 @@ class Database:
         self.conn.commit()
         return True
 
+    def remove_from_tracking(
+        self,
+        barcode
+    ):
+
+        product = self.get_product(
+            barcode
+        )
+
+        if not product:
+            return False
+
+        real_barcode = product["barcode"]
+
+        # Убираем все сроки этого товара из рабочего учёта,
+        # но оставляем сам товар, название и URL картинки в каталоге БД.
+        self.conn.execute(
+            "DELETE FROM expirations WHERE barcode = ?",
+            (real_barcode,),
+        )
+
+        self.conn.execute(
+            """
+            UPDATE products
+            SET hidden = 1, manual_no_date = 0
+            WHERE barcode = ?
+            """,
+            (real_barcode,),
+        )
+
+        self.conn.commit()
+        return True
+
     def set_manual_no_date(
         self,
         barcode,
@@ -1955,7 +2027,8 @@ class Database:
                         LIMIT 1
                     ) AS next_exp
                 FROM products p
-                WHERE (
+                WHERE COALESCE(p.hidden, 0) = 0
+                  AND (
                     ? = ''
                     OR p.department = ?
                     OR p.department = ''
@@ -2057,7 +2130,8 @@ class Database:
                         LIMIT 1
                     ) AS next_exp
                 FROM products p
-                WHERE (
+                WHERE COALESCE(p.hidden, 0) = 0
+                  AND (
                     ? = ''
                     OR p.department = ?
                     OR p.department = ''
@@ -2112,8 +2186,11 @@ class Database:
                     LIMIT 1
                 ) AS next_exp
             FROM products p
-            WHERE p.name LIKE ? COLLATE NOCASE
-               OR p.barcode LIKE ?
+            WHERE COALESCE(p.hidden, 0) = 0
+              AND (
+                   p.name LIKE ? COLLATE NOCASE
+                   OR p.barcode LIKE ?
+              )
             ORDER BY
                 CASE
                     WHEN lower(p.name) = lower(?) THEN 0
@@ -2908,10 +2985,51 @@ class AddProductScreen(BaseScreen):
         self
     ):
 
-        content = BoxLayout(
+        # Собственный ModalView вместо стандартного Popup:
+        # без синего separator и с полностью закруглённой карточкой.
+        popup = ModalView(
+            size_hint=(0.92, None),
+            height=dp(260),
+            auto_dismiss=False,
+            background="",
+            background_color=(0, 0, 0, 0),
+        )
+
+        panel = RoundedPanel(
             orientation="vertical",
             spacing=dp(10),
-            padding=dp(12),
+            padding=dp(16),
+            radius=22,
+            background_color=(0.13, 0.135, 0.15, 1),
+        )
+
+        title = Label(
+            text="URL картинки",
+            color=TEXT,
+            bold=True,
+            font_size="18sp",
+            size_hint_y=None,
+            height=dp(34),
+            halign="left",
+            valign="middle",
+        )
+        title.bind(
+            size=lambda instance, value:
+            setattr(instance, "text_size", value)
+        )
+
+        info = Label(
+            text="Вставь прямую ссылку на картинку товара.",
+            color=TEXT_SECONDARY,
+            font_size="12sp",
+            size_hint_y=None,
+            height=dp(34),
+            halign="center",
+            valign="middle",
+        )
+        info.bind(
+            size=lambda instance, value:
+            setattr(instance, "text_size", value)
         )
 
         url_input = RoundedTextInput(
@@ -2929,32 +3047,13 @@ class AddProductScreen(BaseScreen):
             size_hint_y=None,
             height=dp(52),
             font_size="14sp",
-            padding=(
-                dp(12),
-                dp(13),
-            ),
+            padding=(dp(12), dp(13)),
+            foreground_color=(1, 1, 1, 1),
+            hint_text_color=TEXT_SECONDARY,
+            cursor_color=(1, 1, 1, 1),
+            selection_color=(0.35, 0.65, 0.85, 0.55),
         )
-
-        info = Label(
-            text=(
-                "Вставь прямую ссылку на картинку товара."
-            ),
-            color=TEXT_SECONDARY,
-            font_size="12sp",
-            size_hint_y=None,
-            height=dp(38),
-            halign="center",
-            valign="middle",
-        )
-
-        info.bind(
-            size=lambda instance, value:
-            setattr(
-                instance,
-                "text_size",
-                value
-            )
-        )
+        url_input.disabled_foreground_color = (1, 1, 1, 1)
 
         buttons = BoxLayout(
             orientation="horizontal",
@@ -2975,33 +3074,14 @@ class AddProductScreen(BaseScreen):
             down_color=ACCENT_RED_DOWN,
         )
 
-        buttons.add_widget(
-            cancel_button
-        )
+        buttons.add_widget(cancel_button)
+        buttons.add_widget(save_button)
 
-        buttons.add_widget(
-            save_button
-        )
-
-        content.add_widget(
-            info
-        )
-
-        content.add_widget(
-            url_input
-        )
-
-        content.add_widget(
-            buttons
-        )
-
-        popup = Popup(
-            title="URL картинки",
-            content=content,
-            size_hint=(0.92, None),
-            height=dp(235),
-            auto_dismiss=False,
-        )
+        panel.add_widget(title)
+        panel.add_widget(info)
+        panel.add_widget(url_input)
+        panel.add_widget(buttons)
+        popup.add_widget(panel)
 
         cancel_button.bind(
             on_release=lambda *_:
@@ -3010,62 +3090,52 @@ class AddProductScreen(BaseScreen):
 
         def save_url(*_):
 
-            url = (
-                url_input.text
-                .strip()
-            )
+            url = url_input.text.strip()
 
             if (
                 url
                 and
-                not url.startswith(
-                    (
-                        "http://",
-                        "https://",
-                    )
-                )
+                not url.startswith(("http://", "https://"))
             ):
                 self.app.message(
                     "URL должен начинаться с http:// или https://"
                 )
                 return
 
-            self.pending_photo_url = (
-                url
-            )
+            self.pending_photo_url = url
 
             if url:
-                self.photo_preview.source = (
-                    url
-                )
+                self.photo_preview.texture = None
+                self.photo_preview.source = url
+                self.photo_preview.fit_mode = "contain"
                 self.photo_preview.opacity = 1
-                self.photo_status.text = (
-                    "URL картинки добавлен"
-                )
+                try:
+                    self.photo_preview.reload()
+                except Exception:
+                    pass
+                self.photo_status.text = "URL картинки добавлен"
             else:
+                self.photo_preview.texture = None
                 self.photo_preview.source = ""
                 self.photo_preview.opacity = 0
-                self.photo_status.text = (
-                    "Фото не добавлено"
-                )
+                self.photo_status.text = "Фото не добавлено"
 
             popup.dismiss()
 
-        save_button.bind(
-            on_release=save_url
-        )
+        save_button.bind(on_release=save_url)
 
         popup.open()
 
-        Clock.schedule_once(
-            lambda *_:
-            setattr(
-                url_input,
-                "focus",
-                True
-            ),
-            0.15
-        )
+        def focus_url_input(*_):
+            url_input.focus = True
+            # Показываем начало URL при открытии, а не пустой прокрученный участок.
+            try:
+                url_input.cursor = (0, 0)
+                url_input.scroll_x = 0
+            except Exception:
+                pass
+
+        Clock.schedule_once(focus_url_input, 0.15)
 
     def choose_photo(
         self
@@ -3416,25 +3486,26 @@ class ProductScreen(BaseScreen):
             message
         )
 
-        self.app.open_home()
+        # Сразу показываем следующий ближайший срок на этой же карточке.
+        self.load(
+            self.barcode
+        )
 
     def delete_expiration(self):
 
-        if not self.app.db.delete_next_expiration(
+        if not self.app.db.remove_from_tracking(
             self.barcode
         ):
             self.app.message(
-                "У товара нет активных сроков."
+                "Не удалось убрать товар из списка."
             )
             return
 
         self.app.message(
-            "Ближайший активный срок удалён."
+            "Товар убран из списка."
         )
 
-        self.load(
-            self.barcode
-        )
+        self.app.open_home()
 
 
 
@@ -4124,7 +4195,7 @@ class MainApp(App):
 
         photo_preview = AsyncImage(
             source="",
-            fit_mode="cover",
+            fit_mode="contain",
             opacity=0,
             nocache=False,
         )
@@ -4378,7 +4449,7 @@ class MainApp(App):
             source="",
             fit_mode="contain",
             size_hint=(None, None),
-            size=(dp(188), dp(188)),
+            size=(dp(192), dp(192)),
             opacity=0,
             nocache=False,
         )
