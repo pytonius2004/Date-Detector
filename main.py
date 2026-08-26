@@ -42,7 +42,6 @@ from kivy.uix.button import Button
 from kivy.uix.image import Image, AsyncImage
 from kivy.uix.label import Label
 from kivy.uix.popup import Popup
-from kivy.uix.modalview import ModalView
 from kivy.uix.screenmanager import (
     Screen,
     ScreenManager,
@@ -143,6 +142,20 @@ GREEN = (
     1,
 )
 
+PURPLE = (
+    0.46,
+    0.25,
+    0.68,
+    1,
+)
+
+PURPLE_DOWN = (
+    0.36,
+    0.18,
+    0.56,
+    1,
+)
+
 THUMBNAIL_BG = (
     0.28,
     0.29,
@@ -217,7 +230,7 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки Годности"
-BUILD_MARKER = "ui_popup_hide_product_v11"
+BUILD_MARKER = "polish_edit_multi_exp_purple_v12"
 
 HEADER_TITLE = "Pyton Detector"
 
@@ -569,36 +582,6 @@ class RoundedTextInput(TextInput):
         self._search_bg.size = self.size
 
 
-class RoundedPanel(BoxLayout):
-
-    background_color = ListProperty(CARD)
-
-    def __init__(self, radius=22, **kwargs):
-        super().__init__(**kwargs)
-        self._panel_radius = dp(radius)
-
-        with self.canvas.before:
-            self._panel_color = Color(*self.background_color)
-            self._panel_rect = RoundedRectangle(
-                pos=self.pos,
-                size=self.size,
-                radius=[self._panel_radius],
-            )
-
-        self.bind(
-            pos=self._update_panel_canvas,
-            size=self._update_panel_canvas,
-            background_color=self._update_panel_color,
-        )
-
-    def _update_panel_canvas(self, *_):
-        self._panel_rect.pos = self.pos
-        self._panel_rect.size = self.size
-
-    def _update_panel_color(self, *_):
-        self._panel_color.rgba = self.background_color
-
-
 # =========================================================
 # PRODUCT CARD
 # =========================================================
@@ -658,7 +641,8 @@ class ProductThumbnail(BoxLayout):
         self.size_hint = (None, None)
         self.width = dp(thumb_width)
         self.height = dp(thumb_height)
-        self.padding = dp(4)
+        self.padding = 0
+        self._has_image = False
 
         with self.canvas.before:
             self._bg_color = Color(
@@ -688,6 +672,8 @@ class ProductThumbnail(BoxLayout):
             and
             Path(local_source).exists()
         ):
+            self._has_image = True
+            self._bg_color.rgba = (0, 0, 0, 0)
             self.add_widget(
                 Image(
                     source=local_source,
@@ -699,6 +685,8 @@ class ProductThumbnail(BoxLayout):
         if remote_source.startswith(
             ("http://", "https://")
         ):
+            self._has_image = True
+            self._bg_color.rgba = (0, 0, 0, 0)
             self.add_widget(
                 AsyncImage(
                     source=remote_source,
@@ -1361,7 +1349,7 @@ class Database:
                 photo_url TEXT NOT NULL DEFAULT '',
                 product_url TEXT NOT NULL DEFAULT '',
                 manual_no_date INTEGER NOT NULL DEFAULT 0,
-                hidden INTEGER NOT NULL DEFAULT 0,
+                hidden_from_list INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL
             );
 
@@ -1443,10 +1431,10 @@ class Database:
                 "ADD COLUMN manual_no_date INTEGER NOT NULL DEFAULT 0"
             )
 
-        if "hidden" not in product_columns:
+        if "hidden_from_list" not in product_columns:
             self.conn.execute(
                 "ALTER TABLE products "
-                "ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0"
+                "ADD COLUMN hidden_from_list INTEGER NOT NULL DEFAULT 0"
             )
 
 
@@ -1591,7 +1579,7 @@ class Database:
                     department = ?,
                     photo_path = ?,
                     photo_url = ?,
-                    hidden = 0
+                    hidden_from_list = 0
                 WHERE barcode = ?
                 """,
                 (
@@ -1846,38 +1834,183 @@ class Database:
         self.conn.commit()
         return True
 
-    def remove_from_tracking(
+    def remove_product_from_list(
         self,
         barcode
     ):
-
-        product = self.get_product(
-            barcode
-        )
-
+        product = self.get_product(barcode)
         if not product:
             return False
 
         real_barcode = product["barcode"]
 
-        # Убираем все сроки этого товара из рабочего учёта,
-        # но оставляем сам товар, название и URL картинки в каталоге БД.
+        # Удаляем только активные сроки. История списанных сроков остаётся.
         self.conn.execute(
-            "DELETE FROM expirations WHERE barcode = ?",
+            """
+            DELETE FROM expirations
+            WHERE barcode = ?
+              AND written_off = 0
+            """,
             (real_barcode,),
         )
-
         self.conn.execute(
             """
             UPDATE products
-            SET hidden = 1, manual_no_date = 0
+            SET hidden_from_list = 1,
+                manual_no_date = 0
             WHERE barcode = ?
             """,
             (real_barcode,),
         )
-
         self.conn.commit()
         return True
+
+    def update_product_record(
+        self,
+        old_barcode,
+        new_barcode,
+        name,
+        department=None,
+        photo_path=None,
+        photo_url=None,
+        exp_date_marker=None
+    ):
+        old_product = self.get_product(old_barcode)
+        if not old_product:
+            return False, "Товар не найден."
+
+        old_real = old_product["barcode"]
+        new_barcode = normalize_barcode(new_barcode)
+        name = str(name or "").strip()
+
+        if not new_barcode:
+            return False, "Введите штрихкод."
+        if not name:
+            return False, "Введите название товара."
+
+        existing_new = self.get_product(new_barcode)
+        if existing_new and existing_new["barcode"] != old_real:
+            return False, "Товар с таким штрихкодом уже существует."
+
+        final_department = (
+            str(department).strip()
+            if department is not None
+            else (old_product["department"] or "")
+        )
+        final_photo_path = (
+            str(photo_path or "").strip()
+            if photo_path is not None
+            else (old_product["photo_path"] or "")
+        )
+        final_photo_url = (
+            str(photo_url or "").strip()
+            if photo_url is not None
+            else (old_product["photo_url"] or "")
+        )
+        product_url = (
+            old_product["product_url"]
+            if "product_url" in old_product.keys()
+            else ""
+        ) or ""
+        manual_no_date = int(
+            old_product["manual_no_date"]
+            if "manual_no_date" in old_product.keys()
+            else 0
+        )
+        hidden = int(
+            old_product["hidden_from_list"]
+            if "hidden_from_list" in old_product.keys()
+            else 0
+        )
+
+        try:
+            with self.conn:
+                if new_barcode != old_real:
+                    self.conn.execute(
+                        """
+                        INSERT INTO products(
+                            barcode, name, department, photo_path, photo_url,
+                            product_url, manual_no_date, hidden_from_list, created_at
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            new_barcode, name, final_department, final_photo_path,
+                            final_photo_url, product_url, manual_no_date, hidden,
+                            datetime.now().isoformat(timespec="seconds"),
+                        ),
+                    )
+                    self.conn.execute(
+                        "UPDATE expirations SET barcode = ? WHERE barcode = ?",
+                        (new_barcode, old_real),
+                    )
+                    self.conn.execute(
+                        "DELETE FROM products WHERE barcode = ?",
+                        (old_real,),
+                    )
+                else:
+                    self.conn.execute(
+                        """
+                        UPDATE products
+                        SET name = ?, department = ?, photo_path = ?, photo_url = ?
+                        WHERE barcode = ?
+                        """,
+                        (
+                            name, final_department, final_photo_path,
+                            final_photo_url, old_real,
+                        ),
+                    )
+
+                active_row = self.conn.execute(
+                    """
+                    SELECT * FROM expirations
+                    WHERE barcode = ? AND written_off = 0
+                    ORDER BY exp_date ASC, id ASC
+                    LIMIT 1
+                    """,
+                    (new_barcode,),
+                ).fetchone()
+
+                if exp_date_marker == "__REMOVE_NEAREST__":
+                    if active_row:
+                        self.conn.execute(
+                            "DELETE FROM expirations WHERE id = ?",
+                            (active_row["id"],),
+                        )
+                elif exp_date_marker:
+                    if active_row:
+                        self.conn.execute(
+                            "UPDATE expirations SET exp_date = ? WHERE id = ?",
+                            (exp_date_marker, active_row["id"]),
+                        )
+                    else:
+                        self.conn.execute(
+                            """
+                            INSERT INTO expirations(barcode, exp_date, written_off, created_at)
+                            VALUES (?, ?, 0, ?)
+                            """,
+                            (
+                                new_barcode, exp_date_marker,
+                                datetime.now().isoformat(timespec="seconds"),
+                            ),
+                        )
+
+                remaining = self.conn.execute(
+                    """
+                    SELECT 1 FROM expirations
+                    WHERE barcode = ? AND written_off = 0
+                    LIMIT 1
+                    """,
+                    (new_barcode,),
+                ).fetchone()
+                self.conn.execute(
+                    "UPDATE products SET manual_no_date = ? WHERE barcode = ?",
+                    (0 if remaining else 1, new_barcode),
+                )
+
+            return True, new_barcode
+        except sqlite3.IntegrityError:
+            return False, "Такой срок уже существует у этого товара."
 
     def set_manual_no_date(
         self,
@@ -2027,7 +2160,7 @@ class Database:
                         LIMIT 1
                     ) AS next_exp
                 FROM products p
-                WHERE COALESCE(p.hidden, 0) = 0
+                WHERE COALESCE(p.hidden_from_list, 0) = 0
                   AND (
                     ? = ''
                     OR p.department = ?
@@ -2130,7 +2263,7 @@ class Database:
                         LIMIT 1
                     ) AS next_exp
                 FROM products p
-                WHERE COALESCE(p.hidden, 0) = 0
+                WHERE COALESCE(p.hidden_from_list, 0) = 0
                   AND (
                     ? = ''
                     OR p.department = ?
@@ -2186,11 +2319,8 @@ class Database:
                     LIMIT 1
                 ) AS next_exp
             FROM products p
-            WHERE COALESCE(p.hidden, 0) = 0
-              AND (
-                   p.name LIKE ? COLLATE NOCASE
-                   OR p.barcode LIKE ?
-              )
+            WHERE p.name LIKE ? COLLATE NOCASE
+               OR p.barcode LIKE ?
             ORDER BY
                 CASE
                     WHEN lower(p.name) = lower(?) THEN 0
@@ -2598,8 +2728,8 @@ class HomeScreen(BaseScreen):
                 fg = TEXT
                 date_text = "Списано"
             else:
-                bg = GREEN
-                fg = RED_TEXT
+                bg = PURPLE
+                fg = TEXT
                 date_text = "Без даты"
 
         elif exp_date < today:
@@ -2693,12 +2823,19 @@ class AddProductScreen(BaseScreen):
         self._auto_save_signature = None
         self._save_in_progress = False
         self.pending_photo_url = ""
+        self.editing_barcode = ""
+        self.editing_original_date = ""
 
     def on_date_change(
         self,
         instance,
         value
     ):
+
+        # В режиме редактирования не сохраняем автоматически:
+        # пользователь должен иметь возможность спокойно поменять дату.
+        if self.editing_barcode:
+            return
 
         digits = "".join(
             char
@@ -2728,6 +2865,9 @@ class AddProductScreen(BaseScreen):
         self._auto_save_event = None
 
         if self._save_in_progress:
+            return
+
+        if self.editing_barcode:
             return
 
         barcode = normalize_barcode(
@@ -2776,6 +2916,13 @@ class AddProductScreen(BaseScreen):
 
         self._auto_save_signature = None
         self._save_in_progress = False
+        self.editing_barcode = ""
+        self.editing_original_date = ""
+
+        if hasattr(self, "title_label"):
+            self.title_label.text = "Добавить срок"
+        if hasattr(self, "save_button"):
+            self.save_button.text = "Сохранить срок"
 
         self.barcode_input.text = ""
         self.name_input.text = ""
@@ -2908,6 +3055,54 @@ class AddProductScreen(BaseScreen):
                     "URL картинки добавлен"
                 )
 
+        if not self.editing_barcode and hasattr(self, "date_input"):
+            Clock.schedule_once(
+                lambda *_: setattr(self.date_input, "focus", True),
+                0.08
+            )
+
+    def load_for_edit(self, barcode):
+        self.clear_form()
+        product = self.app.db.get_product(barcode)
+        if not product:
+            return False
+
+        self.editing_barcode = product["barcode"]
+        self.barcode_input.text = product["barcode"]
+        self.name_input.text = (product["name"] or "")
+
+        photo_path = (product["photo_path"] or "")
+        photo_url = (
+            product["photo_url"]
+            if "photo_url" in product.keys()
+            else ""
+        ) or ""
+
+        self.pending_photo_path = photo_path
+        self.pending_photo_url = photo_url
+
+        if photo_path and Path(photo_path).exists():
+            self.set_photo(photo_path)
+        elif photo_url:
+            self.photo_preview.source = photo_url
+            self.photo_preview.opacity = 1
+            self.photo_status.text = "URL картинки добавлен"
+
+        active = self.app.db.get_active_expirations(product["barcode"])
+        if active:
+            self.editing_original_date = active[0]["exp_date"]
+            self.date_input.text = format_date(active[0]["exp_date"])
+        else:
+            self.editing_original_date = ""
+            self.date_input.text = ""
+
+        if hasattr(self, "title_label"):
+            self.title_label.text = "Редактировать товар"
+        if hasattr(self, "save_button"):
+            self.save_button.text = "Сохранить изменения"
+
+        return True
+
     def on_barcode_change(
         self,
         instance,
@@ -2985,51 +3180,10 @@ class AddProductScreen(BaseScreen):
         self
     ):
 
-        # Собственный ModalView вместо стандартного Popup:
-        # без синего separator и с полностью закруглённой карточкой.
-        popup = ModalView(
-            size_hint=(0.92, None),
-            height=dp(260),
-            auto_dismiss=False,
-            background="",
-            background_color=(0, 0, 0, 0),
-        )
-
-        panel = RoundedPanel(
+        content = BoxLayout(
             orientation="vertical",
             spacing=dp(10),
-            padding=dp(16),
-            radius=22,
-            background_color=(0.13, 0.135, 0.15, 1),
-        )
-
-        title = Label(
-            text="URL картинки",
-            color=TEXT,
-            bold=True,
-            font_size="18sp",
-            size_hint_y=None,
-            height=dp(34),
-            halign="left",
-            valign="middle",
-        )
-        title.bind(
-            size=lambda instance, value:
-            setattr(instance, "text_size", value)
-        )
-
-        info = Label(
-            text="Вставь прямую ссылку на картинку товара.",
-            color=TEXT_SECONDARY,
-            font_size="12sp",
-            size_hint_y=None,
-            height=dp(34),
-            halign="center",
-            valign="middle",
-        )
-        info.bind(
-            size=lambda instance, value:
-            setattr(instance, "text_size", value)
+            padding=dp(12),
         )
 
         url_input = RoundedTextInput(
@@ -3047,13 +3201,32 @@ class AddProductScreen(BaseScreen):
             size_hint_y=None,
             height=dp(52),
             font_size="14sp",
-            padding=(dp(12), dp(13)),
-            foreground_color=(1, 1, 1, 1),
-            hint_text_color=TEXT_SECONDARY,
-            cursor_color=(1, 1, 1, 1),
-            selection_color=(0.35, 0.65, 0.85, 0.55),
+            padding=(
+                dp(12),
+                dp(13),
+            ),
         )
-        url_input.disabled_foreground_color = (1, 1, 1, 1)
+
+        info = Label(
+            text=(
+                "Вставь прямую ссылку на картинку товара."
+            ),
+            color=TEXT_SECONDARY,
+            font_size="12sp",
+            size_hint_y=None,
+            height=dp(38),
+            halign="center",
+            valign="middle",
+        )
+
+        info.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
 
         buttons = BoxLayout(
             orientation="horizontal",
@@ -3074,14 +3247,33 @@ class AddProductScreen(BaseScreen):
             down_color=ACCENT_RED_DOWN,
         )
 
-        buttons.add_widget(cancel_button)
-        buttons.add_widget(save_button)
+        buttons.add_widget(
+            cancel_button
+        )
 
-        panel.add_widget(title)
-        panel.add_widget(info)
-        panel.add_widget(url_input)
-        panel.add_widget(buttons)
-        popup.add_widget(panel)
+        buttons.add_widget(
+            save_button
+        )
+
+        content.add_widget(
+            info
+        )
+
+        content.add_widget(
+            url_input
+        )
+
+        content.add_widget(
+            buttons
+        )
+
+        popup = Popup(
+            title="URL картинки",
+            content=content,
+            size_hint=(0.92, None),
+            height=dp(235),
+            auto_dismiss=False,
+        )
 
         cancel_button.bind(
             on_release=lambda *_:
@@ -3090,52 +3282,62 @@ class AddProductScreen(BaseScreen):
 
         def save_url(*_):
 
-            url = url_input.text.strip()
+            url = (
+                url_input.text
+                .strip()
+            )
 
             if (
                 url
                 and
-                not url.startswith(("http://", "https://"))
+                not url.startswith(
+                    (
+                        "http://",
+                        "https://",
+                    )
+                )
             ):
                 self.app.message(
                     "URL должен начинаться с http:// или https://"
                 )
                 return
 
-            self.pending_photo_url = url
+            self.pending_photo_url = (
+                url
+            )
 
             if url:
-                self.photo_preview.texture = None
-                self.photo_preview.source = url
-                self.photo_preview.fit_mode = "contain"
+                self.photo_preview.source = (
+                    url
+                )
                 self.photo_preview.opacity = 1
-                try:
-                    self.photo_preview.reload()
-                except Exception:
-                    pass
-                self.photo_status.text = "URL картинки добавлен"
+                self.photo_status.text = (
+                    "URL картинки добавлен"
+                )
             else:
-                self.photo_preview.texture = None
                 self.photo_preview.source = ""
                 self.photo_preview.opacity = 0
-                self.photo_status.text = "Фото не добавлено"
+                self.photo_status.text = (
+                    "Фото не добавлено"
+                )
 
             popup.dismiss()
 
-        save_button.bind(on_release=save_url)
+        save_button.bind(
+            on_release=save_url
+        )
 
         popup.open()
 
-        def focus_url_input(*_):
-            url_input.focus = True
-            # Показываем начало URL при открытии, а не пустой прокрученный участок.
-            try:
-                url_input.cursor = (0, 0)
-                url_input.scroll_x = 0
-            except Exception:
-                pass
-
-        Clock.schedule_once(focus_url_input, 0.15)
+        Clock.schedule_once(
+            lambda *_:
+            setattr(
+                url_input,
+                "focus",
+                True
+            ),
+            0.15
+        )
 
     def choose_photo(
         self
@@ -3227,6 +3429,26 @@ class AddProductScreen(BaseScreen):
                 )
                 return
 
+        if self.editing_barcode:
+            marker = exp_date if exp_date else "__REMOVE_NEAREST__"
+            ok, result = self.app.db.update_product_record(
+                old_barcode=self.editing_barcode,
+                new_barcode=barcode,
+                name=name,
+                department=self.app.current_department,
+                photo_path=getattr(self, "pending_photo_path", ""),
+                photo_url=getattr(self, "pending_photo_url", ""),
+                exp_date_marker=marker,
+            )
+            if not ok:
+                self.app.message(result)
+                return
+
+            self.editing_barcode = result
+            self.app.message("Изменения сохранены.")
+            self.app.open_product(result)
+            return
+
         existing_product = (
             self.app.db.get_product(
                 barcode
@@ -3289,7 +3511,7 @@ class AddProductScreen(BaseScreen):
             if not automatic:
                 self.app.message(
                     "Товар сохранён без срока.\n"
-                    "Он будет показан зелёным."
+                    "Он будет показан фиолетовым."
                 )
 
         self._save_in_progress = False
@@ -3360,6 +3582,8 @@ class ProductScreen(BaseScreen):
                 photo_path
             )
             self.product_image.opacity = 1
+            if hasattr(self, "product_image_bg_color"):
+                self.product_image_bg_color.rgba = (0, 0, 0, 0)
 
         elif photo_url.startswith(
             ("http://", "https://")
@@ -3369,11 +3593,15 @@ class ProductScreen(BaseScreen):
                 photo_url
             )
             self.product_image.opacity = 1
+            if hasattr(self, "product_image_bg_color"):
+                self.product_image_bg_color.rgba = (0, 0, 0, 0)
 
         else:
             self.product_image.texture = None
             self.product_image.source = ""
             self.product_image.opacity = 0
+            if hasattr(self, "product_image_bg_color"):
+                self.product_image_bg_color.rgba = THUMBNAIL_BG
 
         active = (
             self.app.db.get_active_expirations(
@@ -3486,14 +3714,11 @@ class ProductScreen(BaseScreen):
             message
         )
 
-        # Сразу показываем следующий ближайший срок на этой же карточке.
-        self.load(
-            self.barcode
-        )
+        self.app.open_home()
 
     def delete_expiration(self):
 
-        if not self.app.db.remove_from_tracking(
+        if not self.app.db.remove_product_from_list(
             self.barcode
         ):
             self.app.message(
@@ -3504,7 +3729,6 @@ class ProductScreen(BaseScreen):
         self.app.message(
             "Товар убран из списка."
         )
-
         self.app.open_home()
 
 
@@ -4029,16 +4253,15 @@ class MainApp(App):
             back
         )
 
-        root.add_widget(
-            Label(
-                text="Добавить срок",
-                color=TEXT,
-                font_size="25sp",
-                bold=True,
-                size_hint_y=None,
-                height=dp(58),
-            )
+        add_title = Label(
+            text="Добавить срок",
+            color=TEXT,
+            font_size="25sp",
+            bold=True,
+            size_hint_y=None,
+            height=dp(58),
         )
+        root.add_widget(add_title)
 
         info = Label(
             text=(
@@ -4332,6 +4555,8 @@ class MainApp(App):
 
         screen.pending_photo_path = ""
         screen.pending_photo_url = ""
+        screen.title_label = add_title
+        screen.save_button = save
 
         screen.add_widget(
             root
@@ -4360,20 +4585,34 @@ class MainApp(App):
             spacing=dp(12),
         )
 
-        back = RoundedButton(
-            text="Назад",
+        top_actions = BoxLayout(
+            orientation="horizontal",
             size_hint_y=None,
             height=dp(50),
+            spacing=dp(10),
         )
 
+        back = RoundedButton(
+            text="<",
+            size_hint_x=None,
+            width=dp(58),
+            font_size="22sp",
+        )
         back.bind(
-            on_release=lambda *_:
-            self.open_home()
+            on_release=lambda *_: self.open_home()
         )
 
-        root.add_widget(
-            back
+        edit_button = RoundedButton(
+            text="Редактировать",
+            font_size="15sp",
         )
+        edit_button.bind(
+            on_release=lambda *_: self.open_edit_product(screen.barcode)
+        )
+
+        top_actions.add_widget(back)
+        top_actions.add_widget(edit_button)
+        root.add_widget(top_actions)
 
         product_name = Label(
             text="Товар",
@@ -4423,7 +4662,7 @@ class MainApp(App):
             )
             detail_bg_rect = RoundedRectangle(
                 pos=image_holder.pos,
-                size=(dp(196), dp(196)),
+                size=(dp(204), dp(204)),
                 radius=[dp(18)],
             )
 
@@ -4432,12 +4671,12 @@ class MainApp(App):
             *_args
         ):
             detail_bg_rect.pos = (
-                instance.center_x - dp(98),
-                instance.center_y - dp(98),
+                instance.center_x - dp(102),
+                instance.center_y - dp(102),
             )
             detail_bg_rect.size = (
-                dp(196),
-                dp(196),
+                dp(204),
+                dp(204),
             )
 
         image_holder.bind(
@@ -4449,7 +4688,7 @@ class MainApp(App):
             source="",
             fit_mode="contain",
             size_hint=(None, None),
-            size=(dp(192), dp(192)),
+            size=(dp(204), dp(204)),
             opacity=0,
             nocache=False,
         )
@@ -4599,6 +4838,7 @@ class MainApp(App):
         screen.product_image = (
             product_image
         )
+        screen.product_image_bg_color = detail_bg_color
 
         screen.writeoff_button = (
             writeoff
@@ -4830,8 +5070,8 @@ class MainApp(App):
             (
                 "Без даты",
                 "no_date",
-                (0.12, 0.62, 0.30, 1),
-                (0.08, 0.50, 0.23, 1),
+                PURPLE,
+                PURPLE_DOWN,
                 TEXT,
             ),
         )
@@ -4959,6 +5199,13 @@ class MainApp(App):
         ).load(
             barcode
         )
+
+    def open_edit_product(self, barcode):
+        screen = self.sm.get_screen("add")
+        if not screen.load_for_edit(barcode):
+            self.message("Товар не найден.")
+            return
+        self.sm.current = "add"
 
     def open_settings(self):
 
