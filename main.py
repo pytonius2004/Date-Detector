@@ -3,6 +3,7 @@
 import os
 import shutil
 import sqlite3
+import json
 
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -155,6 +156,50 @@ PURPLE_DOWN = (
     0.56,
     1,
 )
+
+
+# Настраиваемые цвета статусов товаров.
+# Значения по умолчанию повторяют текущую цветовую схему приложения.
+DEFAULT_STATUS_COLORS = {
+    "expired": RED,        # просрочено / списать
+    "today": YELLOW,       # истекает сегодня / уценить
+    "tomorrow": GREEN,     # истекает завтра
+    "no_date": PURPLE,     # без даты
+    "normal": CARD,        # остальные товары
+}
+
+STATUS_COLOR_LABELS = {
+    "expired": "Просрочено / списать",
+    "today": "Истекает сегодня / уценить",
+    "tomorrow": "Истекает завтра",
+    "no_date": "Без даты",
+    "normal": "Остальные товары",
+}
+
+# Палитра, из которой пользователь может выбрать цвет прямо в приложении.
+# Это надёжнее системного Android color picker и не требует новых зависимостей.
+STATUS_COLOR_PALETTE = [
+    (0.82, 0.12, 0.13, 1),   # красный
+    (1.00, 0.78, 0.13, 1),   # жёлтый
+    (0.13, 0.57, 0.27, 1),   # зелёный
+    (0.46, 0.25, 0.68, 1),   # фиолетовый
+    (0.12, 0.45, 0.78, 1),   # синий
+    (0.08, 0.63, 0.68, 1),   # бирюзовый
+    (0.93, 0.39, 0.10, 1),   # оранжевый
+    (0.72, 0.23, 0.55, 1),   # розово-малиновый
+    (0.30, 0.31, 0.35, 1),   # серый
+    (0.10, 0.105, 0.12, 1),  # тёмный
+]
+
+
+def readable_text_color(background):
+    """Возвращает белый или почти чёрный текст для выбранного фона."""
+    try:
+        r, g, b = background[:3]
+        luminance = 0.299 * r + 0.587 * g + 0.114 * b
+        return YELLOW_TEXT if luminance > 0.64 else TEXT
+    except Exception:
+        return TEXT
 
 THUMBNAIL_BG = (
     0.28,
@@ -2805,44 +2850,39 @@ class HomeScreen(BaseScreen):
 
         if exp_date is None:
 
-            # Без активной даты товар всегда фиолетовый.
-            # Отдельного серого состояния больше нет.
-            bg = PURPLE
-            fg = TEXT
+            status_key = "no_date"
             date_text = "Без даты"
 
         elif exp_date < today:
 
-            bg = RED
-            fg = RED_TEXT
+            status_key = "expired"
             date_text = format_date(
                 product["next_exp"]
             )
 
         elif exp_date == today:
 
-            bg = YELLOW
-            fg = YELLOW_TEXT
+            status_key = "today"
             date_text = format_date(
                 product["next_exp"]
             )
 
         elif exp_date == tomorrow:
 
-            # По просьбе: то, что истекает завтра — зелёное.
-            bg = GREEN
-            fg = RED_TEXT
+            status_key = "tomorrow"
             date_text = format_date(
                 product["next_exp"]
             )
 
         else:
 
-            bg = CARD
-            fg = TEXT
+            status_key = "normal"
             date_text = format_date(
                 product["next_exp"]
             )
+
+        bg = self.app.get_status_color(status_key)
+        fg = readable_text_color(bg)
 
         keys = product.keys()
 
@@ -3768,7 +3808,14 @@ class ProductScreen(BaseScreen):
 
 class SettingsScreen(BaseScreen):
 
-    pass
+    def refresh_color_previews(self):
+        previews = getattr(self, "color_previews", {})
+
+        for key, widget in previews.items():
+            color = self.app.get_status_color(key)
+            widget.background_color = color
+            widget.set_foreground(readable_text_color(color))
+
 
 
 # =========================================================
@@ -3821,6 +3868,215 @@ class MainApp(App):
 
         return ""
 
+    def _load_status_colors(self):
+
+        colors = {
+            key: list(value)
+            for key, value in DEFAULT_STATUS_COLORS.items()
+        }
+
+        try:
+            if self.status_colors_path.exists():
+                saved = json.loads(
+                    self.status_colors_path.read_text(
+                        encoding="utf-8"
+                    )
+                )
+
+                if isinstance(saved, dict):
+                    for key in DEFAULT_STATUS_COLORS:
+                        value = saved.get(key)
+
+                        if (
+                            isinstance(value, list)
+                            and len(value) == 4
+                        ):
+                            colors[key] = [
+                                max(0.0, min(1.0, float(channel)))
+                                for channel in value
+                            ]
+        except Exception as exc:
+            print("status color load error:", exc)
+
+        return colors
+
+    def _save_status_colors(self):
+
+        try:
+            self.status_colors_path.write_text(
+                json.dumps(
+                    self.status_colors,
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+        except Exception as exc:
+            self.message(
+                "Не удалось сохранить цвета:\n\n"
+                + str(exc)
+            )
+
+    def get_status_color(self, key):
+
+        value = self.status_colors.get(
+            key,
+            DEFAULT_STATUS_COLORS.get(key, CARD),
+        )
+
+        try:
+            return tuple(float(x) for x in value[:4])
+        except Exception:
+            return DEFAULT_STATUS_COLORS.get(key, CARD)
+
+    def set_status_color(self, key, color):
+
+        if key not in DEFAULT_STATUS_COLORS:
+            return
+
+        self.status_colors[key] = [
+            float(channel)
+            for channel in color[:4]
+        ]
+
+        self._save_status_colors()
+
+        try:
+            settings = self.sm.get_screen("settings")
+            settings.refresh_color_previews()
+        except Exception:
+            pass
+
+        try:
+            home = self.sm.get_screen("home")
+            home.refresh()
+        except Exception:
+            pass
+
+    def reset_status_colors(self):
+
+        self.status_colors = {
+            key: list(value)
+            for key, value in DEFAULT_STATUS_COLORS.items()
+        }
+
+        self._save_status_colors()
+
+        try:
+            self.sm.get_screen(
+                "settings"
+            ).refresh_color_previews()
+        except Exception:
+            pass
+
+        try:
+            self.sm.get_screen("home").refresh()
+        except Exception:
+            pass
+
+        self.message("Цвета восстановлены по умолчанию.")
+
+    def open_status_color_picker(self, status_key):
+
+        overlay = ModalView(
+            size_hint=(1, 1),
+            background_color=(0, 0, 0, 0.68),
+            auto_dismiss=True,
+        )
+
+        card = BoxLayout(
+            orientation="vertical",
+            size_hint=(0.88, None),
+            height=dp(390),
+            padding=dp(16),
+            spacing=dp(12),
+        )
+
+        with card.canvas.before:
+            bg_color = Color(0.12, 0.13, 0.15, 1)
+            bg_rect = RoundedRectangle(
+                pos=card.pos,
+                size=card.size,
+                radius=[dp(24)],
+            )
+
+        def update_card(*_):
+            bg_rect.pos = card.pos
+            bg_rect.size = card.size
+
+        card.bind(pos=update_card, size=update_card)
+
+        title = Label(
+            text=(
+                "Цвет: "
+                + STATUS_COLOR_LABELS.get(status_key, status_key)
+            ),
+            color=TEXT,
+            bold=True,
+            font_size="19sp",
+            size_hint_y=None,
+            height=dp(48),
+            halign="center",
+            valign="middle",
+        )
+        title.bind(
+            size=lambda instance, value:
+            setattr(instance, "text_size", value)
+        )
+        card.add_widget(title)
+
+        palette = BoxLayout(
+            orientation="vertical",
+            spacing=dp(10),
+        )
+
+        palette_colors = STATUS_COLOR_PALETTE
+
+        for row_start in (0, 5):
+            row = BoxLayout(
+                spacing=dp(10),
+                size_hint_y=1,
+            )
+
+            for color in palette_colors[row_start:row_start + 5]:
+                swatch = RoundedButton(
+                    text="✓" if tuple(self.get_status_color(status_key)) == tuple(color) else "",
+                    font_size="20sp",
+                    normal_color=color,
+                    down_color=tuple(max(0, c * 0.82) for c in color[:3]) + (1,),
+                )
+                swatch.set_foreground(readable_text_color(color))
+
+                def choose(_button, chosen=color):
+                    self.set_status_color(status_key, chosen)
+                    overlay.dismiss()
+
+                swatch.bind(on_release=choose)
+                row.add_widget(swatch)
+
+            palette.add_widget(row)
+
+        card.add_widget(palette)
+
+        cancel = RoundedButton(
+            text="Отмена",
+            size_hint_y=None,
+            height=dp(54),
+            font_size="15sp",
+            normal_color=BUTTON_BG,
+            down_color=BUTTON_BG_DOWN,
+        )
+        cancel.bind(on_release=lambda *_: overlay.dismiss())
+        card.add_widget(cancel)
+
+        wrapper = AnchorLayout(
+            anchor_x="center",
+            anchor_y="center",
+        )
+        wrapper.add_widget(card)
+        overlay.add_widget(wrapper)
+        overlay.open()
+
     def build(self):
 
         self.db_path = (
@@ -3833,6 +4089,13 @@ class MainApp(App):
 
         self.current_department = None
         self.pending_photo_screen = None
+
+        self.status_colors_path = (
+            Path(self.user_data_dir)
+            /
+            "status_colors.json"
+        )
+        self.status_colors = self._load_status_colors()
 
         self.db = Database(
             self.db_path
@@ -4920,15 +5183,11 @@ class MainApp(App):
             size_hint_y=None,
             height=dp(50),
         )
-
         back.bind(
             on_release=lambda *_:
             self.open_home()
         )
-
-        root.add_widget(
-            back
-        )
+        root.add_widget(back)
 
         root.add_widget(
             Label(
@@ -4937,22 +5196,121 @@ class MainApp(App):
                 font_size="26sp",
                 bold=True,
                 size_hint_y=None,
-                height=dp(58),
+                height=dp(54),
             )
         )
 
-        root.add_widget(
-            Label(
-                text=(
-                    "База хранится на телефоне.\n"
-                    "Экспорт сохраняется в Downloads."
-                ),
-                color=TEXT_SECONDARY,
-                font_size="14sp",
-                halign="center",
-                valign="middle",
+        scroll = ScrollView(
+            do_scroll_x=False,
+        )
+
+        content = BoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            spacing=dp(10),
+            padding=(0, 0, 0, dp(12)),
+        )
+        content.bind(
+            minimum_height=content.setter("height")
+        )
+
+        colors_title = Label(
+            text="Цвета статусов товаров",
+            color=TEXT,
+            bold=True,
+            font_size="18sp",
+            size_hint_y=None,
+            height=dp(42),
+            halign="left",
+            valign="middle",
+        )
+        colors_title.bind(
+            size=lambda instance, value:
+            setattr(instance, "text_size", value)
+        )
+        content.add_widget(colors_title)
+
+        colors_help = Label(
+            text=(
+                "Нажми на нужный статус, чтобы выбрать его цвет. "
+                "Настройка сохраняется автоматически."
+            ),
+            color=TEXT_SECONDARY,
+            font_size="13sp",
+            size_hint_y=None,
+            height=dp(58),
+            halign="left",
+            valign="middle",
+        )
+        colors_help.bind(
+            size=lambda instance, value:
+            setattr(instance, "text_size", (value[0], None))
+        )
+        content.add_widget(colors_help)
+
+        screen.color_previews = {}
+
+        for key in (
+            "expired",
+            "today",
+            "tomorrow",
+            "no_date",
+            "normal",
+        ):
+            color = self.get_status_color(key)
+
+            button = RoundedButton(
+                text=STATUS_COLOR_LABELS[key],
                 size_hint_y=None,
-                height=dp(80),
+                height=dp(56),
+                font_size="15sp",
+                normal_color=color,
+                down_color=tuple(
+                    max(0, c * 0.82)
+                    for c in color[:3]
+                ) + (1,),
+            )
+            button.set_foreground(
+                readable_text_color(color)
+            )
+            button.bind(
+                on_release=lambda _button, status=key:
+                self.open_status_color_picker(status)
+            )
+
+            screen.color_previews[key] = button
+            content.add_widget(button)
+
+        reset_colors = RoundedButton(
+            text="Сбросить цвета",
+            size_hint_y=None,
+            height=dp(50),
+            font_size="14sp",
+            normal_color=BUTTON_BG,
+            down_color=BUTTON_BG_DOWN,
+        )
+        reset_colors.bind(
+            on_release=lambda *_:
+            self.reset_status_colors()
+        )
+        content.add_widget(reset_colors)
+
+        divider = Widget(
+            size_hint_y=None,
+            height=dp(12),
+        )
+        content.add_widget(divider)
+
+        content.add_widget(
+            Label(
+                text="База данных",
+                color=TEXT,
+                font_size="18sp",
+                bold=True,
+                size_hint_y=None,
+                height=dp(42),
+                halign="left",
+                valign="middle",
             )
         )
 
@@ -4961,61 +5319,40 @@ class MainApp(App):
             size_hint_y=None,
             height=dp(58),
         )
-
         export_button.bind(
             on_release=lambda *_:
             self.export_database()
         )
-
-        root.add_widget(
-            export_button
-        )
+        content.add_widget(export_button)
 
         import_button = RoundedButton(
             text="Импортировать БД",
             size_hint_y=None,
             height=dp(58),
         )
-
         import_button.bind(
             on_release=lambda *_:
             self.import_database()
         )
-
-        root.add_widget(
-            import_button
-        )
+        content.add_widget(import_button)
 
         clear_button = RoundedButton(
             text="Очистить БД",
             size_hint_y=None,
             height=dp(58),
             normal_color=RED,
-            down_color=(
-                0.65,
-                0.08,
-                0.10,
-                1,
-            ),
+            down_color=(0.65, 0.08, 0.10, 1),
         )
-
         clear_button.bind(
             on_release=lambda *_:
             self.confirm_clear_database()
         )
+        content.add_widget(clear_button)
 
-        root.add_widget(
-            clear_button
-        )
+        scroll.add_widget(content)
+        root.add_widget(scroll)
 
-        root.add_widget(
-            Widget()
-        )
-
-        screen.add_widget(
-            root
-        )
-
+        screen.add_widget(root)
         return screen
 
 
@@ -5252,6 +5589,13 @@ class MainApp(App):
         self.sm.current = (
             "settings"
         )
+
+        try:
+            self.sm.get_screen(
+                "settings"
+            ).refresh_color_previews()
+        except Exception:
+            pass
 
 
     # =====================================================
