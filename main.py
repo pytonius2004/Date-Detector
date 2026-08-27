@@ -554,15 +554,25 @@ class RoundedButton(Button):
 class RoundedTextInput(TextInput):
 
     def __init__(self, **kwargs):
+        # На Android стандартный hint_text у Kivy иногда не отрисовывается.
+        # Поэтому рисуем placeholder отдельным Label поверх поля.
+        requested_hint = kwargs.pop("hint_text", "")
+        requested_hint_color = kwargs.pop("hint_text_color", TEXT)
+
         super().__init__(**kwargs)
 
         self.background_normal = ""
         self.background_active = ""
         self.background_color = (0, 0, 0, 0)
         self.foreground_color = TEXT
-        self.hint_text_color = TEXT_SECONDARY
         self.cursor_color = TEXT
         self.write_tab = False
+
+        # Отключаем встроенный hint_text: на некоторых Android-сборках
+        # он остаётся невидимым, хотя значение задано.
+        self.hint_text = ""
+        self._placeholder_text = requested_hint
+        self._placeholder_color = requested_hint_color
 
         with self.canvas.before:
             self._search_bg_color = Color(*CARD)
@@ -572,14 +582,70 @@ class RoundedTextInput(TextInput):
                 radius=[dp(18)],
             )
 
+        self._placeholder_label = Label(
+            text=self._placeholder_text,
+            color=self._placeholder_color,
+            halign="left",
+            valign="middle",
+            font_size=self.font_size,
+            size_hint=(None, None),
+        )
+        self.add_widget(self._placeholder_label)
+
         self.bind(
             pos=self._update_search_bg,
             size=self._update_search_bg,
+            padding=self._update_placeholder,
+            font_size=self._update_placeholder,
+            focus=self._update_placeholder,
+            text=self._update_placeholder,
         )
+
+        Clock.schedule_once(self._update_placeholder, 0)
 
     def _update_search_bg(self, *_):
         self._search_bg.pos = self.pos
         self._search_bg.size = self.size
+        self._update_placeholder()
+
+    def _update_placeholder(self, *_):
+        if not hasattr(self, "_placeholder_label"):
+            return
+
+        try:
+            pad = self.padding
+            if isinstance(pad, (tuple, list)):
+                pad_x = float(pad[0]) if len(pad) >= 1 else 0
+                pad_y = float(pad[1]) if len(pad) >= 2 else 0
+            else:
+                pad_x = float(pad or 0)
+                pad_y = 0
+        except Exception:
+            pad_x = dp(15)
+            pad_y = 0
+
+        self._placeholder_label.pos = (
+            self.x + pad_x,
+            self.y,
+        )
+        self._placeholder_label.size = (
+            max(0, self.width - pad_x * 2),
+            self.height,
+        )
+        self._placeholder_label.text_size = self._placeholder_label.size
+        self._placeholder_label.font_size = self.font_size
+
+        # Стандартное поведение placeholder:
+        # виден только когда поле пустое И не в фокусе.
+        if (not self.focus) and (not self.text):
+            self._placeholder_label.text = self._placeholder_text
+            self._placeholder_label.color = self._placeholder_color
+        else:
+            self._placeholder_label.text = ""
+
+    def set_placeholder(self, text):
+        self._placeholder_text = str(text or "")
+        self._update_placeholder()
 
 
 class RoundedPanel(BoxLayout):
@@ -3949,18 +4015,6 @@ class MainApp(App):
             font_size="16sp",
             padding=(dp(15), dp(13)),
         )
-        def update_search_hint(
-            instance,
-            focused
-        ):
-            if focused:
-                instance.hint_text = ""
-            elif not instance.text.strip():
-                instance.hint_text = "Поиск..."
-
-        search_input.bind(
-            focus=update_search_hint
-        )
 
         root.add_widget(search_input)
         screen.search_input = search_input
@@ -4120,14 +4174,6 @@ class MainApp(App):
             font_size="15sp",
             padding=(dp(15), dp(12)),
         )
-
-        def update_local_search_hint(instance, focused):
-            if focused:
-                instance.hint_text = ""
-            elif not instance.text.strip():
-                instance.hint_text = "Поиск..."
-
-        local_search.bind(focus=update_local_search_hint)
         local_search.bind(
             text=lambda _instance, value: screen.schedule_search(value)
         )
