@@ -582,6 +582,34 @@ class RoundedTextInput(TextInput):
         self._search_bg.size = self.size
 
 
+class RoundedPanel(BoxLayout):
+
+    def __init__(
+        self,
+        bg_color=(0.12, 0.13, 0.15, 1),
+        radius=24,
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+
+        with self.canvas.before:
+            self._panel_color = Color(*bg_color)
+            self._panel_rect = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(radius)],
+            )
+
+        self.bind(
+            pos=self._update_panel_canvas,
+            size=self._update_panel_canvas,
+        )
+
+    def _update_panel_canvas(self, *_):
+        self._panel_rect.pos = self.pos
+        self._panel_rect.size = self.size
+
+
 # =========================================================
 # PRODUCT CARD
 # =========================================================
@@ -1787,13 +1815,24 @@ class Database:
             ),
         )
 
+        remaining = self.conn.execute(
+            """
+            SELECT 1
+            FROM expirations
+            WHERE barcode = ?
+              AND written_off = 0
+            LIMIT 1
+            """,
+            (row["barcode"],),
+        ).fetchone()
+
         self.conn.execute(
             """
             UPDATE products
-            SET manual_no_date = 0
+            SET manual_no_date = ?
             WHERE barcode = ?
             """,
-            (row["barcode"],),
+            (0 if remaining else 1, row["barcode"]),
         )
 
         self.conn.commit()
@@ -1863,6 +1902,31 @@ class Database:
             (real_barcode,),
         )
         self.conn.commit()
+        return True
+
+    def delete_product_completely(
+        self,
+        barcode
+    ):
+        product = self.get_product(barcode)
+
+        if not product:
+            return False
+
+        real_barcode = product["barcode"]
+
+        # Явно удаляем сроки, затем сам товар.
+        # Это работает и со старыми БД, где foreign_keys могли быть выключены.
+        with self.conn:
+            self.conn.execute(
+                "DELETE FROM expirations WHERE barcode = ?",
+                (real_barcode,),
+            )
+            self.conn.execute(
+                "DELETE FROM products WHERE barcode = ?",
+                (real_barcode,),
+            )
+
         return True
 
     def update_product_record(
@@ -2069,218 +2133,146 @@ class Database:
         department=None,
         filter_mode="all",
         limit=40,
-        offset=0
+        offset=0,
+        search_query=""
     ):
+        department = str(department).strip() if department else ""
+        filter_mode = str(filter_mode or "all")
+        search_query = str(search_query or "").strip()
+        search_like = "%" + search_query + "%"
 
-        department = (
-            str(department).strip()
-            if department
-            else ""
-        )
-
-        filter_mode = str(
-            filter_mode or "all"
-        )
-
-        today_value = date.today().strftime(
-            DATE_DB_FORMAT
-        )
-
+        today_value = date.today().strftime(DATE_DB_FORMAT)
         where_filter = "1=1"
+        filter_params = []
+
+        if filter_mode == "expired":
+            where_filter = "a.next_exp IS NOT NULL AND a.next_exp < ?"
+            filter_params.append(today_value)
+
+        elif filter_mode == "expiring":
+            tomorrow_value = (
+                date.today() + timedelta(days=1)
+            ).strftime(DATE_DB_FORMAT)
+            where_filter = (
+                "a.next_exp IS NOT NULL "
+                "AND a.next_exp >= ? AND a.next_exp <= ?"
+            )
+            filter_params.extend([today_value, tomorrow_value])
+
+        elif filter_mode == "no_date":
+            where_filter = "a.next_exp IS NULL"
+
+        # Один GROUP BY вместо коррелированного подзапроса для каждого товара.
+        # На базе в сотни/тысячи товаров отдел открывается заметно быстрее.
+        query = f"""
+            WITH active_min AS (
+                SELECT barcode, MIN(exp_date) AS next_exp
+                FROM expirations
+                WHERE written_off = 0
+                GROUP BY barcode
+            )
+            SELECT
+                p.barcode,
+                p.name,
+                p.department,
+                p.photo_path,
+                p.photo_url,
+                p.manual_no_date,
+                a.next_exp
+            FROM products p
+            LEFT JOIN active_min a
+              ON a.barcode = p.barcode
+            WHERE COALESCE(p.hidden_from_list, 0) = 0
+              AND (? = '' OR p.department = ?)
+              AND (
+                    ? = ''
+                    OR p.name LIKE ? COLLATE NOCASE
+                    OR p.barcode LIKE ?
+              )
+              AND {where_filter}
+            ORDER BY
+                CASE WHEN a.next_exp IS NULL THEN 1 ELSE 0 END ASC,
+                a.next_exp ASC,
+                p.name COLLATE NOCASE ASC
+            LIMIT ? OFFSET ?
+        """
+
         params = [
             department,
             department,
+            search_query,
+            search_like,
+            search_like,
+            *filter_params,
+            int(limit),
+            int(offset),
         ]
 
-        if filter_mode == "expired":
-            where_filter = (
-                "next_exp IS NOT NULL "
-                "AND next_exp < ?"
-            )
-            params.append(
-                today_value
-            )
-
-        elif filter_mode == "expiring":
-            # Истекающий = сегодня ИЛИ завтра.
-            tomorrow_value = (
-                date.today()
-                +
-                timedelta(days=1)
-            ).strftime(
-                DATE_DB_FORMAT
-            )
-
-            where_filter = (
-                "next_exp IS NOT NULL "
-                "AND next_exp >= ? "
-                "AND next_exp <= ?"
-            )
-
-            params.extend(
-                [
-                    today_value,
-                    tomorrow_value,
-                ]
-            )
-
-        elif filter_mode == "no_date":
-            where_filter = (
-                "next_exp IS NULL"
-            )
-
-        params.extend(
-            [
-                int(limit),
-                int(offset),
-            ]
-        )
-
-        query = f"""
-            WITH product_rows AS (
-                SELECT
-                    p.barcode,
-                    p.name,
-                    p.department,
-                    p.photo_path,
-                    p.photo_url,
-                    p.manual_no_date,
-                    EXISTS(
-                        SELECT 1
-                        FROM expirations ew
-                        WHERE ew.barcode = p.barcode
-                          AND ew.written_off = 1
-                    ) AS has_written_off,
-                    (
-                        SELECT e.exp_date
-                        FROM expirations e
-                        WHERE e.barcode = p.barcode
-                          AND e.written_off = 0
-                        ORDER BY e.exp_date ASC, e.id ASC
-                        LIMIT 1
-                    ) AS next_exp
-                FROM products p
-                WHERE COALESCE(p.hidden_from_list, 0) = 0
-                  AND (
-                    ? = ''
-                    OR p.department = ?
-                    OR p.department = ''
-                )
-            )
-            SELECT *
-            FROM product_rows
-            WHERE {where_filter}
-            ORDER BY
-                CASE
-                    WHEN next_exp IS NULL
-                    THEN 1
-                    ELSE 0
-                END ASC,
-                next_exp ASC,
-                name COLLATE NOCASE ASC
-            LIMIT ?
-            OFFSET ?
-        """
-
-        return self.conn.execute(
-            query,
-            params,
-        ).fetchall()
+        return self.conn.execute(query, params).fetchall()
 
     def count_product_list(
         self,
         department=None,
-        filter_mode="all"
+        filter_mode="all",
+        search_query=""
     ):
+        department = str(department).strip() if department else ""
+        filter_mode = str(filter_mode or "all")
+        search_query = str(search_query or "").strip()
+        search_like = "%" + search_query + "%"
 
-        department = (
-            str(department).strip()
-            if department
-            else ""
-        )
-
-        filter_mode = str(
-            filter_mode or "all"
-        )
-
-        today_value = date.today().strftime(
-            DATE_DB_FORMAT
-        )
-
+        today_value = date.today().strftime(DATE_DB_FORMAT)
         where_filter = "1=1"
+        filter_params = []
+
+        if filter_mode == "expired":
+            where_filter = "a.next_exp IS NOT NULL AND a.next_exp < ?"
+            filter_params.append(today_value)
+
+        elif filter_mode == "expiring":
+            tomorrow_value = (
+                date.today() + timedelta(days=1)
+            ).strftime(DATE_DB_FORMAT)
+            where_filter = (
+                "a.next_exp IS NOT NULL "
+                "AND a.next_exp >= ? AND a.next_exp <= ?"
+            )
+            filter_params.extend([today_value, tomorrow_value])
+
+        elif filter_mode == "no_date":
+            where_filter = "a.next_exp IS NULL"
+
+        query = f"""
+            WITH active_min AS (
+                SELECT barcode, MIN(exp_date) AS next_exp
+                FROM expirations
+                WHERE written_off = 0
+                GROUP BY barcode
+            )
+            SELECT COUNT(*)
+            FROM products p
+            LEFT JOIN active_min a
+              ON a.barcode = p.barcode
+            WHERE COALESCE(p.hidden_from_list, 0) = 0
+              AND (? = '' OR p.department = ?)
+              AND (
+                    ? = ''
+                    OR p.name LIKE ? COLLATE NOCASE
+                    OR p.barcode LIKE ?
+              )
+              AND {where_filter}
+        """
+
         params = [
             department,
             department,
+            search_query,
+            search_like,
+            search_like,
+            *filter_params,
         ]
 
-        if filter_mode == "expired":
-            where_filter = (
-                "next_exp IS NOT NULL "
-                "AND next_exp < ?"
-            )
-            params.append(
-                today_value
-            )
-
-        elif filter_mode == "expiring":
-
-            tomorrow_value = (
-                date.today()
-                +
-                timedelta(days=1)
-            ).strftime(
-                DATE_DB_FORMAT
-            )
-
-            where_filter = (
-                "next_exp IS NOT NULL "
-                "AND next_exp >= ? "
-                "AND next_exp <= ?"
-            )
-
-            params.extend(
-                [
-                    today_value,
-                    tomorrow_value,
-                ]
-            )
-
-        elif filter_mode == "no_date":
-            where_filter = (
-                "next_exp IS NULL"
-            )
-
-        query = f"""
-            WITH product_rows AS (
-                SELECT
-                    p.barcode,
-                    (
-                        SELECT e.exp_date
-                        FROM expirations e
-                        WHERE e.barcode = p.barcode
-                          AND e.written_off = 0
-                        ORDER BY e.exp_date ASC, e.id ASC
-                        LIMIT 1
-                    ) AS next_exp
-                FROM products p
-                WHERE COALESCE(p.hidden_from_list, 0) = 0
-                  AND (
-                    ? = ''
-                    OR p.department = ?
-                    OR p.department = ''
-                )
-            )
-            SELECT COUNT(*)
-            FROM product_rows
-            WHERE {where_filter}
-        """
-
-        return int(
-            self.conn.execute(
-                query,
-                params,
-            ).fetchone()[0]
-        )
+        return int(self.conn.execute(query, params).fetchone()[0])
 
     def search_products(
         self,
@@ -2529,18 +2521,22 @@ class HomeScreen(BaseScreen):
         self,
         **kwargs
     ):
-        super().__init__(
-            **kwargs
-        )
+        super().__init__(**kwargs)
         self.filter_mode = "all"
+        self.search_query = ""
         self.loaded_count = 0
         self.total_count = 0
         self._load_generation = 0
+        self._search_event = None
 
     def on_pre_enter(
         self,
         *_
     ):
+        # При входе в отдел поиск начинается пустым.
+        self.search_query = ""
+        if hasattr(self, "search_input"):
+            self.search_input.text = ""
         self.refresh()
 
     def set_filter(
@@ -2550,14 +2546,35 @@ class HomeScreen(BaseScreen):
         self.filter_mode = mode
         self.refresh()
 
+    def set_search(
+        self,
+        value
+    ):
+        self.search_query = str(value or "").strip()
+        self.refresh()
+
+    def schedule_search(
+        self,
+        value
+    ):
+        # Не пересобираем весь список на каждый отдельный символ.
+        # Короткая задержка делает ввод плавнее на телефоне.
+        if self._search_event is not None:
+            try:
+                self._search_event.cancel()
+            except Exception:
+                pass
+
+        self._search_event = Clock.schedule_once(
+            lambda *_: self.set_search(value),
+            0.16,
+        )
+
     def refresh(self):
 
         self._load_generation += 1
 
-        if hasattr(
-            self,
-            "department_button"
-        ):
+        if hasattr(self, "department_button"):
             self.department_button.text = (
                 self.app.current_department
                 or
@@ -2565,29 +2582,51 @@ class HomeScreen(BaseScreen):
             )
 
         self.product_list.clear_widgets()
-
         self.loaded_count = 0
 
-        self.total_count = (
-            self.app.db.count_product_list(
-                self.app.current_department,
-                self.filter_mode,
-            )
+        self.total_count = self.app.db.count_product_list(
+            self.app.current_department,
+            self.filter_mode,
+            search_query=self.search_query,
         )
 
         if self.total_count == 0:
             self._show_empty()
             return
 
-        # Сначала рисуем только первую небольшую пачку.
-        # Поэтому отдел с 400-500 товарами открывается быстро.
         self.load_more()
+
+    def _capture_scroll_offset(self):
+        if not hasattr(self, "product_scroll"):
+            return None
+
+        scroll = self.product_scroll
+        content_height = max(0, self.product_list.height - scroll.height)
+        return (1.0 - scroll.scroll_y) * content_height
+
+    def _restore_scroll_offset(self, offset):
+        if offset is None or not hasattr(self, "product_scroll"):
+            return
+
+        scroll = self.product_scroll
+        content_height = max(0, self.product_list.height - scroll.height)
+
+        if content_height <= 0:
+            scroll.scroll_y = 1
+        else:
+            scroll.scroll_y = max(
+                0.0,
+                min(1.0, 1.0 - (offset / content_height))
+            )
 
     def load_more(self):
 
         if self.loaded_count >= self.total_count:
             return
 
+        # Запоминаем точное положение в пикселях относительно верха.
+        # После добавления карточек пользователь остаётся на том же товаре.
+        old_offset = self._capture_scroll_offset()
         generation = self._load_generation
 
         rows = self.app.db.get_product_list(
@@ -2595,30 +2634,23 @@ class HomeScreen(BaseScreen):
             self.filter_mode,
             limit=self.PAGE_SIZE,
             offset=self.loaded_count,
+            search_query=self.search_query,
         )
 
         if generation != self._load_generation:
             return
 
-        # Если снизу уже была кнопка "Показать ещё" — убираем её.
-        if hasattr(self, "more_button"):
+        if hasattr(self, "more_button") and self.more_button:
             try:
-                self.product_list.remove_widget(
-                    self.more_button
-                )
+                self.product_list.remove_widget(self.more_button)
             except Exception:
                 pass
             self.more_button = None
 
         today = date.today()
-        tomorrow = (
-            today
-            +
-            timedelta(days=1)
-        )
+        tomorrow = today + timedelta(days=1)
 
         for product in rows:
-
             exp_date = None
 
             if product["next_exp"]:
@@ -2642,7 +2674,6 @@ class HomeScreen(BaseScreen):
         self.loaded_count += len(rows)
 
         if self.loaded_count < self.total_count:
-
             self.more_button = RoundedButton(
                 text=(
                     "Показать ещё"
@@ -2654,15 +2685,16 @@ class HomeScreen(BaseScreen):
                 normal_color=BUTTON_BG,
                 down_color=BUTTON_BG_DOWN,
             )
-
             self.more_button.bind(
-                on_release=lambda *_:
-                self.load_more()
+                on_release=lambda *_: self.load_more()
             )
+            self.product_list.add_widget(self.more_button)
 
-            self.product_list.add_widget(
-                self.more_button
-            )
+        # Kivy должен сначала пересчитать minimum_height.
+        Clock.schedule_once(
+            lambda *_: self._restore_scroll_offset(old_offset),
+            0,
+        )
 
     def _show_empty(self):
 
@@ -2707,30 +2739,11 @@ class HomeScreen(BaseScreen):
 
         if exp_date is None:
 
-            manual_no_date = int(
-                product["manual_no_date"]
-                if "manual_no_date" in product.keys()
-                else 0
-            )
-
-            has_written_off = bool(
-                product["has_written_off"]
-                if "has_written_off" in product.keys()
-                else False
-            )
-
-            if (
-                has_written_off
-                and
-                not manual_no_date
-            ):
-                bg = BUTTON_BG
-                fg = TEXT
-                date_text = "Списано"
-            else:
-                bg = PURPLE
-                fg = TEXT
-                date_text = "Без даты"
+            # Без активной даты товар всегда фиолетовый.
+            # Отдельного серого состояния больше нет.
+            bg = PURPLE
+            fg = TEXT
+            date_text = "Без даты"
 
         elif exp_date < today:
 
@@ -3668,68 +3681,22 @@ class ProductScreen(BaseScreen):
             not has_active
         )
 
-        self.delete_expiration_button.disabled = (
-            not has_active
-        )
+        if hasattr(self, "delete_product_button"):
+            self.delete_product_button.disabled = False
 
     def write_off(self):
 
-        if not self.app.db.write_off_next(
-            self.barcode
-        ):
-
-            self.app.message(
-                "У товара нет активных сроков."
-            )
-
+        if not self.app.db.write_off_next(self.barcode):
+            self.app.message("У товара нет активных сроков.")
             return
 
-        next_item = (
-            self.app.db.get_next_expiration(
-                self.barcode
-            )
-        )
-
-        if next_item:
-
-            message = (
-                "Срок списан.\n\n"
-                "Следующий срок:\n"
-                +
-                format_date(
-                    next_item[
-                        "exp_date"
-                    ]
-                )
-            )
-
-        else:
-
-            message = (
-                "Срок списан.\n\n"
-                "Активных сроков больше нет."
-            )
-
-        self.app.message(
-            message
-        )
-
+        # Сразу возвращаемся в отдел. Карточка автоматически покажет
+        # следующий ближайший срок, а если сроков больше нет — попадёт
+        # в фиолетовый список «Без даты».
         self.app.open_home()
 
-    def delete_expiration(self):
-
-        if not self.app.db.remove_product_from_list(
-            self.barcode
-        ):
-            self.app.message(
-                "Не удалось убрать товар из списка."
-            )
-            return
-
-        self.app.message(
-            "Товар убран из списка."
-        )
-        self.app.open_home()
+    def delete_product(self):
+        self.app.confirm_delete_product(self.barcode)
 
 
 
@@ -3974,7 +3941,8 @@ class MainApp(App):
 
         # Поиск товара находится именно на стартовом экране.
         search_input = RoundedTextInput(
-            hint_text="Поиск",
+            hint_text="Поиск...",
+            hint_text_color=TEXT,
             multiline=False,
             size_hint_y=None,
             height=dp(52),
@@ -3988,7 +3956,7 @@ class MainApp(App):
             if focused:
                 instance.hint_text = ""
             elif not instance.text.strip():
-                instance.hint_text = "Поиск"
+                instance.hint_text = "Поиск..."
 
         search_input.bind(
             focus=update_search_hint
@@ -4142,6 +4110,31 @@ class MainApp(App):
         root.add_widget(department_button)
         screen.department_button = department_button
 
+        # Поиск только внутри текущего отдела.
+        local_search = RoundedTextInput(
+            hint_text="Поиск...",
+            hint_text_color=TEXT,
+            multiline=False,
+            size_hint_y=None,
+            height=dp(48),
+            font_size="15sp",
+            padding=(dp(15), dp(12)),
+        )
+
+        def update_local_search_hint(instance, focused):
+            if focused:
+                instance.hint_text = ""
+            elif not instance.text.strip():
+                instance.hint_text = "Поиск..."
+
+        local_search.bind(focus=update_local_search_hint)
+        local_search.bind(
+            text=lambda _instance, value: screen.schedule_search(value)
+        )
+
+        root.add_widget(local_search)
+        screen.search_input = local_search
+
         actions = BoxLayout(
             size_hint_y=None,
             height=dp(58),
@@ -4209,6 +4202,7 @@ class MainApp(App):
         screen.product_list = (
             product_list
         )
+        screen.product_scroll = scroll
 
         screen.add_widget(
             root
@@ -4790,8 +4784,8 @@ class MainApp(App):
             ),
         )
 
-        delete_expiration = RoundedButton(
-            text="Удалить срок",
+        delete_product = RoundedButton(
+            text="Удалить товар",
             font_size="16sp",
             normal_color=BUTTON_BG,
             down_color=BUTTON_BG_DOWN,
@@ -4802,9 +4796,9 @@ class MainApp(App):
             screen.write_off()
         )
 
-        delete_expiration.bind(
+        delete_product.bind(
             on_release=lambda *_:
-            screen.delete_expiration()
+            screen.delete_product()
         )
 
         action_row.add_widget(
@@ -4812,7 +4806,7 @@ class MainApp(App):
         )
 
         action_row.add_widget(
-            delete_expiration
+            delete_product
         )
 
         root.add_widget(
@@ -4844,8 +4838,8 @@ class MainApp(App):
             writeoff
         )
 
-        screen.delete_expiration_button = (
-            delete_expiration
+        screen.delete_product_button = (
+            delete_product
         )
 
         screen.add_widget(
@@ -6381,62 +6375,141 @@ class MainApp(App):
     # MESSAGE
     # =====================================================
 
+    def _open_rounded_dialog(
+        self,
+        message_text,
+        title_text=APP_TITLE,
+        confirm_text="OK",
+        on_confirm=None,
+        cancel_text=None,
+    ):
+        overlay = ModalView(
+            size_hint=(1, 1),
+            background_color=(0, 0, 0, 0.68),
+            auto_dismiss=False,
+        )
+
+        card = RoundedPanel(
+            orientation="vertical",
+            size_hint=(0.88, None),
+            height=dp(245 if cancel_text else 220),
+            padding=dp(18),
+            spacing=dp(14),
+            bg_color=(0.12, 0.13, 0.15, 1),
+            radius=24,
+        )
+
+        title = Label(
+            text=f"[b]{title_text}[/b]",
+            markup=True,
+            color=TEXT,
+            font_size="18sp",
+            size_hint_y=None,
+            height=dp(36),
+            halign="left",
+            valign="middle",
+        )
+        title.bind(
+            size=lambda instance, value: setattr(instance, "text_size", value)
+        )
+
+        label = Label(
+            text=message_text,
+            color=TEXT,
+            font_size="15sp",
+            halign="left",
+            valign="middle",
+        )
+        label.bind(
+            size=lambda instance, value: setattr(instance, "text_size", (value[0], None))
+        )
+
+        buttons = BoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=dp(52),
+            spacing=dp(10),
+        )
+
+        if cancel_text:
+            cancel = RoundedButton(
+                text=cancel_text,
+                font_size="15sp",
+                normal_color=BUTTON_BG,
+                down_color=BUTTON_BG_DOWN,
+            )
+            cancel.bind(on_release=lambda *_: overlay.dismiss())
+            buttons.add_widget(cancel)
+
+        confirm = RoundedButton(
+            text=confirm_text,
+            font_size="15sp",
+            normal_color=ACCENT_RED if cancel_text else BUTTON_BG,
+            down_color=ACCENT_RED_DOWN if cancel_text else BUTTON_BG_DOWN,
+        )
+
+        def do_confirm(*_):
+            overlay.dismiss()
+            if on_confirm:
+                on_confirm()
+
+        confirm.bind(on_release=do_confirm)
+        buttons.add_widget(confirm)
+
+        card.add_widget(title)
+        card.add_widget(label)
+        card.add_widget(buttons)
+
+        wrapper = AnchorLayout(
+            anchor_x="center",
+            anchor_y="center",
+        )
+        wrapper.add_widget(card)
+        overlay.add_widget(wrapper)
+        overlay.open()
+
     def message(
         self,
         text
     ):
-
-        content = BoxLayout(
-            orientation="vertical",
-            padding=dp(12),
-            spacing=dp(10),
+        self._open_rounded_dialog(
+            message_text=text,
+            title_text=APP_TITLE,
+            confirm_text="OK",
         )
 
-        label = Label(
-            text=text,
-            halign="left",
-            valign="middle",
-        )
+    def confirm_delete_product(self, barcode):
+        product = self.db.get_product(barcode)
 
-        label.bind(
-            size=lambda instance, value:
-            setattr(
-                instance,
-                "text_size",
-                value
-            )
-        )
+        if not product:
+            self.message("Товар не найден.")
+            return
 
-        ok = Button(
-            text="OK",
-            size_hint_y=None,
-            height=dp(48),
-        )
+        name = product["name"] or barcode
 
-        content.add_widget(
-            label
-        )
+        def do_delete():
+            if self.db.delete_product_completely(barcode):
+                # Удаляем также локально кэшированное изображение, если оно было.
+                try:
+                    cached = Path(self.get_cached_photo_path(barcode))
+                    if cached.exists():
+                        cached.unlink()
+                except Exception:
+                    pass
+                self.open_home()
+            else:
+                self.message("Не удалось удалить товар.")
 
-        content.add_widget(
-            ok
-        )
-
-        popup = Popup(
-            title=APP_TITLE,
-            content=content,
-            size_hint=(
-                0.90,
-                0.55,
+        self._open_rounded_dialog(
+            message_text=(
+                f"Удалить товар «{name}»?\n\n"
+                "Будут удалены сам товар и все его сроки годности."
             ),
-            auto_dismiss=False,
+            title_text="Удалить товар",
+            confirm_text="Удалить",
+            cancel_text="Отмена",
+            on_confirm=do_delete,
         )
-
-        ok.bind(
-            on_release=
-            popup.dismiss
-        )
-
-        popup.open()
 
 
     # =====================================================
