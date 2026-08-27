@@ -31,7 +31,8 @@ Config.set("kivy", "exit_on_escape", "0")
 from kivy.app import App
 from kivy.clock import Clock, mainthread
 from kivy.core.window import Window
-from kivy.graphics import Color, RoundedRectangle
+from kivy.core.text import Label as CoreLabel
+from kivy.graphics import Color, RoundedRectangle, Rectangle
 from kivy.metrics import dp
 from kivy.properties import ListProperty, StringProperty
 
@@ -595,102 +596,241 @@ class RoundedButton(Button):
             color
         )
 
+    def set_foreground(self, color):
+        # Унифицированный метод для кнопок-предпросмотров цвета.
+        self.color = list(color)
+
 
 class RoundedTextInput(TextInput):
 
     def __init__(self, **kwargs):
-        # На Android стандартный hint_text у Kivy иногда не отрисовывается.
-        # Поэтому рисуем placeholder отдельным Label поверх поля.
-        requested_hint = kwargs.pop("hint_text", "")
-        requested_hint_color = kwargs.pop("hint_text_color", TEXT)
+
+        requested_hint = kwargs.pop(
+            "hint_text",
+            ""
+        )
+
+        requested_hint_color = kwargs.pop(
+            "hint_text_color",
+            TEXT
+        )
 
         super().__init__(**kwargs)
 
         self.background_normal = ""
         self.background_active = ""
-        self.background_color = (0, 0, 0, 0)
+        self.background_color = (
+            0,
+            0,
+            0,
+            0,
+        )
+
         self.foreground_color = TEXT
         self.cursor_color = TEXT
         self.write_tab = False
 
-        # Отключаем встроенный hint_text: на некоторых Android-сборках
-        # он остаётся невидимым, хотя значение задано.
+        # Не используем стандартный hint_text Kivy.
+        # На некоторых Android-сборках он есть логически,
+        # но визуально вообще не рисуется.
         self.hint_text = ""
-        self._placeholder_text = requested_hint
-        self._placeholder_color = requested_hint_color
+
+        self._placeholder_text = str(
+            requested_hint or ""
+        )
+
+        self._placeholder_color = tuple(
+            requested_hint_color
+        )
+
+        self._placeholder_core = None
 
         with self.canvas.before:
-            self._search_bg_color = Color(*CARD)
+
+            self._search_bg_color = Color(
+                *CARD
+            )
+
             self._search_bg = RoundedRectangle(
                 pos=self.pos,
                 size=self.size,
-                radius=[dp(18)],
+                radius=[
+                    dp(18)
+                ],
             )
 
-        self._placeholder_label = Label(
-            text=self._placeholder_text,
-            color=self._placeholder_color,
-            halign="left",
-            valign="middle",
-            font_size=self.font_size,
-            size_hint=(None, None),
-        )
-        self.add_widget(self._placeholder_label)
+        # Рисуем placeholder ПОСЛЕ внутреннего canvas TextInput,
+        # поэтому Android/Kivy уже не может закрыть его фоном поля.
+        with self.canvas.after:
+
+            self._placeholder_canvas_color = Color(
+                1,
+                1,
+                1,
+                0,
+            )
+
+            self._placeholder_rect = Rectangle(
+                pos=self.pos,
+                size=(0, 0),
+            )
 
         self.bind(
-            pos=self._update_search_bg,
-            size=self._update_search_bg,
-            padding=self._update_placeholder,
-            font_size=self._update_placeholder,
-            focus=self._update_placeholder,
-            text=self._update_placeholder,
+            pos=self._update_search_visuals,
+            size=self._update_search_visuals,
+            padding=self._update_search_visuals,
+            font_size=self._update_search_visuals,
+            focus=self._update_search_visuals,
+            text=self._update_search_visuals,
         )
 
-        Clock.schedule_once(self._update_placeholder, 0)
+        Clock.schedule_once(
+            self._update_search_visuals,
+            0,
+        )
 
-    def _update_search_bg(self, *_):
+    def _update_search_visuals(
+        self,
+        *_
+    ):
+
         self._search_bg.pos = self.pos
         self._search_bg.size = self.size
-        self._update_placeholder()
 
-    def _update_placeholder(self, *_):
-        if not hasattr(self, "_placeholder_label"):
+        # Как в обычных приложениях:
+        # placeholder виден только когда поле ПУСТОЕ и НЕ в фокусе.
+        visible = (
+            (not self.focus)
+            and
+            (not self.text)
+            and
+            bool(self._placeholder_text)
+        )
+
+        if not visible:
+
+            self._placeholder_canvas_color.rgba = (
+                1,
+                1,
+                1,
+                0,
+            )
+
+            self._placeholder_rect.texture = None
+            self._placeholder_rect.size = (
+                0,
+                0,
+            )
+
             return
 
         try:
-            pad = self.padding
-            if isinstance(pad, (tuple, list)):
-                pad_x = float(pad[0]) if len(pad) >= 1 else 0
-                pad_y = float(pad[1]) if len(pad) >= 2 else 0
-            else:
-                pad_x = float(pad or 0)
-                pad_y = 0
+
+            rgba = tuple(
+                float(x)
+                for x in self._placeholder_color[:4]
+            )
+
         except Exception:
+
+            rgba = TEXT
+
+        # CoreLabel создаёт обычную текстуру текста.
+        # Это намного надёжнее child-Label внутри TextInput на Android.
+        self._placeholder_core = CoreLabel(
+            text=self._placeholder_text,
+            font_size=self.font_size,
+            color=rgba,
+        )
+
+        self._placeholder_core.refresh()
+
+        texture = (
+            self._placeholder_core.texture
+        )
+
+        if texture is None:
+            return
+
+        try:
+
+            pad = self.padding
+
+            if isinstance(
+                pad,
+                (tuple, list)
+            ):
+
+                pad_x = (
+                    float(pad[0])
+                    if len(pad) >= 1
+                    else dp(15)
+                )
+
+            else:
+
+                pad_x = float(
+                    pad or dp(15)
+                )
+
+        except Exception:
+
             pad_x = dp(15)
-            pad_y = 0
 
-        self._placeholder_label.pos = (
-            self.x + pad_x,
-            self.y,
+        tex_w, tex_h = texture.size
+
+        x = (
+            self.x
+            +
+            pad_x
         )
-        self._placeholder_label.size = (
-            max(0, self.width - pad_x * 2),
-            self.height,
+
+        y = (
+            self.y
+            +
+            max(
+                0,
+                (
+                    self.height
+                    -
+                    tex_h
+                )
+                /
+                2
+            )
         )
-        self._placeholder_label.text_size = self._placeholder_label.size
-        self._placeholder_label.font_size = self.font_size
 
-        # Стандартное поведение placeholder:
-        # виден только когда поле пустое И не в фокусе.
-        if (not self.focus) and (not self.text):
-            self._placeholder_label.text = self._placeholder_text
-            self._placeholder_label.color = self._placeholder_color
-        else:
-            self._placeholder_label.text = ""
+        self._placeholder_canvas_color.rgba = (
+            1,
+            1,
+            1,
+            1,
+        )
 
-    def set_placeholder(self, text):
-        self._placeholder_text = str(text or "")
-        self._update_placeholder()
+        self._placeholder_rect.texture = (
+            texture
+        )
+
+        self._placeholder_rect.pos = (
+            x,
+            y,
+        )
+
+        self._placeholder_rect.size = (
+            tex_w,
+            tex_h,
+        )
+
+    def set_placeholder(
+        self,
+        text
+    ):
+
+        self._placeholder_text = str(
+            text or ""
+        )
+
+        self._update_search_visuals()
 
 
 class RoundedPanel(BoxLayout):
@@ -4297,7 +4437,7 @@ class MainApp(App):
         # Поиск товара находится именно на стартовом экране.
         search_input = RoundedTextInput(
             hint_text="Поиск...",
-            hint_text_color=TEXT,
+            hint_text_color=(1, 1, 1, 1),
             multiline=False,
             size_hint_y=None,
             height=dp(52),
@@ -4456,7 +4596,7 @@ class MainApp(App):
         # Поиск только внутри текущего отдела.
         local_search = RoundedTextInput(
             hint_text="Поиск...",
-            hint_text_color=TEXT,
+            hint_text_color=(1, 1, 1, 1),
             multiline=False,
             size_hint_y=None,
             height=dp(48),
@@ -5240,105 +5380,87 @@ class MainApp(App):
             minimum_height=content.setter("height")
         )
 
-        try:
-            colors_title = Label(
-                text="Цвета статусов товаров",
-                color=TEXT,
-                bold=True,
-                font_size="18sp",
+        colors_title = Label(
+            text="Цвета статусов товаров",
+            color=TEXT,
+            bold=True,
+            font_size="18sp",
+            size_hint_y=None,
+            height=dp(42),
+            halign="left",
+            valign="middle",
+        )
+        colors_title.bind(
+            size=lambda instance, value:
+            setattr(instance, "text_size", value)
+        )
+        content.add_widget(colors_title)
+
+        colors_help = Label(
+            text=(
+                "Нажми на нужный статус, чтобы выбрать его цвет. "
+                "Настройка сохраняется автоматически."
+            ),
+            color=TEXT_SECONDARY,
+            font_size="13sp",
+            size_hint_y=None,
+            height=dp(58),
+            halign="left",
+            valign="middle",
+        )
+        colors_help.bind(
+            size=lambda instance, value:
+            setattr(instance, "text_size", (value[0], None))
+        )
+        content.add_widget(colors_help)
+
+        screen.color_previews = {}
+
+        for key in (
+            "expired",
+            "today",
+            "tomorrow",
+            "no_date",
+            "normal",
+        ):
+            color = self.get_status_color(key)
+
+            button = RoundedButton(
+                text=STATUS_COLOR_LABELS[key],
                 size_hint_y=None,
-                height=dp(42),
-                halign="left",
-                valign="middle",
+                height=dp(56),
+                font_size="15sp",
+                normal_color=color,
+                down_color=tuple(
+                    max(0, c * 0.82)
+                    for c in color[:3]
+                ) + (1,),
             )
-            colors_title.bind(
-                size=lambda instance, value:
-                setattr(instance, "text_size", value)
+            button.set_foreground(
+                readable_text_color(color)
             )
-            content.add_widget(colors_title)
-
-            colors_help = Label(
-                text=(
-                    "Нажми на нужный статус, чтобы выбрать его цвет. "
-                    "Настройка сохраняется автоматически."
-                ),
-                color=TEXT_SECONDARY,
-                font_size="13sp",
-                size_hint_y=None,
-                height=dp(58),
-                halign="left",
-                valign="middle",
+            button.bind(
+                on_release=lambda _button, status=key:
+                self.open_status_color_picker(status)
             )
-            colors_help.bind(
-                size=lambda instance, value:
-                setattr(instance, "text_size", (value[0], None))
-            )
-            content.add_widget(colors_help)
 
-            screen.color_previews = {}
+            screen.color_previews[key] = button
+            content.add_widget(button)
 
-            for key in (
-                "expired",
-                "today",
-                "tomorrow",
-                "no_date",
-                "normal",
-            ):
-                color = self.get_status_color(key)
+        reset_colors = RoundedButton(
+            text="Сбросить цвета",
+            size_hint_y=None,
+            height=dp(50),
+            font_size="14sp",
+            normal_color=BUTTON_BG,
+            down_color=BUTTON_BG_DOWN,
+        )
+        reset_colors.bind(
+            on_release=lambda *_:
+            self.reset_status_colors()
+        )
+        content.add_widget(reset_colors)
 
-                button = RoundedButton(
-                    text=STATUS_COLOR_LABELS[key],
-                    size_hint_y=None,
-                    height=dp(56),
-                    font_size="15sp",
-                    normal_color=color,
-                    down_color=tuple(
-                        max(0, c * 0.82)
-                        for c in color[:3]
-                    ) + (1,),
-                )
-                button.set_foreground(
-                    readable_text_color(color)
-                )
-                button.bind(
-                    on_release=lambda _button, status=key:
-                    self.open_status_color_picker(status)
-                )
-
-                screen.color_previews[key] = button
-                content.add_widget(button)
-
-            reset_colors = RoundedButton(
-                text="Сбросить цвета",
-                size_hint_y=None,
-                height=dp(50),
-                font_size="14sp",
-                normal_color=BUTTON_BG,
-                down_color=BUTTON_BG_DOWN,
-            )
-            reset_colors.bind(
-                on_release=lambda *_:
-                self.reset_status_colors()
-            )
-            content.add_widget(reset_colors)
-
-        except Exception as exc:
-            print("status color settings UI error:", exc)
-
-            fallback = Label(
-                text="Настройка цветов временно недоступна.",
-                color=TEXT_SECONDARY,
-                font_size="14sp",
-                size_hint_y=None,
-                height=dp(52),
-                halign="center",
-                valign="middle",
-            )
-            fallback.bind(
-                size=lambda instance, value:
-                setattr(instance, "text_size", value)
-            )
-            content.add_widget(fallback)
 
         divider = Widget(
             size_hint_y=None,
