@@ -3812,9 +3812,15 @@ class SettingsScreen(BaseScreen):
         previews = getattr(self, "color_previews", {})
 
         for key, widget in previews.items():
-            color = self.app.get_status_color(key)
-            widget.background_color = color
-            widget.set_foreground(readable_text_color(color))
+            try:
+                color = self.app.get_status_color(key)
+                widget.normal_color = list(color)
+                widget.down_color = list(
+                    tuple(max(0.0, c * 0.82) for c in color[:3]) + (1,)
+                )
+                widget.set_foreground(readable_text_color(color))
+            except Exception as exc:
+                print("color preview refresh error:", exc)
 
 
 
@@ -3903,6 +3909,11 @@ class MainApp(App):
     def _save_status_colors(self):
 
         try:
+            self.status_colors_path.parent.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+
             self.status_colors_path.write_text(
                 json.dumps(
                     self.status_colors,
@@ -3911,11 +3922,11 @@ class MainApp(App):
                 ),
                 encoding="utf-8",
             )
+            return True
+
         except Exception as exc:
-            self.message(
-                "Не удалось сохранить цвета:\n\n"
-                + str(exc)
-            )
+            print("status color save error:", exc)
+            return False
 
     def get_status_color(self, key):
 
@@ -3978,44 +3989,25 @@ class MainApp(App):
 
     def open_status_color_picker(self, status_key):
 
-        overlay = ModalView(
-            size_hint=(1, 1),
-            background_color=(0, 0, 0, 0.68),
-            auto_dismiss=True,
-        )
+        if status_key not in DEFAULT_STATUS_COLORS:
+            return
 
-        card = BoxLayout(
+        content = BoxLayout(
             orientation="vertical",
-            size_hint=(0.88, None),
-            height=dp(390),
-            padding=dp(16),
-            spacing=dp(12),
+            spacing=dp(10),
+            padding=dp(14),
         )
-
-        with card.canvas.before:
-            bg_color = Color(0.12, 0.13, 0.15, 1)
-            bg_rect = RoundedRectangle(
-                pos=card.pos,
-                size=card.size,
-                radius=[dp(24)],
-            )
-
-        def update_card(*_):
-            bg_rect.pos = card.pos
-            bg_rect.size = card.size
-
-        card.bind(pos=update_card, size=update_card)
 
         title = Label(
             text=(
-                "Цвет: "
+                "Выберите цвет:\n"
                 + STATUS_COLOR_LABELS.get(status_key, status_key)
             ),
             color=TEXT,
             bold=True,
-            font_size="19sp",
+            font_size="17sp",
             size_hint_y=None,
-            height=dp(48),
+            height=dp(64),
             halign="center",
             valign="middle",
         )
@@ -4023,59 +4015,85 @@ class MainApp(App):
             size=lambda instance, value:
             setattr(instance, "text_size", value)
         )
-        card.add_widget(title)
+        content.add_widget(title)
 
-        palette = BoxLayout(
+        rows_box = BoxLayout(
             orientation="vertical",
             spacing=dp(10),
         )
+        content.add_widget(rows_box)
 
-        palette_colors = STATUS_COLOR_PALETTE
+        popup_holder = {"popup": None}
 
         for row_start in (0, 5):
             row = BoxLayout(
                 spacing=dp(10),
-                size_hint_y=1,
+                size_hint_y=None,
+                height=dp(58),
             )
 
-            for color in palette_colors[row_start:row_start + 5]:
-                swatch = RoundedButton(
-                    text="✓" if tuple(self.get_status_color(status_key)) == tuple(color) else "",
-                    font_size="20sp",
-                    normal_color=color,
-                    down_color=tuple(max(0, c * 0.82) for c in color[:3]) + (1,),
+            for color in STATUS_COLOR_PALETTE[row_start:row_start + 5]:
+                selected = (
+                    tuple(round(x, 4) for x in self.get_status_color(status_key))
+                    ==
+                    tuple(round(x, 4) for x in color)
                 )
-                swatch.set_foreground(readable_text_color(color))
+
+                swatch = RoundedButton(
+                    text="✓" if selected else "",
+                    font_size="19sp",
+                    normal_color=list(color),
+                    down_color=list(
+                        tuple(max(0.0, c * 0.82) for c in color[:3]) + (1,)
+                    ),
+                )
+                swatch.set_foreground(
+                    readable_text_color(color)
+                )
 
                 def choose(_button, chosen=color):
-                    self.set_status_color(status_key, chosen)
-                    overlay.dismiss()
+                    self.set_status_color(
+                        status_key,
+                        chosen,
+                    )
+                    popup = popup_holder.get("popup")
+                    if popup is not None:
+                        popup.dismiss()
 
-                swatch.bind(on_release=choose)
+                swatch.bind(
+                    on_release=choose
+                )
                 row.add_widget(swatch)
 
-            palette.add_widget(row)
-
-        card.add_widget(palette)
+            rows_box.add_widget(row)
 
         cancel = RoundedButton(
             text="Отмена",
             size_hint_y=None,
-            height=dp(54),
+            height=dp(52),
             font_size="15sp",
             normal_color=BUTTON_BG,
             down_color=BUTTON_BG_DOWN,
         )
-        cancel.bind(on_release=lambda *_: overlay.dismiss())
-        card.add_widget(cancel)
+        content.add_widget(cancel)
 
-        wrapper = AnchorLayout(
-            anchor_x="center",
-            anchor_y="center",
+        popup = Popup(
+            title="",
+            content=content,
+            size_hint=(0.90, None),
+            height=dp(300),
+            auto_dismiss=True,
+            separator_height=0,
+            background="",
+            background_color=(0.12, 0.13, 0.15, 1),
         )
-        wrapper.add_widget(card)
-        overlay.add_widget(wrapper)
-        overlay.open()
+        popup_holder["popup"] = popup
+        cancel.bind(
+            on_release=lambda *_:
+            popup.dismiss()
+        )
+
+        popup.open()
 
     def build(self):
 
@@ -4095,7 +4113,15 @@ class MainApp(App):
             /
             "status_colors.json"
         )
-        self.status_colors = self._load_status_colors()
+
+        try:
+            self.status_colors = self._load_status_colors()
+        except Exception as exc:
+            print("status colors startup fallback:", exc)
+            self.status_colors = {
+                key: list(value)
+                for key, value in DEFAULT_STATUS_COLORS.items()
+            }
 
         self.db = Database(
             self.db_path
@@ -5214,86 +5240,105 @@ class MainApp(App):
             minimum_height=content.setter("height")
         )
 
-        colors_title = Label(
-            text="Цвета статусов товаров",
-            color=TEXT,
-            bold=True,
-            font_size="18sp",
-            size_hint_y=None,
-            height=dp(42),
-            halign="left",
-            valign="middle",
-        )
-        colors_title.bind(
-            size=lambda instance, value:
-            setattr(instance, "text_size", value)
-        )
-        content.add_widget(colors_title)
-
-        colors_help = Label(
-            text=(
-                "Нажми на нужный статус, чтобы выбрать его цвет. "
-                "Настройка сохраняется автоматически."
-            ),
-            color=TEXT_SECONDARY,
-            font_size="13sp",
-            size_hint_y=None,
-            height=dp(58),
-            halign="left",
-            valign="middle",
-        )
-        colors_help.bind(
-            size=lambda instance, value:
-            setattr(instance, "text_size", (value[0], None))
-        )
-        content.add_widget(colors_help)
-
-        screen.color_previews = {}
-
-        for key in (
-            "expired",
-            "today",
-            "tomorrow",
-            "no_date",
-            "normal",
-        ):
-            color = self.get_status_color(key)
-
-            button = RoundedButton(
-                text=STATUS_COLOR_LABELS[key],
+        try:
+            colors_title = Label(
+                text="Цвета статусов товаров",
+                color=TEXT,
+                bold=True,
+                font_size="18sp",
                 size_hint_y=None,
-                height=dp(56),
-                font_size="15sp",
-                normal_color=color,
-                down_color=tuple(
-                    max(0, c * 0.82)
-                    for c in color[:3]
-                ) + (1,),
+                height=dp(42),
+                halign="left",
+                valign="middle",
             )
-            button.set_foreground(
-                readable_text_color(color)
+            colors_title.bind(
+                size=lambda instance, value:
+                setattr(instance, "text_size", value)
             )
-            button.bind(
-                on_release=lambda _button, status=key:
-                self.open_status_color_picker(status)
-            )
+            content.add_widget(colors_title)
 
-            screen.color_previews[key] = button
-            content.add_widget(button)
+            colors_help = Label(
+                text=(
+                    "Нажми на нужный статус, чтобы выбрать его цвет. "
+                    "Настройка сохраняется автоматически."
+                ),
+                color=TEXT_SECONDARY,
+                font_size="13sp",
+                size_hint_y=None,
+                height=dp(58),
+                halign="left",
+                valign="middle",
+            )
+            colors_help.bind(
+                size=lambda instance, value:
+                setattr(instance, "text_size", (value[0], None))
+            )
+            content.add_widget(colors_help)
 
-        reset_colors = RoundedButton(
-            text="Сбросить цвета",
-            size_hint_y=None,
-            height=dp(50),
-            font_size="14sp",
-            normal_color=BUTTON_BG,
-            down_color=BUTTON_BG_DOWN,
-        )
-        reset_colors.bind(
-            on_release=lambda *_:
-            self.reset_status_colors()
-        )
-        content.add_widget(reset_colors)
+            screen.color_previews = {}
+
+            for key in (
+                "expired",
+                "today",
+                "tomorrow",
+                "no_date",
+                "normal",
+            ):
+                color = self.get_status_color(key)
+
+                button = RoundedButton(
+                    text=STATUS_COLOR_LABELS[key],
+                    size_hint_y=None,
+                    height=dp(56),
+                    font_size="15sp",
+                    normal_color=color,
+                    down_color=tuple(
+                        max(0, c * 0.82)
+                        for c in color[:3]
+                    ) + (1,),
+                )
+                button.set_foreground(
+                    readable_text_color(color)
+                )
+                button.bind(
+                    on_release=lambda _button, status=key:
+                    self.open_status_color_picker(status)
+                )
+
+                screen.color_previews[key] = button
+                content.add_widget(button)
+
+            reset_colors = RoundedButton(
+                text="Сбросить цвета",
+                size_hint_y=None,
+                height=dp(50),
+                font_size="14sp",
+                normal_color=BUTTON_BG,
+                down_color=BUTTON_BG_DOWN,
+            )
+            reset_colors.bind(
+                on_release=lambda *_:
+                self.reset_status_colors()
+            )
+            content.add_widget(reset_colors)
+
+        except Exception as exc:
+            print("status color settings UI error:", exc)
+
+            fallback = Label(
+                text="Настройка цветов временно недоступна.",
+                color=TEXT_SECONDARY,
+                font_size="14sp",
+                size_hint_y=None,
+                height=dp(52),
+                halign="center",
+                valign="middle",
+            )
+            fallback.bind(
+                size=lambda instance, value:
+                setattr(instance, "text_size", value)
+            )
+            content.add_widget(fallback)
 
         divider = Widget(
             size_hint_y=None,
