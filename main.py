@@ -34,12 +34,13 @@ from kivy.core.window import Window
 from kivy.core.text import Label as CoreLabel
 from kivy.graphics import Color, RoundedRectangle, Rectangle, Ellipse, Line
 from kivy.metrics import dp
-from kivy.properties import ListProperty, StringProperty
+from kivy.properties import ListProperty, StringProperty, BooleanProperty
 
 from kivy.uix.behaviors import ButtonBehavior
 from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.modalview import ModalView
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.gridlayout import GridLayout
 from kivy.uix.button import Button
 from kivy.uix.image import Image, AsyncImage
 from kivy.uix.label import Label
@@ -303,7 +304,7 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки Годности"
-BUILD_MARKER = "polish_edit_multi_exp_purple_v12"
+BUILD_MARKER = "v15.1_actual_sort_colors"
 
 HEADER_TITLE = "Pyton Detector"
 
@@ -5639,6 +5640,23 @@ class MainApp(App):
             )
         )
 
+        # Специально оставляем видимый маркер сборки:
+        # если его нет на телефоне, значит APK собран не из этого main.py.
+        version_label = Label(
+            text="Интерфейс v15.1",
+            color=TEXT_SECONDARY,
+            font_size="11sp",
+            size_hint_y=None,
+            height=dp(22),
+            halign="center",
+            valign="middle",
+        )
+        version_label.bind(
+            size=lambda instance, value:
+            setattr(instance, "text_size", value)
+        )
+        root.add_widget(version_label)
+
         scroll = ScrollView(
             do_scroll_x=False,
         )
@@ -5671,8 +5689,8 @@ class MainApp(App):
 
         colors_help = Label(
             text=(
-                "Нажми на нужный статус, чтобы выбрать его цвет. "
-                "Настройка сохраняется автоматически."
+                "Нажми на статус: отдельно настраиваются цвет карточки "
+                "и цвет текста. Настройка сохраняется автоматически."
             ),
             color=TEXT_SECONDARY,
             font_size="13sp",
@@ -7468,4 +7486,5 @@ class MainApp(App):
 
 if __name__ == "__main__":
 
+    print("PYTON DETECTOR UI BUILD: v15.1_actual_sort_colors")
     MainApp().run()
