@@ -62,51 +62,51 @@ from kivy.utils import platform
 # =========================================================
 
 BG = (
-    0.045,
-    0.047,
-    0.055,
+    0.965,
+    0.968,
+    0.975,
     1,
 )
 
 CARD = (
-    0.10,
-    0.105,
-    0.12,
+    1.0,
+    1.0,
+    1.0,
     1,
 )
 
 CARD_DISABLED = (
-    0.20,
-    0.20,
-    0.22,
+    0.88,
+    0.89,
+    0.91,
     1,
 )
 
 TEXT = (
-    0.96,
-    0.96,
-    0.97,
+    0.09,
+    0.10,
+    0.12,
     1,
 )
 
 TEXT_SECONDARY = (
-    0.67,
-    0.68,
-    0.72,
+    0.39,
+    0.41,
+    0.46,
     1,
 )
 
 BUTTON_BG = (
-    0.20,
-    0.21,
-    0.24,
+    0.91,
+    0.92,
+    0.94,
     1,
 )
 
 BUTTON_BG_DOWN = (
-    0.27,
-    0.28,
-    0.32,
+    0.83,
+    0.85,
+    0.88,
     1,
 )
 
@@ -304,7 +304,7 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки Годности"
-BUILD_MARKER = "v16.1_color_screen_fix"
+BUILD_MARKER = "v16.2_hide_card_color_preview"
 
 HEADER_TITLE = "Pyton Detector"
 
@@ -719,7 +719,7 @@ class SettingsColorRow(ButtonBehavior, BoxLayout):
 
     preview_color = ListProperty((1, 1, 1, 1))
 
-    def __init__(self, title="", preview_color=(1, 1, 1, 1), **kwargs):
+    def __init__(self, title="", preview_color=(1, 1, 1, 1), show_preview=True, **kwargs):
         super().__init__(**kwargs)
 
         self.orientation = "horizontal"
@@ -756,39 +756,46 @@ class SettingsColorRow(ButtonBehavior, BoxLayout):
         )
         self.add_widget(self.title_label)
 
-        self.preview = Widget(
-            size_hint=(None, None),
-            size=(dp(34), dp(34)),
-        )
+        self.show_preview = bool(show_preview)
+        self.preview = None
+        self._preview_color_instruction = None
+        self._preview_rect = None
+        self._preview_border = None
 
-        with self.preview.canvas.before:
-            self._preview_color_instruction = Color(*self.preview_color)
-            self._preview_rect = RoundedRectangle(
-                pos=self.preview.pos,
-                size=self.preview.size,
-                radius=[dp(10)],
-            )
-            self._preview_border_color = Color(1, 1, 1, 0.28)
-            self._preview_border = Line(
-                rounded_rectangle=(
-                    self.preview.x,
-                    self.preview.y,
-                    self.preview.width,
-                    self.preview.height,
-                    dp(10),
-                ),
-                width=dp(1),
+        if self.show_preview:
+            self.preview = Widget(
+                size_hint=(None, None),
+                size=(dp(34), dp(34)),
             )
 
-        self.preview.bind(
-            pos=self._update_preview,
-            size=self._update_preview,
-        )
-        self.bind(
-            preview_color=self._update_preview,
-        )
+            with self.preview.canvas.before:
+                self._preview_color_instruction = Color(*self.preview_color)
+                self._preview_rect = RoundedRectangle(
+                    pos=self.preview.pos,
+                    size=self.preview.size,
+                    radius=[dp(10)],
+                )
+                self._preview_border_color = Color(0.15, 0.16, 0.18, 0.24)
+                self._preview_border = Line(
+                    rounded_rectangle=(
+                        self.preview.x,
+                        self.preview.y,
+                        self.preview.width,
+                        self.preview.height,
+                        dp(10),
+                    ),
+                    width=dp(1),
+                )
 
-        self.add_widget(self.preview)
+            self.preview.bind(
+                pos=self._update_preview,
+                size=self._update_preview,
+            )
+            self.bind(
+                preview_color=self._update_preview,
+            )
+
+            self.add_widget(self.preview)
 
     def _update_row(self, *_):
         self._row_rect.pos = self.pos
@@ -798,6 +805,9 @@ class SettingsColorRow(ButtonBehavior, BoxLayout):
         )
 
     def _update_preview(self, *_):
+        if not self.show_preview or self.preview is None:
+            return
+
         self._preview_color_instruction.rgba = tuple(self.preview_color)
         self._preview_rect.pos = self.preview.pos
         self._preview_rect.size = self.preview.size
@@ -1015,11 +1025,8 @@ class RoundedTextInput(TextInput):
             )
         )
 
-        self._placeholder_canvas_color.rgba = (
-            1,
-            1,
-            1,
-            1,
+        self._placeholder_canvas_color.rgba = tuple(
+            self._placeholder_color
         )
 
         self._placeholder_rect.texture = (
@@ -1052,7 +1059,7 @@ class RoundedPanel(BoxLayout):
 
     def __init__(
         self,
-        bg_color=(0.12, 0.13, 0.15, 1),
+        bg_color=CARD,
         radius=24,
         **kwargs
     ):
@@ -4301,10 +4308,19 @@ class MainApp(App):
                         isinstance(saved_global_text, list)
                         and len(saved_global_text) == 4
                     ):
-                        global_text = [
+                        loaded_text = [
                             max(0.0, min(1.0, float(channel)))
                             for channel in saved_global_text
                         ]
+
+                        old_dark_theme_default = (0.96, 0.96, 0.97, 1.0)
+                        if all(
+                            abs(loaded_text[i] - old_dark_theme_default[i]) < 0.025
+                            for i in range(4)
+                        ):
+                            global_text = [0.09, 0.10, 0.12, 1.0]
+                        else:
+                            global_text = loaded_text
 
         except Exception as exc:
             print("status color load error:", exc)
@@ -4453,7 +4469,7 @@ class MainApp(App):
             for key, value in DEFAULT_STATUS_COLORS.items()
         }
 
-        self.set_global_text_color((0.96, 0.96, 0.97, 1))
+        self.set_global_text_color((0.09, 0.10, 0.12, 1))
         self._save_status_colors()
 
         try:
@@ -4485,7 +4501,7 @@ class MainApp(App):
         )
 
         with card.canvas.before:
-            _card_color = Color(0.12, 0.13, 0.15, 1)
+            _card_color = Color(*CARD)
             _card_rect = RoundedRectangle(
                 pos=card.pos,
                 size=card.size,
@@ -4641,7 +4657,7 @@ class MainApp(App):
                 key: list(value)
                 for key, value in DEFAULT_STATUS_COLORS.items()
             }
-            self.global_text_color = [0.96, 0.96, 0.97, 1]
+            self.global_text_color = [0.09, 0.10, 0.12, 1]
 
         # Сразу применяем сохранённый общий цвет текста ко всем
         # элементам, которые будут созданы после этого места.
@@ -4841,7 +4857,7 @@ class MainApp(App):
         # Поиск товара находится именно на стартовом экране.
         search_input = RoundedTextInput(
             hint_text="Поиск...",
-            hint_text_color=(1, 1, 1, 1),
+            hint_text_color=TEXT,
             multiline=False,
             size_hint_y=None,
             height=dp(52),
@@ -5000,7 +5016,7 @@ class MainApp(App):
         # Поиск только внутри текущего отдела.
         local_search = RoundedTextInput(
             hint_text="Поиск...",
-            hint_text_color=(1, 1, 1, 1),
+            hint_text_color=TEXT,
             multiline=False,
             size_hint_y=None,
             height=dp(48),
@@ -5785,7 +5801,7 @@ class MainApp(App):
         )
 
         colors_button = RoundedButton(
-            text="Цвета статуса товаров",
+            text="Настройки цветов",
             size_hint_y=None,
             height=dp(60),
             font_size="16sp",
@@ -5885,7 +5901,7 @@ class MainApp(App):
         root.add_widget(back)
 
         title = Label(
-            text="Цвета статуса товаров",
+            text="Настройки цветов",
             color=self.get_global_text_color(),
             bold=True,
             font_size="24sp",
@@ -5897,6 +5913,7 @@ class MainApp(App):
         card_row = SettingsColorRow(
             title="Цвет карточки",
             preview_color=self.get_status_color("normal"),
+            show_preview=False,
         )
         card_row.set_text_color(self.get_global_text_color())
         card_row.bind(
@@ -7494,7 +7511,7 @@ class MainApp(App):
             height=dp(245 if cancel_text else 220),
             padding=dp(18),
             spacing=dp(14),
-            bg_color=(0.12, 0.13, 0.15, 1),
+            bg_color=CARD,
             radius=24,
         )
 
