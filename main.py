@@ -48,7 +48,7 @@ from kivy.uix.popup import Popup
 from kivy.uix.screenmanager import (
     Screen,
     ScreenManager,
-    FadeTransition,
+    NoTransition,
 )
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.textinput import TextInput
@@ -109,6 +109,34 @@ BUTTON_BG_DOWN = (
     0.88,
     1,
 )
+
+LIGHT_THEME = {
+    "BG": (0.965, 0.968, 0.975, 1),
+    "CARD": (1.0, 1.0, 1.0, 1),
+    "CARD_DISABLED": (0.88, 0.89, 0.91, 1),
+    "TEXT": (0.09, 0.10, 0.12, 1),
+    "TEXT_SECONDARY": (0.39, 0.41, 0.46, 1),
+    "BUTTON_BG": (0.91, 0.92, 0.94, 1),
+    "BUTTON_BG_DOWN": (0.83, 0.85, 0.88, 1),
+    "THUMBNAIL_BG": (0.90, 0.91, 0.93, 1),
+}
+
+DARK_THEME = {
+    "BG": (0.045, 0.047, 0.055, 1),
+    "CARD": (0.10, 0.105, 0.12, 1),
+    "CARD_DISABLED": (0.20, 0.20, 0.22, 1),
+    "TEXT": (0.96, 0.96, 0.97, 1),
+    "TEXT_SECONDARY": (0.67, 0.68, 0.72, 1),
+    "BUTTON_BG": (0.20, 0.21, 0.24, 1),
+    "BUTTON_BG_DOWN": (0.27, 0.28, 0.32, 1),
+    "THUMBNAIL_BG": (0.28, 0.29, 0.32, 1),
+}
+
+THEME_LABELS = {
+    "dark": "Тёмная",
+    "light": "Светлая",
+}
+
 
 YELLOW = (
     1.00,
@@ -230,13 +258,6 @@ def readable_text_color(background):
     except Exception:
         return TEXT
 
-THUMBNAIL_BG = (
-    0.28,
-    0.29,
-    0.32,
-    1,
-)
-
 # Основной фирменный акцент из иконки приложения: #83121e
 ACCENT_RED = (
     131 / 255,
@@ -254,6 +275,32 @@ ACCENT_RED_DOWN = (
 )
 
 Window.clearcolor = BG
+
+
+def apply_theme_globals(theme_name):
+    global BG, CARD, CARD_DISABLED
+    global TEXT, TEXT_SECONDARY
+    global BUTTON_BG, BUTTON_BG_DOWN
+    global THUMBNAIL_BG
+    global RED_TEXT, YELLOW_TEXT
+
+    theme = DARK_THEME if theme_name == "dark" else LIGHT_THEME
+
+    BG = tuple(theme["BG"])
+    CARD = tuple(theme["CARD"])
+    CARD_DISABLED = tuple(theme["CARD_DISABLED"])
+    TEXT = tuple(theme["TEXT"])
+    TEXT_SECONDARY = tuple(theme["TEXT_SECONDARY"])
+    BUTTON_BG = tuple(theme["BUTTON_BG"])
+    BUTTON_BG_DOWN = tuple(theme["BUTTON_BG_DOWN"])
+    THUMBNAIL_BG = tuple(theme["THUMBNAIL_BG"])
+
+    RED_TEXT = TEXT
+    YELLOW_TEXT = TEXT
+
+    # Меняем реальный фон Window раньше любой смены экрана.
+    Window.clearcolor = BG
+
 
 
 # =========================================================
@@ -304,7 +351,7 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки Годности"
-BUILD_MARKER = "v16.2_hide_card_color_preview"
+BUILD_MARKER = "v18_theme_toggle_no_flash"
 
 HEADER_TITLE = "Pyton Detector"
 
@@ -4469,7 +4516,7 @@ class MainApp(App):
             for key, value in DEFAULT_STATUS_COLORS.items()
         }
 
-        self.set_global_text_color((0.09, 0.10, 0.12, 1))
+        self.set_global_text_color(TEXT)
         self._save_status_colors()
 
         try:
@@ -4627,7 +4674,167 @@ class MainApp(App):
         except Exception:
             pass
 
+
+    def _load_theme(self):
+        try:
+            if self.theme_path.exists():
+                data = json.loads(
+                    self.theme_path.read_text(
+                        encoding="utf-8"
+                    )
+                )
+                value = str(
+                    data.get("theme", "dark")
+                ).strip().lower()
+
+                if value in ("dark", "light"):
+                    return value
+
+        except Exception as exc:
+            print("theme load error:", exc)
+
+        return "dark"
+
+    def _save_theme(self):
+        try:
+            self.theme_path.parent.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+            self.theme_path.write_text(
+                json.dumps(
+                    {"theme": self.theme_name},
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+        except Exception as exc:
+            print("theme save error:", exc)
+
+    def get_theme_button_text(self):
+        return (
+            "Тема: "
+            +
+            THEME_LABELS.get(
+                self.theme_name,
+                "Тёмная"
+            )
+        )
+
+    def toggle_theme(self):
+        old_theme = self.theme_name
+        new_theme = (
+            "light"
+            if old_theme == "dark"
+            else "dark"
+        )
+
+        old_default_text = (
+            DARK_THEME["TEXT"]
+            if old_theme == "dark"
+            else LIGHT_THEME["TEXT"]
+        )
+
+        new_default_text = (
+            LIGHT_THEME["TEXT"]
+            if new_theme == "light"
+            else DARK_THEME["TEXT"]
+        )
+
+        try:
+            current_text = tuple(
+                float(x)
+                for x in self.global_text_color[:4]
+            )
+            is_old_default = all(
+                abs(
+                    current_text[i]
+                    -
+                    old_default_text[i]
+                ) < 0.03
+                for i in range(4)
+            )
+        except Exception:
+            is_old_default = True
+
+        self.theme_name = new_theme
+
+        # Сначала меняем Window, потом перестраиваем интерфейс.
+        apply_theme_globals(
+            self.theme_name
+        )
+
+        if is_old_default:
+            self.global_text_color = list(
+                new_default_text
+            )
+
+        self._save_theme()
+        self._save_status_colors()
+
+        self._rebuild_ui_for_theme(
+            target_screen="settings"
+        )
+
+    def _rebuild_ui_for_theme(
+        self,
+        target_screen="settings"
+    ):
+        current_department = (
+            self.current_department
+        )
+
+        Window.clearcolor = BG
+
+        manager = self.sm
+        manager.transition = NoTransition()
+
+        manager.clear_widgets()
+
+        manager.add_widget(
+            self.create_department_screen()
+        )
+        manager.add_widget(
+            self.create_home_screen()
+        )
+        manager.add_widget(
+            self.create_add_screen()
+        )
+        manager.add_widget(
+            self.create_product_screen()
+        )
+        manager.add_widget(
+            self.create_settings_screen()
+        )
+        manager.add_widget(
+            self.create_color_settings_screen()
+        )
+        manager.add_widget(
+            self.create_card_colors_screen()
+        )
+
+        self.current_department = (
+            current_department
+        )
+
+        if target_screen not in {
+            "departments",
+            "home",
+            "add",
+            "product",
+            "settings",
+            "color_settings",
+            "card_colors",
+        }:
+            target_screen = "settings"
+
+        manager.current = target_screen
+
+        self._apply_global_text_color_to_tree()
+
     def build(self):
+        global TEXT, TEXT_SECONDARY, RED_TEXT, YELLOW_TEXT
 
         self.db_path = (
             Path(
@@ -4639,6 +4846,17 @@ class MainApp(App):
 
         self.current_department = None
         self.pending_photo_screen = None
+
+        self.theme_path = (
+            Path(self.user_data_dir)
+            /
+            "theme.json"
+        )
+
+        self.theme_name = self._load_theme()
+        apply_theme_globals(
+            self.theme_name
+        )
 
         self.status_colors_path = (
             Path(self.user_data_dir)
@@ -4657,11 +4875,10 @@ class MainApp(App):
                 key: list(value)
                 for key, value in DEFAULT_STATUS_COLORS.items()
             }
-            self.global_text_color = [0.09, 0.10, 0.12, 1]
+            self.global_text_color = list(TEXT)
 
         # Сразу применяем сохранённый общий цвет текста ко всем
         # элементам, которые будут созданы после этого места.
-        global TEXT, TEXT_SECONDARY, RED_TEXT, YELLOW_TEXT
         TEXT = tuple(self.global_text_color)
         TEXT_SECONDARY = tuple(self.global_text_color)
         RED_TEXT = tuple(self.global_text_color)
@@ -4697,9 +4914,7 @@ class MainApp(App):
         )
 
         manager = ScreenManager(
-            transition=FadeTransition(
-                duration=0.10
-            )
+            transition=NoTransition()
         )
 
         manager.add_widget(
@@ -5811,6 +6026,18 @@ class MainApp(App):
             self.open_color_settings()
         )
         content.add_widget(colors_button)
+
+        theme_button = RoundedButton(
+            text=self.get_theme_button_text(),
+            size_hint_y=None,
+            height=dp(60),
+            font_size="16sp",
+        )
+        theme_button.bind(
+            on_release=lambda *_:
+            self.toggle_theme()
+        )
+        content.add_widget(theme_button)
 
         content.add_widget(
             Widget(
