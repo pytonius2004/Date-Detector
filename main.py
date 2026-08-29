@@ -304,7 +304,7 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки Годности"
-BUILD_MARKER = "v16_color_settings_flow"
+BUILD_MARKER = "v16.1_color_screen_fix"
 
 HEADER_TITLE = "Pyton Detector"
 
@@ -4746,6 +4746,14 @@ class MainApp(App):
             self.open_departments()
             return True
 
+        if self.sm.current == "color_settings":
+            self.open_settings()
+            return True
+
+        if self.sm.current == "card_colors":
+            self.open_color_settings()
+            return True
+
         self.open_home()
         return True
 
@@ -5923,6 +5931,11 @@ class MainApp(App):
 
         screen.card_color_row = card_row
         screen.text_color_row = text_row
+
+        # В v16 root создавался и наполнялся, но сам root не добавлялся
+        # на Screen. Из-за этого ScreenManager открывал пустой чёрный экран.
+        screen.add_widget(root)
+
         return screen
 
     def create_card_colors_screen(self):
