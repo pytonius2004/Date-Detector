@@ -5,9 +5,12 @@ import shutil
 import sqlite3
 import json
 import math
+import ssl
 import threading
 import urllib.error
 import urllib.request
+
+import certifi
 
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -8640,7 +8643,15 @@ class MainApp(App):
                 method="POST",
             )
 
-            with urllib.request.urlopen(request, timeout=90) as response:
+            ssl_context = ssl.create_default_context(
+                cafile=certifi.where()
+            )
+
+            with urllib.request.urlopen(
+                request,
+                timeout=90,
+                context=ssl_context,
+            ) as response:
                 raw_response = response.read().decode("utf-8", "replace")
 
             result = json.loads(raw_response or "{}")

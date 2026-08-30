@@ -18,7 +18,7 @@ version = 0.0.7
 # PYTHON / KIVY
 # =========================================================
 
-requirements = python3==3.11.6,hostpython3==3.11.6,kivy==2.3.1,plyer,pyjnius,filetype
+requirements = python3==3.11.6,hostpython3==3.11.6,kivy==2.3.1,plyer,pyjnius,filetype,certifi
 
 
 # =========================================================
