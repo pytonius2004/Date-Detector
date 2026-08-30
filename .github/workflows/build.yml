@@ -154,6 +154,18 @@ jobs:
           rm -rf bin
 
 
+      - name: Configure Google Sheets sync
+        env:
+
+          GOOGLE_SHEETS_WEB_APP_URL: ${{ secrets.GOOGLE_SHEETS_WEB_APP_URL }}
+
+          GOOGLE_SHEETS_SYNC_TOKEN: ${{ secrets.GOOGLE_SHEETS_SYNC_TOKEN }}
+
+        run: |
+
+          python scripts/generate_sheets_config.py
+
+
       - name: Build APK
         env:
 

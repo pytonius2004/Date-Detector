@@ -9,7 +9,7 @@ source.dir = .
 
 source.include_exts = py,png,jpg,jpeg,webp,kv,atlas,json,db,ttf
 
-source.exclude_dirs = .git,.github,.buildozer,bin,venv,__pycache__
+source.exclude_dirs = .git,.github,.buildozer,bin,venv,__pycache__,scripts,google_apps_script
 
 version = 0.0.7
 

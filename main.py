@@ -5,6 +5,9 @@ import shutil
 import sqlite3
 import json
 import math
+import threading
+import urllib.error
+import urllib.request
 
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -361,6 +364,17 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки Годности"
+
+# Приватный модуль создаётся только внутри GitHub Actions из Actions Secrets.
+# В публичном репозитории адрес веб-приложения и ключ синхронизации отсутствуют.
+try:
+    from sheets_private import (
+        GOOGLE_SHEETS_WEB_APP_URL,
+        GOOGLE_SHEETS_SYNC_TOKEN,
+    )
+except ImportError:
+    GOOGLE_SHEETS_WEB_APP_URL = ""
+    GOOGLE_SHEETS_SYNC_TOKEN = ""
 BUILD_MARKER = "v19_theme_controls_smooth"
 
 HEADER_TITLE = "Pyton Detector"
@@ -2291,6 +2305,54 @@ class Database:
             """
         ).fetchall()
 
+    def build_google_sheets_payload(self):
+        """Return every application table as JSON-safe rows.
+
+        Columns are discovered dynamically so databases imported from older
+        versions do not lose fields that are unknown to the current build.
+        """
+        table_specs = (
+            ("categories", "Категории"),
+            ("products", "Товары"),
+            ("expirations", "Сроки"),
+        )
+        tables = []
+
+        for table_name, sheet_name in table_specs:
+            cursor = self.conn.execute(
+                f'SELECT * FROM "{table_name}"'
+            )
+            columns = [item[0] for item in cursor.description or ()]
+            rows = []
+
+            for row in cursor.fetchall():
+                values = []
+                for column in columns:
+                    value = row[column]
+                    if isinstance(value, bytes):
+                        value = value.hex()
+                    elif value is None:
+                        value = ""
+                    elif not isinstance(value, (str, int, float, bool)):
+                        value = str(value)
+                    values.append(value)
+                rows.append(values)
+
+            tables.append(
+                {
+                    "name": sheet_name,
+                    "source_table": table_name,
+                    "columns": columns,
+                    "rows": rows,
+                }
+            )
+
+        return {
+            "format": "date-detector-sqlite-v1",
+            "exported_at": datetime.now().isoformat(timespec="seconds"),
+            "tables": tables,
+        }
+
     def add_category(self, name):
         name = " ".join(str(name or "").strip().split())
         if not name:
@@ -3488,13 +3550,6 @@ class HomeScreen(BaseScreen):
             except Exception:
                 pass
             self._card_load_event = None
-
-        if hasattr(self, "department_button"):
-            self.department_button.text = (
-                self.app.current_department
-                or
-                "Выбрать категорию"
-            )
 
         self.total_count = self.app.db.count_product_list(
             self.app.current_department,
@@ -5990,18 +6045,6 @@ class MainApp(App):
             self.create_header()
         )
 
-        department_button = RoundedButton(
-            text=(self.current_department or "Выбрать категорию"),
-            size_hint_y=None,
-            height=dp(44),
-            font_size="13sp",
-            normal_color=CARD,
-            down_color=BUTTON_BG_DOWN,
-        )
-        department_button.bind(on_release=lambda *_: self.open_departments())
-        root.add_widget(department_button)
-        screen.department_button = department_button
-
         # Поиск только внутри текущего отдела.
         local_search = RoundedTextInput(
             hint_text="Поиск...",
@@ -6895,6 +6938,17 @@ class MainApp(App):
             self.import_database()
         )
         content.add_widget(import_button)
+
+        sheets_button = RoundedButton(
+            text="Перенести базу данных в таблицы",
+            size_hint_y=None,
+            height=dp(58),
+        )
+        sheets_button.bind(
+            on_release=lambda *_:
+            self.export_database_to_google_sheets()
+        )
+        content.add_widget(sheets_button)
 
         clear_button = RoundedButton(
             text="Очистить БД",
@@ -8528,6 +8582,104 @@ class MainApp(App):
     # =====================================================
     # CLEAR
     # =====================================================
+
+    def export_database_to_google_sheets(self):
+        if getattr(self, "_sheets_export_in_progress", False):
+            return
+
+        if not GOOGLE_SHEETS_WEB_APP_URL or not GOOGLE_SHEETS_SYNC_TOKEN:
+            self.message(
+                "Google Таблицы ещё не привязаны к приложению."
+            )
+            return
+
+        self._sheets_export_in_progress = True
+        self._show_loading_overlay(
+            "Перенос в Google Таблицы…",
+            "_sheets_loading_overlay",
+        )
+
+        # Даём Kivy отрисовать плашку до чтения крупной базы.
+        Clock.schedule_once(
+            self._prepare_google_sheets_export,
+            0.08,
+        )
+
+    def _prepare_google_sheets_export(self, *_):
+        try:
+            payload = self.db.build_google_sheets_payload()
+            payload["token"] = GOOGLE_SHEETS_SYNC_TOKEN
+        except Exception as exc:
+            self._finish_google_sheets_export(
+                False,
+                "Не удалось прочитать базу:\n" + str(exc),
+            )
+            return
+
+        worker = threading.Thread(
+            target=self._send_database_to_google_sheets,
+            args=(payload,),
+            daemon=True,
+        )
+        worker.start()
+
+    def _send_database_to_google_sheets(self, payload):
+        try:
+            request_data = json.dumps(
+                payload,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            request = urllib.request.Request(
+                GOOGLE_SHEETS_WEB_APP_URL,
+                data=request_data,
+                headers={
+                    "Content-Type": "application/json; charset=utf-8",
+                    "User-Agent": "Date-Detector/1.0",
+                },
+                method="POST",
+            )
+
+            with urllib.request.urlopen(request, timeout=90) as response:
+                raw_response = response.read().decode("utf-8", "replace")
+
+            result = json.loads(raw_response or "{}")
+            if not result.get("ok"):
+                raise RuntimeError(
+                    result.get("error") or "Google Таблицы отклонили данные."
+                )
+
+            counts = result.get("counts") or {}
+            total_rows = sum(
+                int(value or 0)
+                for value in counts.values()
+            )
+            message = (
+                "База перенесена в Google Таблицы.\n\n"
+                f"Строк выгружено: {total_rows}"
+            )
+            Clock.schedule_once(
+                lambda *_: self._finish_google_sheets_export(True, message),
+                0,
+            )
+        except urllib.error.HTTPError as exc:
+            message = f"Сервер Google вернул ошибку {exc.code}."
+            Clock.schedule_once(
+                lambda *_: self._finish_google_sheets_export(False, message),
+                0,
+            )
+        except Exception as exc:
+            message = "Не удалось перенести базу:\n" + str(exc)
+            Clock.schedule_once(
+                lambda *_: self._finish_google_sheets_export(False, message),
+                0,
+            )
+
+    @mainthread
+    def _finish_google_sheets_export(self, success, message):
+        self._hide_loading_overlay("_sheets_loading_overlay")
+        self._sheets_export_in_progress = False
+        self.message(message)
 
     def confirm_clear_database(self):
         def do_clear():
