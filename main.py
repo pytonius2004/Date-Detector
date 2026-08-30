@@ -34,7 +34,16 @@ from kivy.animation import Animation
 from kivy.clock import Clock, mainthread
 from kivy.core.window import Window
 from kivy.core.text import Label as CoreLabel
-from kivy.graphics import Color, RoundedRectangle, Rectangle, Ellipse, Line
+from kivy.graphics import (
+    Color,
+    RoundedRectangle,
+    Rectangle,
+    Ellipse,
+    Line,
+    PushMatrix,
+    PopMatrix,
+    Rotate,
+)
 from kivy.metrics import dp
 from kivy.properties import (
     ListProperty,
@@ -357,6 +366,11 @@ BUILD_MARKER = "v19_theme_controls_smooth"
 HEADER_TITLE = "Pyton Detector"
 
 LOGO_FILE = "logo1.png"
+SPINNER_FILE = str(
+    Path(__file__).resolve().parent
+    /
+    "loading_spinner.png"
+)
 
 DB_NAME = "inventory.db"
 
@@ -827,7 +841,7 @@ class ThemeToggleButton(ButtonBehavior, BoxLayout):
 
 
 class LoadingSpinner(Widget):
-    """Неблокирующий векторный индикатор загрузки."""
+    """Плавный индикатор из сглаженного PNG, вращаемого видеокартой."""
 
     angle = NumericProperty(0)
 
@@ -839,12 +853,18 @@ class LoadingSpinner(Widget):
         self._animation = None
 
         with self.canvas:
-            self._spinner_color = Color(*TEXT)
-            self._spinner_arc = Line(
-                circle=(0, 0, 0, 0, 270),
-                width=dp(2.2),
-                cap="round",
+            self._spinner_color = Color(1, 1, 1, 1)
+            PushMatrix()
+            self._spinner_rotation = Rotate(
+                angle=0,
+                origin=self.center,
             )
+            self._spinner_image = Rectangle(
+                source=SPINNER_FILE,
+                pos=self.pos,
+                size=self.size,
+            )
+            PopMatrix()
 
         self.bind(
             pos=self._update_spinner,
@@ -854,25 +874,21 @@ class LoadingSpinner(Widget):
         self._update_spinner()
 
     def _update_spinner(self, *_):
-        radius = max(
-            dp(4),
-            min(self.width, self.height) * 0.42,
+        side = min(self.width, self.height)
+        self._spinner_image.pos = (
+            self.center_x - side / 2,
+            self.center_y - side / 2,
         )
-        self._spinner_arc.circle = (
-            self.center_x,
-            self.center_y,
-            radius,
-            self.angle,
-            self.angle + 270,
-        )
-        self._spinner_color.rgba = TEXT
+        self._spinner_image.size = (side, side)
+        self._spinner_rotation.origin = self.center
+        self._spinner_rotation.angle = self.angle
 
     def start(self):
         Animation.cancel_all(self, "angle")
         self.angle = 0
         self._animation = Animation(
             angle=360,
-            d=0.72,
+            d=0.68,
             t="linear",
         )
         self._animation.repeat = True
@@ -5287,70 +5303,114 @@ class MainApp(App):
         RED_TEXT = tuple(self.global_text_color)
         YELLOW_TEXT = tuple(self.global_text_color)
 
-        self.db = Database(
-            self.db_path
-        )
-
-        if (
-            ANDROID
-            and
-            activity_helper is not None
-        ):
-
-            try:
-
-                activity_helper.bind(
-                    on_activity_result=
-                    self._on_activity_result
-                )
-
-            except Exception as exc:
-
-                print(
-                    "activity.bind error:",
-                    exc
-                )
-
-        Window.bind(
-            on_keyboard=
-            self._on_keyboard
-        )
-
         manager = ScreenManager(
             transition=NoTransition()
         )
-
-        manager.add_widget(
-            self.create_department_screen()
-        )
-
-        manager.add_widget(
-            self.create_home_screen()
-        )
-
-        manager.add_widget(
-            self.create_add_screen()
-        )
-
-        manager.add_widget(
-            self.create_product_screen()
-        )
-
-        manager.add_widget(
-            self.create_settings_screen()
-        )
-
-        manager.add_widget(
-            self.create_color_settings_screen()
-        )
-
-        manager.add_widget(
-            self.create_card_colors_screen()
-        )
-
         self.sm = manager
+        manager.add_widget(
+            self._create_startup_screen()
+        )
 
         return manager
+
+    def _create_startup_screen(self):
+        screen = Screen(name="startup")
+
+        card = RoundedPanel(
+            orientation="vertical",
+            size_hint=(None, None),
+            size=(dp(245), dp(142)),
+            padding=(dp(22), dp(18)),
+            spacing=dp(10),
+            bg_color=CARD,
+            radius=24,
+        )
+
+        spinner_row = AnchorLayout(
+            anchor_x="center",
+            anchor_y="center",
+            size_hint_y=0.62,
+        )
+        spinner = LoadingSpinner(
+            size=(dp(44), dp(44))
+        )
+        spinner_row.add_widget(spinner)
+        card.add_widget(spinner_row)
+
+        self._startup_label = Label(
+            text="Запуск приложения…",
+            color=TEXT,
+            font_size="14sp",
+            bold=True,
+            size_hint_y=0.38,
+        )
+        card.add_widget(self._startup_label)
+
+        wrapper = AnchorLayout(
+            anchor_x="center",
+            anchor_y="center",
+        )
+        wrapper.add_widget(card)
+        screen.add_widget(wrapper)
+        self._startup_spinner = spinner
+        return screen
+
+    def on_start(self):
+        self._startup_spinner.start()
+        self._startup_steps = [
+            ("Подготовка базы данных…", self._initialize_runtime),
+            ("Загрузка разделов…", self.create_department_screen),
+            ("Загрузка товаров…", self.create_home_screen),
+            ("Подготовка редактора…", self.create_add_screen),
+            ("Подготовка карточек…", self.create_product_screen),
+            ("Загрузка настроек…", self.create_settings_screen),
+            ("Загрузка палитры…", self.create_color_settings_screen),
+            ("Почти готово…", self.create_card_colors_screen),
+        ]
+        Clock.schedule_once(self._run_startup_step, 0.08)
+
+    def _initialize_runtime(self):
+        self.db = Database(self.db_path)
+
+        if ANDROID and activity_helper is not None:
+            try:
+                activity_helper.bind(
+                    on_activity_result=self._on_activity_result
+                )
+            except Exception as exc:
+                print("activity.bind error:", exc)
+
+        Window.bind(on_keyboard=self._on_keyboard)
+
+    def _run_startup_step(self, *_):
+        if not self._startup_steps:
+            self._finish_startup()
+            return
+
+        message, step = self._startup_steps.pop(0)
+        self._startup_label.text = message
+
+        try:
+            result = step()
+            if isinstance(result, Screen):
+                self.sm.add_widget(result)
+        except Exception as exc:
+            print("startup error:", exc)
+            self._startup_spinner.stop()
+            self.message(
+                "Не удалось запустить приложение:\n\n"
+                + str(exc)
+            )
+            return
+
+        Clock.schedule_once(self._run_startup_step, 0.01)
+
+    def _finish_startup(self):
+        startup = self.sm.get_screen("startup")
+        self.sm.current = "departments"
+        self._apply_global_text_color_to_tree()
+        self._startup_spinner.stop()
+        self.sm.remove_widget(startup)
 
 
     # =====================================================
@@ -6844,14 +6904,18 @@ class MainApp(App):
     # NAVIGATION
     # =====================================================
 
-    def _show_department_loading(self):
+    def _show_loading_overlay(
+        self,
+        message,
+        attribute="_loading_overlay",
+    ):
         existing = getattr(
             self,
-            "_department_loading_overlay",
+            attribute,
             None,
         )
         if existing is not None:
-            return
+            return existing
 
         overlay = ModalView(
             size_hint=(1, 1),
@@ -6882,7 +6946,7 @@ class MainApp(App):
 
         card.add_widget(
             Label(
-                text="Загрузка товаров…",
+                text=message,
                 color=TEXT,
                 font_size="14sp",
                 bold=True,
@@ -6898,20 +6962,19 @@ class MainApp(App):
         overlay.add_widget(wrapper)
 
         overlay._loading_spinner = spinner
-        self._department_loading_overlay = overlay
+        setattr(self, attribute, overlay)
         overlay.open(animation=False)
         spinner.start()
+        return overlay
 
-    def _hide_department_loading(self, *_):
-        overlay = getattr(
-            self,
-            "_department_loading_overlay",
-            None,
-        )
-        self._department_loading_overlay = None
+    def _hide_loading_overlay(
+        self,
+        attribute="_loading_overlay",
+    ):
+        overlay = getattr(self, attribute, None)
+        setattr(self, attribute, None)
 
         if overlay is None:
-            self._department_load_in_progress = False
             return
 
         try:
@@ -6924,6 +6987,16 @@ class MainApp(App):
         except Exception:
             pass
 
+    def _show_department_loading(self):
+        self._show_loading_overlay(
+            "Загрузка товаров…",
+            "_department_loading_overlay",
+        )
+
+    def _hide_department_loading(self, *_):
+        self._hide_loading_overlay(
+            "_department_loading_overlay"
+        )
         self._department_load_in_progress = False
 
     def open_departments(self):
@@ -7670,9 +7743,13 @@ class MainApp(App):
             )
 
             if uri is not None:
-
-                self._read_database_from_uri(
-                    uri
+                self._show_loading_overlay(
+                    "Импорт базы данных…",
+                    "_import_loading_overlay",
+                )
+                Clock.schedule_once(
+                    lambda *_: self._read_database_from_uri(uri),
+                    0.12,
                 )
 
         except Exception as exc:
@@ -7847,23 +7924,6 @@ class MainApp(App):
                 PythonActivity.mActivity
             )
 
-            resolver = (
-                current_activity
-                .getContentResolver()
-            )
-
-            input_stream = (
-                resolver.openInputStream(
-                    uri
-                )
-            )
-
-            if input_stream is None:
-
-                raise RuntimeError(
-                    "Android не смог открыть файл."
-                )
-
             temp = (
                 Path(
                     self.user_data_dir
@@ -7882,43 +7942,24 @@ class MainApp(App):
 
                 pass
 
-            output = temp.open(
-                "wb"
+            DatabaseImportHelper = autoclass(
+                "org.example.expiringgoods."
+                "DatabaseImportHelper"
             )
-
-            try:
-
-                while True:
-
-                    value = (
-                        input_stream.read()
-                    )
-
-                    if value == -1:
-
-                        break
-
-                    output.write(
-                        bytes(
-                            (
-                                value
-                                &
-                                0xFF,
-                            )
-                        )
-                    )
-
-            finally:
-
-                output.close()
-                input_stream.close()
+            DatabaseImportHelper.copyUriToFile(
+                current_activity,
+                uri,
+                str(temp),
+            )
 
             self._replace_database(
                 temp
             )
 
         except Exception as exc:
-
+            self._hide_loading_overlay(
+                "_import_loading_overlay"
+            )
             self.message(
                 "Ошибка импорта:\n"
                 +
@@ -7966,7 +8007,9 @@ class MainApp(App):
         )
 
         if not source.exists():
-
+            self._hide_loading_overlay(
+                "_import_loading_overlay"
+            )
             self.message(
                 "Файл БД не найден."
             )
@@ -7976,7 +8019,9 @@ class MainApp(App):
         if not Database.validate(
             source
         ):
-
+            self._hide_loading_overlay(
+                "_import_loading_overlay"
+            )
             self.message(
                 "Файл не является базой приложения."
             )
@@ -8061,6 +8106,9 @@ class MainApp(App):
 
                 pass
 
+            self._hide_loading_overlay(
+                "_import_loading_overlay"
+            )
             self.message(
                 "База успешно импортирована."
             )
@@ -8112,6 +8160,9 @@ class MainApp(App):
 
                 pass
 
+            self._hide_loading_overlay(
+                "_import_loading_overlay"
+            )
             self.message(
                 "Ошибка импорта:\n"
                 +
@@ -8124,97 +8175,23 @@ class MainApp(App):
     # =====================================================
 
     def confirm_clear_database(self):
-
-        content = BoxLayout(
-            orientation="vertical",
-            padding=dp(12),
-            spacing=dp(10),
-        )
-
-        label = Label(
-            text=(
-                "Удалить всю базу?\n\n"
-                "Будут удалены все товары и сроки.\n"
-                "Это действие нельзя отменить."
-            ),
-            halign="center",
-            valign="middle",
-        )
-
-        label.bind(
-            size=lambda instance, value:
-            setattr(
-                instance,
-                "text_size",
-                value
-            )
-        )
-
-        buttons = BoxLayout(
-            size_hint_y=None,
-            height=dp(50),
-            spacing=dp(8),
-        )
-
-        cancel = Button(
-            text="Отмена"
-        )
-
-        clear = Button(
-            text="Удалить всё",
-            background_normal="",
-            background_color=RED,
-        )
-
-        buttons.add_widget(
-            cancel
-        )
-
-        buttons.add_widget(
-            clear
-        )
-
-        content.add_widget(
-            label
-        )
-
-        content.add_widget(
-            buttons
-        )
-
-        popup = Popup(
-            title=APP_TITLE,
-            content=content,
-            size_hint=(
-                0.90,
-                0.50,
-            ),
-            auto_dismiss=False,
-        )
-
-        cancel.bind(
-            on_release=
-            popup.dismiss
-        )
-
-        def do_clear(*_):
-
-            popup.dismiss()
-
+        def do_clear():
             self.db.clear_all()
-
             self.message(
                 "База полностью очищена."
             )
-
             self.open_home()
 
-        clear.bind(
-            on_release=
-            do_clear
+        self._open_rounded_dialog(
+            message_text=(
+                "Будут удалены все товары и сроки.\n\n"
+                "Это действие нельзя отменить."
+            ),
+            title_text="Очистить базу?",
+            confirm_text="Удалить всё",
+            cancel_text="Отмена",
+            on_confirm=do_clear,
         )
-
-        popup.open()
 
 
     # =====================================================
