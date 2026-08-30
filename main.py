@@ -599,6 +599,12 @@ class RoundedButton(Button):
         **kwargs
     ):
 
+        # ListProperty defaults are created when this class is defined, before
+        # the saved theme is loaded. Resolve unspecified button colors here so
+        # every newly built screen uses the currently active theme.
+        kwargs.setdefault("normal_color", BUTTON_BG)
+        kwargs.setdefault("down_color", BUTTON_BG_DOWN)
+
         super().__init__(
             **kwargs
         )
@@ -4360,14 +4366,31 @@ class MainApp(App):
                             for channel in saved_global_text
                         ]
 
-                        old_dark_theme_default = (0.96, 0.96, 0.97, 1.0)
-                        if all(
-                            abs(loaded_text[i] - old_dark_theme_default[i]) < 0.025
-                            for i in range(4)
-                        ):
-                            global_text = [0.09, 0.10, 0.12, 1.0]
-                        else:
-                            global_text = loaded_text
+                        current_theme_default = (
+                            DARK_THEME["TEXT"]
+                            if self.theme_name == "dark"
+                            else LIGHT_THEME["TEXT"]
+                        )
+
+                        # A saved default belongs to the theme that was active
+                        # when it was written. Move either known default to the
+                        # current theme; keep genuinely custom colors unchanged.
+                        is_saved_theme_default = any(
+                            all(
+                                abs(loaded_text[i] - default[i]) < 0.025
+                                for i in range(4)
+                            )
+                            for default in (
+                                LIGHT_THEME["TEXT"],
+                                DARK_THEME["TEXT"],
+                            )
+                        )
+
+                        global_text = (
+                            list(current_theme_default)
+                            if is_saved_theme_default
+                            else loaded_text
+                        )
 
         except Exception as exc:
             print("status color load error:", exc)
