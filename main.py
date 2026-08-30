@@ -382,29 +382,6 @@ REQUEST_IMPORT_DB = 4102
 REQUEST_PICK_PRODUCT_PHOTO = 7201
 REQUEST_TAKE_PRODUCT_PHOTO = 7202
 
-DEPARTMENTS = (
-    "Фрукты и овощи",
-    "Мясные и рыбные продукты",
-    "Молочные продукты, яйца, сливочное масло",
-    "Сыры",
-    "Хлеб, булка, кондитерские изделия",
-    "Готовые продукты",
-    "Большие упаковки",
-    "Бакалея и консервы",
-    "Мировая кухня, приправы и бульоны",
-    "Соусы, масло",
-    "Сладости, печенье, чипсы",
-    "Замороженные продтовары",
-    "Напитки",
-    "Детские товары",
-    "Товары для домашних питомцев",
-    "Личная гигиена",
-    "Хозяйственные и бытовые товары",
-    "Товары для досуга",
-    "Товары для праздников",
-)
-
-
 # =========================================================
 # SAFE AREA
 # =========================================================
@@ -2136,6 +2113,20 @@ class Database:
                     ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS
+            idx_categories_sort_order
+            ON categories(
+                sort_order,
+                id
+            );
+
             CREATE UNIQUE INDEX IF NOT EXISTS
             idx_barcode_expiration
             ON expirations(
@@ -2221,6 +2212,41 @@ class Database:
             "ON products(name COLLATE NOCASE)"
         )
 
+        # Старые базы не имели отдельного справочника категорий. Сохраняем
+        # встречающиеся в товарах названия, но ничего не добавляем в новую
+        # пустую базу — пользователь сам формирует нужные ему отделы.
+        existing_departments = self.conn.execute(
+            """
+            SELECT DISTINCT TRIM(department) AS name
+            FROM products
+            WHERE TRIM(COALESCE(department, '')) <> ''
+            ORDER BY name COLLATE NOCASE
+            """
+        ).fetchall()
+
+        next_order = self.conn.execute(
+            "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM categories"
+        ).fetchone()[0]
+
+        for row in existing_departments:
+            cursor = self.conn.execute(
+                """
+                INSERT OR IGNORE INTO categories(
+                    name,
+                    sort_order,
+                    created_at
+                )
+                VALUES (?, ?, ?)
+                """,
+                (
+                    row["name"],
+                    next_order,
+                    datetime.now().isoformat(timespec="seconds"),
+                ),
+            )
+            if cursor.rowcount:
+                next_order += 1
+
         self.conn.commit()
 
     def close(self):
@@ -2243,7 +2269,91 @@ class Database:
             "DELETE FROM products"
         )
 
+        self.conn.execute(
+            "DELETE FROM categories"
+        )
+
         self.conn.commit()
+
+    def list_categories(self):
+        return self.conn.execute(
+            """
+            SELECT
+                c.id,
+                c.name,
+                c.sort_order,
+                COUNT(p.barcode) AS product_count
+            FROM categories c
+            LEFT JOIN products p
+              ON p.department = c.name COLLATE NOCASE
+            GROUP BY c.id, c.name, c.sort_order
+            ORDER BY c.sort_order ASC, c.id ASC
+            """
+        ).fetchall()
+
+    def add_category(self, name):
+        name = " ".join(str(name or "").strip().split())
+        if not name:
+            raise ValueError("Введите название категории.")
+
+        if len(name) > 80:
+            raise ValueError("Название категории слишком длинное.")
+
+        normalized_name = name.casefold()
+        existing_names = self.conn.execute(
+            "SELECT name FROM categories"
+        ).fetchall()
+        if any(
+            str(row["name"]).casefold() == normalized_name
+            for row in existing_names
+        ):
+            raise ValueError("Такая категория уже существует.")
+
+        next_order = self.conn.execute(
+            "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM categories"
+        ).fetchone()[0]
+
+        try:
+            self.conn.execute(
+                """
+                INSERT INTO categories(name, sort_order, created_at)
+                VALUES (?, ?, ?)
+                """,
+                (
+                    name,
+                    next_order,
+                    datetime.now().isoformat(timespec="seconds"),
+                ),
+            )
+            self.conn.commit()
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("Такая категория уже существует.") from exc
+
+        return name
+
+    def delete_category(self, category_id):
+        row = self.conn.execute(
+            "SELECT name FROM categories WHERE id = ?",
+            (int(category_id),),
+        ).fetchone()
+        if row is None:
+            return False
+
+        product_count = self.conn.execute(
+            "SELECT COUNT(*) FROM products WHERE department = ? COLLATE NOCASE",
+            (row["name"],),
+        ).fetchone()[0]
+        if product_count:
+            raise ValueError(
+                "В этой категории есть товары. Сначала перенесите или удалите их."
+            )
+
+        self.conn.execute(
+            "DELETE FROM categories WHERE id = ?",
+            (int(category_id),),
+        )
+        self.conn.commit()
+        return True
 
     def get_product(
         self,
@@ -3194,6 +3304,12 @@ class DepartmentScreen(BaseScreen):
         if hasattr(self, "search_input"):
             self.search_input.text = ""
         self.refresh_search("")
+        self.refresh_categories()
+
+    def refresh_categories(self):
+        if not hasattr(self, "departments_list"):
+            return
+        self.app.populate_categories(self)
 
     def refresh_search(self, value=None):
 
@@ -3224,7 +3340,7 @@ class DepartmentScreen(BaseScreen):
             self.search_results.add_widget(label)
         else:
             for product in rows:
-                department = product["department"] or "Без отдела"
+                department = product["department"] or "Без категории"
                 button = RoundedButton(
                     text=(
                         f'{product["name"] or "Без названия"}\\n'
@@ -3288,7 +3404,7 @@ class HomeScreen(BaseScreen):
         self.filter_mode = "all"
         self.sort_mode = "expiry"
         self.search_query = ""
-        self.loaded_count = 0
+        self.current_page = 0
         self.total_count = 0
         self._load_generation = 0
         self._search_event = None
@@ -3324,21 +3440,21 @@ class HomeScreen(BaseScreen):
         mode
     ):
         self.filter_mode = mode
-        self.refresh()
+        self.refresh(page=0)
 
     def set_sort(
         self,
         mode
     ):
         self.sort_mode = str(mode or "expiry")
-        self.refresh()
+        self.refresh(page=0)
 
     def set_search(
         self,
         value
     ):
         self.search_query = str(value or "").strip()
-        self.refresh()
+        self.refresh(page=0)
 
     def schedule_search(
         self,
@@ -3361,6 +3477,7 @@ class HomeScreen(BaseScreen):
         self,
         incremental=False,
         on_complete=None,
+        page=0,
     ):
 
         self._load_generation += 1
@@ -3376,11 +3493,8 @@ class HomeScreen(BaseScreen):
             self.department_button.text = (
                 self.app.current_department
                 or
-                "Выбрать отдел"
+                "Выбрать категорию"
             )
-
-        self.product_list.clear_widgets()
-        self.loaded_count = 0
 
         self.total_count = self.app.db.count_product_list(
             self.app.current_department,
@@ -3389,73 +3503,51 @@ class HomeScreen(BaseScreen):
         )
 
         if self.total_count == 0:
+            self.product_list.clear_widgets()
+            self.current_page = 0
+            self._update_pagination_controls()
             self._show_empty()
             if on_complete is not None:
                 Clock.schedule_once(on_complete, 0)
             return
 
-        self.load_more(
+        self.load_page(
+            page,
             incremental=incremental,
             on_complete=on_complete,
         )
 
-    def _capture_scroll_offset(self):
-        if not hasattr(self, "product_scroll"):
-            return None
-
-        scroll = self.product_scroll
-        content_height = max(0, self.product_list.height - scroll.height)
-        return (1.0 - scroll.scroll_y) * content_height
-
-    def _restore_scroll_offset(self, offset):
-        if offset is None or not hasattr(self, "product_scroll"):
-            return
-
-        scroll = self.product_scroll
-        content_height = max(0, self.product_list.height - scroll.height)
-
-        if content_height <= 0:
-            scroll.scroll_y = 1
-        else:
-            scroll.scroll_y = max(
-                0.0,
-                min(1.0, 1.0 - (offset / content_height))
-            )
-
-    def load_more(
+    def load_page(
         self,
+        page,
         incremental=False,
         on_complete=None,
     ):
 
-        if self.loaded_count >= self.total_count:
-            if on_complete is not None:
-                Clock.schedule_once(on_complete, 0)
-            return
+        total_pages = max(
+            1,
+            (self.total_count + self.PAGE_SIZE - 1) // self.PAGE_SIZE,
+        )
+        page = max(0, min(int(page), total_pages - 1))
+        self.current_page = page
+        self.product_list.clear_widgets()
+        self._update_pagination_controls()
+        self.product_scroll.scroll_y = 1
 
-        # Запоминаем точное положение в пикселях относительно верха.
-        # После добавления карточек пользователь остаётся на том же товаре.
-        old_offset = self._capture_scroll_offset()
+        self._load_generation += 1
         generation = self._load_generation
 
         rows = self.app.db.get_product_list(
             self.app.current_department,
             self.filter_mode,
             limit=self.PAGE_SIZE,
-            offset=self.loaded_count,
+            offset=page * self.PAGE_SIZE,
             search_query=self.search_query,
             sort_mode=self.sort_mode,
         )
 
         if generation != self._load_generation:
             return
-
-        if hasattr(self, "more_button") and self.more_button:
-            try:
-                self.product_list.remove_widget(self.more_button)
-            except Exception:
-                pass
-            self.more_button = None
 
         today = date.today()
         tomorrow = today + timedelta(days=1)
@@ -3488,28 +3580,9 @@ class HomeScreen(BaseScreen):
                 return
 
             self._card_load_event = None
-            self.loaded_count += len(rows)
-
-            if self.loaded_count < self.total_count:
-                self.more_button = RoundedButton(
-                    text=(
-                        "Показать ещё"
-                        f"  ({self.loaded_count}/{self.total_count})"
-                    ),
-                    size_hint_y=None,
-                    height=dp(52),
-                    font_size="14sp",
-                    normal_color=BUTTON_BG,
-                    down_color=BUTTON_BG_DOWN,
-                )
-                self.more_button.bind(
-                    on_release=lambda *_: self.load_more()
-                )
-                self.product_list.add_widget(self.more_button)
-
-            # Kivy должен сначала пересчитать minimum_height.
+            self._update_pagination_controls()
             Clock.schedule_once(
-                lambda *_: self._restore_scroll_offset(old_offset),
+                lambda *_: setattr(self.product_scroll, "scroll_y", 1),
                 0,
             )
 
@@ -3556,6 +3629,34 @@ class HomeScreen(BaseScreen):
             add_next_batch,
             0,
         )
+
+    def change_page(self, delta):
+        target = self.current_page + int(delta)
+        total_pages = max(
+            1,
+            (self.total_count + self.PAGE_SIZE - 1) // self.PAGE_SIZE,
+        )
+        if target < 0 or target >= total_pages:
+            return
+        self.load_page(target, incremental=True)
+
+    def _update_pagination_controls(self):
+        if not hasattr(self, "pagination_bar"):
+            return
+
+        total_pages = max(
+            1,
+            (self.total_count + self.PAGE_SIZE - 1) // self.PAGE_SIZE,
+        )
+        visible = self.total_count > self.PAGE_SIZE
+        self.pagination_bar.height = dp(50) if visible else 0
+        self.pagination_bar.opacity = 1 if visible else 0
+        self.pagination_bar.disabled = not visible
+        self.page_label.text = (
+            f"Страница {self.current_page + 1} из {total_pages}"
+        )
+        self.previous_page_button.disabled = self.current_page <= 0
+        self.next_page_button.disabled = self.current_page >= total_pages - 1
 
     def _show_empty(self):
 
@@ -5595,7 +5696,7 @@ class MainApp(App):
         root.add_widget(settings_button)
 
         title = Label(
-            text="Выберите отдел",
+            text="Выберите категорию",
             color=TEXT,
             bold=True,
             font_size="22sp",
@@ -5610,6 +5711,19 @@ class MainApp(App):
         )
         root.add_widget(title)
 
+        add_category = RoundedButton(
+            text="+  Добавить категорию",
+            size_hint_y=None,
+            height=dp(52),
+            font_size="15sp",
+            normal_color=ACCENT_RED,
+            down_color=ACCENT_RED_DOWN,
+        )
+        add_category.bind(
+            on_release=lambda *_: self.open_add_category_dialog()
+        )
+        root.add_widget(add_category)
+
         scroll = ScrollView(do_scroll_x=False)
 
         departments_list = BoxLayout(
@@ -5622,37 +5736,234 @@ class MainApp(App):
             minimum_height=departments_list.setter("height")
         )
 
-        for department_name in DEPARTMENTS:
-            button = RoundedButton(
-                text=department_name,
+        scroll.add_widget(departments_list)
+        root.add_widget(scroll)
+        screen.departments_list = departments_list
+        self.populate_categories(screen)
+
+        screen.add_widget(root)
+        return screen
+
+    def populate_categories(self, screen=None):
+        if screen is None:
+            try:
+                screen = self.sm.get_screen("departments")
+            except Exception:
+                return
+
+        container = getattr(screen, "departments_list", None)
+        if container is None:
+            return
+
+        container.clear_widgets()
+        categories = self.db.list_categories()
+
+        if not categories:
+            empty = RoundedPanel(
+                orientation="vertical",
                 size_hint_y=None,
-                height=dp(56),
+                height=dp(150),
+                padding=dp(20),
+                bg_color=CARD,
+                radius=18,
+            )
+            empty.add_widget(
+                Label(
+                    text=(
+                        "Категорий пока нет\n"
+                        "Создайте первую кнопкой выше"
+                    ),
+                    color=TEXT_SECONDARY,
+                    font_size="15sp",
+                    halign="center",
+                    valign="middle",
+                )
+            )
+            container.add_widget(empty)
+            return
+
+        for category in categories:
+            row = BoxLayout(
+                orientation="horizontal",
+                size_hint_y=None,
+                height=dp(58),
+                spacing=dp(8),
+            )
+
+            category_button = RoundedButton(
+                text=category["name"],
                 font_size="14sp",
                 halign="left",
                 valign="middle",
                 padding=(dp(18), dp(10)),
                 normal_color=CARD,
                 down_color=BUTTON_BG_DOWN,
+                size_hint_x=0.84,
             )
-            button.bind(
-                size=lambda instance, value:
-                setattr(
+            category_button.bind(
+                size=lambda instance, value: setattr(
                     instance,
                     "text_size",
-                    (value[0] - dp(36), value[1])
+                    (value[0] - dp(36), value[1]),
                 )
             )
-            button.bind(
-                on_release=lambda _button, name=department_name:
+            category_button.bind(
+                on_release=lambda _button, name=category["name"]:
                 self.select_department(name)
             )
-            departments_list.add_widget(button)
 
-        scroll.add_widget(departments_list)
-        root.add_widget(scroll)
+            delete_button = RoundedButton(
+                text="×",
+                font_size="23sp",
+                normal_color=BUTTON_BG,
+                down_color=ACCENT_RED_DOWN,
+                size_hint_x=0.16,
+            )
+            delete_button.bind(
+                on_release=lambda _button, row=category:
+                self.confirm_delete_category(row)
+            )
 
-        screen.add_widget(root)
-        return screen
+            row.add_widget(category_button)
+            row.add_widget(delete_button)
+            container.add_widget(row)
+
+    def open_add_category_dialog(self):
+        overlay = ModalView(
+            size_hint=(1, 1),
+            background="",
+            background_color=(0, 0, 0, 0),
+            overlay_color=(0, 0, 0, 0.68),
+            auto_dismiss=False,
+        )
+
+        card = RoundedPanel(
+            orientation="vertical",
+            size_hint=(0.88, None),
+            height=dp(255),
+            padding=dp(18),
+            spacing=dp(12),
+            bg_color=CARD,
+            radius=24,
+        )
+
+        title = Label(
+            text="[b]Новая категория[/b]",
+            markup=True,
+            color=TEXT,
+            font_size="19sp",
+            size_hint_y=None,
+            height=dp(38),
+            halign="left",
+            valign="middle",
+        )
+        title.bind(
+            size=lambda instance, value: setattr(instance, "text_size", value)
+        )
+
+        category_input = RoundedTextInput(
+            hint_text="Название категории",
+            hint_text_color=TEXT_SECONDARY,
+            multiline=False,
+            size_hint_y=None,
+            height=dp(54),
+            font_size="16sp",
+            padding=(dp(15), dp(14)),
+        )
+
+        error_label = Label(
+            text="",
+            color=ACCENT_RED,
+            font_size="12sp",
+            size_hint_y=None,
+            height=dp(24),
+            halign="left",
+            valign="middle",
+        )
+        error_label.bind(
+            size=lambda instance, value: setattr(instance, "text_size", value)
+        )
+
+        buttons = BoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=dp(52),
+            spacing=dp(10),
+        )
+        cancel = RoundedButton(
+            text="Отмена",
+            font_size="15sp",
+            normal_color=BUTTON_BG,
+            down_color=BUTTON_BG_DOWN,
+        )
+        save = RoundedButton(
+            text="Добавить",
+            font_size="15sp",
+            normal_color=ACCENT_RED,
+            down_color=ACCENT_RED_DOWN,
+        )
+
+        def add_category(*_):
+            try:
+                self.db.add_category(category_input.text)
+            except ValueError as exc:
+                error_label.text = str(exc)
+                return
+
+            overlay.dismiss()
+            self.populate_categories()
+
+        cancel.bind(on_release=lambda *_: overlay.dismiss())
+        save.bind(on_release=add_category)
+        category_input.bind(on_text_validate=add_category)
+        buttons.add_widget(cancel)
+        buttons.add_widget(save)
+
+        card.add_widget(title)
+        card.add_widget(category_input)
+        card.add_widget(error_label)
+        card.add_widget(buttons)
+
+        wrapper = AnchorLayout(anchor_x="center", anchor_y="center")
+        wrapper.add_widget(card)
+        overlay.add_widget(wrapper)
+        overlay.open()
+        Clock.schedule_once(
+            lambda *_: setattr(category_input, "focus", True),
+            0.15,
+        )
+
+    def confirm_delete_category(self, category):
+        category_name = category["name"]
+        product_count = int(category["product_count"] or 0)
+
+        if product_count:
+            self.message(
+                f"В категории «{category_name}» есть товары: {product_count}.\n\n"
+                "Сначала перенесите или удалите их."
+            )
+            return
+
+        def do_delete():
+            try:
+                self.db.delete_category(category["id"])
+            except ValueError as exc:
+                self.message(str(exc))
+                return
+
+            if self.current_department == category_name:
+                self.current_department = None
+            self.populate_categories()
+
+        self._open_rounded_dialog(
+            message_text=(
+                f"Удалить пустую категорию «{category_name}»?"
+            ),
+            title_text="Удалить категорию",
+            confirm_text="Удалить",
+            cancel_text="Отмена",
+            on_confirm=do_delete,
+        )
 
 
     # =====================================================
@@ -5680,7 +5991,7 @@ class MainApp(App):
         )
 
         department_button = RoundedButton(
-            text=(self.current_department or "Выбрать отдел"),
+            text=(self.current_department or "Выбрать категорию"),
             size_hint_y=None,
             height=dp(44),
             font_size="13sp",
@@ -5772,10 +6083,54 @@ class MainApp(App):
             scroll
         )
 
+        pagination = BoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=0,
+            opacity=0,
+            disabled=True,
+            spacing=dp(8),
+        )
+        previous_page = RoundedButton(
+            text="‹",
+            font_size="24sp",
+            size_hint_x=0.23,
+            normal_color=BUTTON_BG,
+            down_color=BUTTON_BG_DOWN,
+        )
+        page_label = Label(
+            text="Страница 1 из 1",
+            color=TEXT,
+            bold=True,
+            font_size="13sp",
+            size_hint_x=0.54,
+        )
+        next_page = RoundedButton(
+            text="›",
+            font_size="24sp",
+            size_hint_x=0.23,
+            normal_color=BUTTON_BG,
+            down_color=BUTTON_BG_DOWN,
+        )
+        previous_page.bind(
+            on_release=lambda *_: screen.change_page(-1)
+        )
+        next_page.bind(
+            on_release=lambda *_: screen.change_page(1)
+        )
+        pagination.add_widget(previous_page)
+        pagination.add_widget(page_label)
+        pagination.add_widget(next_page)
+        root.add_widget(pagination)
+
         screen.product_list = (
             product_list
         )
         screen.product_scroll = scroll
+        screen.pagination_bar = pagination
+        screen.previous_page_button = previous_page
+        screen.next_page_button = next_page
+        screen.page_label = page_label
 
         screen.add_widget(
             root
@@ -8177,10 +8532,11 @@ class MainApp(App):
     def confirm_clear_database(self):
         def do_clear():
             self.db.clear_all()
+            self.current_department = None
             self.message(
                 "База полностью очищена."
             )
-            self.open_home()
+            self.open_departments()
 
         self._open_rounded_dialog(
             message_text=(
