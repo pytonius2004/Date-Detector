@@ -4,6 +4,7 @@ import os
 import shutil
 import sqlite3
 import json
+import math
 
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -29,6 +30,7 @@ Config.set("kivy", "exit_on_escape", "0")
 # =========================================================
 
 from kivy.app import App
+from kivy.animation import Animation
 from kivy.clock import Clock, mainthread
 from kivy.core.window import Window
 from kivy.core.text import Label as CoreLabel
@@ -131,12 +133,6 @@ DARK_THEME = {
     "BUTTON_BG_DOWN": (0.27, 0.28, 0.32, 1),
     "THUMBNAIL_BG": (0.28, 0.29, 0.32, 1),
 }
-
-THEME_LABELS = {
-    "dark": "Тёмная",
-    "light": "Светлая",
-}
-
 
 YELLOW = (
     1.00,
@@ -351,7 +347,7 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки Годности"
-BUILD_MARKER = "v18_theme_toggle_no_flash"
+BUILD_MARKER = "v19_theme_controls_smooth"
 
 HEADER_TITLE = "Pyton Detector"
 
@@ -680,6 +676,149 @@ class RoundedButton(Button):
     def set_foreground(self, color):
         # Унифицированный метод для кнопок-предпросмотров цвета.
         self.color = list(color)
+
+
+class ThemeToggleButton(ButtonBehavior, BoxLayout):
+    """Кнопка темы с векторной иконкой следующего режима."""
+
+    theme_name = StringProperty("dark")
+
+    def __init__(self, theme_name="dark", **kwargs):
+        super().__init__(**kwargs)
+
+        self.orientation = "horizontal"
+        self.size_hint_y = None
+        self.height = dp(60)
+        self.padding = (dp(18), dp(8), dp(14), dp(8))
+        self.spacing = dp(10)
+        self.theme_name = theme_name
+
+        with self.canvas.before:
+            self._background_color = Color(*BUTTON_BG)
+            self._background = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(18)],
+            )
+
+        self.title_label = Label(
+            text="Тема",
+            color=TEXT,
+            font_size="16sp",
+            halign="left",
+            valign="middle",
+        )
+        self.title_label.bind(
+            size=lambda instance, value:
+            setattr(instance, "text_size", value)
+        )
+        self.add_widget(self.title_label)
+
+        self.icon = Widget(
+            size_hint=(None, 1),
+            width=dp(42),
+        )
+
+        with self.icon.canvas.after:
+            self._sun_color = Color(1, 1, 1, 0)
+            self._sun_core = Ellipse()
+            self._sun_rays = [
+                Line(
+                    points=[],
+                    width=dp(1.7),
+                    cap="round",
+                )
+                for _ in range(8)
+            ]
+
+            self._moon_color = Color(0.12, 0.13, 0.16, 0)
+            self._moon_outer = Ellipse()
+            self._moon_cutout_color = Color(*BUTTON_BG)
+            self._moon_cutout = Ellipse()
+
+        self.icon.bind(
+            pos=self._update_icon,
+            size=self._update_icon,
+        )
+        self.bind(
+            pos=self._update_visuals,
+            size=self._update_visuals,
+            state=self._update_visuals,
+            theme_name=self._update_visuals,
+        )
+
+        self.add_widget(self.icon)
+        self._update_visuals()
+
+    def _update_visuals(self, *_):
+        self._background.pos = self.pos
+        self._background.size = self.size
+
+        background = (
+            BUTTON_BG_DOWN
+            if self.state == "down"
+            else BUTTON_BG
+        )
+        self._background_color.rgba = background
+        self.title_label.color = list(TEXT)
+        self._update_icon()
+
+    def _update_icon(self, *_):
+        size = min(dp(30), self.icon.width, self.icon.height)
+        center_x = self.icon.center_x
+        center_y = self.icon.center_y
+
+        sun_radius = size * 0.20
+        self._sun_core.pos = (
+            center_x - sun_radius,
+            center_y - sun_radius,
+        )
+        self._sun_core.size = (
+            sun_radius * 2,
+            sun_radius * 2,
+        )
+
+        for ray, angle in zip(
+            self._sun_rays,
+            range(0, 360, 45),
+        ):
+            radians = math.radians(angle)
+            inner = size * 0.32
+            outer = size * 0.47
+            ray.points = [
+                center_x + inner * math.cos(radians),
+                center_y + inner * math.sin(radians),
+                center_x + outer * math.cos(radians),
+                center_y + outer * math.sin(radians),
+            ]
+
+        moon_size = size * 0.76
+        moon_x = center_x - moon_size * 0.50
+        moon_y = center_y - moon_size * 0.50
+        self._moon_outer.pos = (moon_x, moon_y)
+        self._moon_outer.size = (moon_size, moon_size)
+
+        cutout_size = moon_size * 0.82
+        self._moon_cutout.pos = (
+            moon_x + moon_size * 0.34,
+            moon_y + moon_size * 0.22,
+        )
+        self._moon_cutout.size = (cutout_size, cutout_size)
+
+        show_sun = self.theme_name == "dark"
+        self._sun_color.rgba = (
+            1, 1, 1, 1 if show_sun else 0
+        )
+        self._moon_color.rgba = (
+            0.12, 0.13, 0.16, 0 if show_sun else 1
+        )
+        background = tuple(self._background_color.rgba)
+        self._moon_cutout_color.rgba = (
+            background[0],
+            background[1],
+            background[2],
+            0 if show_sun else background[3],
+        )
 
 
 class ColorSwatch(ButtonBehavior, Widget):
@@ -4470,7 +4609,7 @@ class MainApp(App):
         # Совместимость со старым кодом: теперь у всей программы один цвет текста.
         return self.get_global_text_color()
 
-    def _apply_global_text_color_to_tree(self):
+    def _apply_global_text_color_to_tree(self, *_):
         color = self.get_global_text_color()
 
         def walk(widget):
@@ -4519,7 +4658,7 @@ class MainApp(App):
         YELLOW_TEXT = tuple(normalized)
 
         self._save_status_colors()
-        self._apply_global_text_color_to_tree()
+        self._refresh_global_text_color()
 
         try:
             self.refresh_color_settings_screens()
@@ -4530,6 +4669,17 @@ class MainApp(App):
             self.sm.get_screen("home").refresh()
         except Exception:
             pass
+
+        # refresh() может пересоздать карточки, поэтому синхронизируем
+        # цвет ещё раз после обновления дерева виджетов.
+        self._refresh_global_text_color()
+
+    def _refresh_global_text_color(self):
+        self._apply_global_text_color_to_tree()
+        Clock.schedule_once(
+            self._apply_global_text_color_to_tree,
+            0,
+        )
 
 
     def reset_status_colors(self):
@@ -4668,7 +4818,7 @@ class MainApp(App):
 
     def open_global_text_color_picker(self):
         self.open_palette_picker(
-            "Цвет текста всей программы",
+            "Цвет текста",
             self.get_global_text_color(),
             self.set_global_text_color,
         )
@@ -4735,17 +4885,10 @@ class MainApp(App):
         except Exception as exc:
             print("theme save error:", exc)
 
-    def get_theme_button_text(self):
-        return (
-            "Тема: "
-            +
-            THEME_LABELS.get(
-                self.theme_name,
-                "Тёмная"
-            )
-        )
-
     def toggle_theme(self):
+        if getattr(self, "_theme_transition_in_progress", False):
+            return
+
         old_theme = self.theme_name
         new_theme = (
             "light"
@@ -4781,24 +4924,69 @@ class MainApp(App):
         except Exception:
             is_old_default = True
 
-        self.theme_name = new_theme
+        self._theme_transition_in_progress = True
 
-        # Сначала меняем Window, потом перестраиваем интерфейс.
-        apply_theme_globals(
-            self.theme_name
+        fade = Widget(
+            size_hint=(None, None),
+            size=Window.size,
+            pos=(0, 0),
+            opacity=0,
         )
 
-        if is_old_default:
-            self.global_text_color = list(
-                new_default_text
+        with fade.canvas:
+            fade_color = Color(*BG)
+            fade_rect = Rectangle(
+                pos=fade.pos,
+                size=fade.size,
             )
 
-        self._save_theme()
-        self._save_status_colors()
+        def sync_fade(*_):
+            fade_rect.pos = fade.pos
+            fade_rect.size = fade.size
 
-        self._rebuild_ui_for_theme(
-            target_screen="settings"
-        )
+        fade.bind(pos=sync_fade, size=sync_fade)
+
+        def finish_transition(*_):
+            try:
+                Window.remove_widget(fade)
+            except Exception:
+                pass
+            self._theme_transition_in_progress = False
+
+        def update_theme_state():
+            self.theme_name = new_theme
+            apply_theme_globals(self.theme_name)
+
+            if is_old_default:
+                self.global_text_color = list(new_default_text)
+
+            self._save_theme()
+            self._save_status_colors()
+            self._rebuild_ui_for_theme(target_screen="settings")
+
+        def apply_new_theme(*_):
+            update_theme_state()
+            fade_color.rgba = BG
+            fade_out = Animation(
+                opacity=0,
+                d=0.22,
+                t="out_quad",
+            )
+            fade_out.bind(on_complete=finish_transition)
+            fade_out.start(fade)
+
+        try:
+            Window.add_widget(fade)
+            fade_in = Animation(
+                opacity=1,
+                d=0.16,
+                t="out_quad",
+            )
+            fade_in.bind(on_complete=apply_new_theme)
+            fade_in.start(fade)
+        except Exception:
+            update_theme_state()
+            finish_transition()
 
     def _rebuild_ui_for_theme(
         self,
@@ -6050,11 +6238,8 @@ class MainApp(App):
         )
         content.add_widget(colors_button)
 
-        theme_button = RoundedButton(
-            text=self.get_theme_button_text(),
-            size_hint_y=None,
-            height=dp(60),
-            font_size="16sp",
+        theme_button = ThemeToggleButton(
+            theme_name=self.theme_name,
         )
         theme_button.bind(
             on_release=lambda *_:
@@ -6469,6 +6654,7 @@ class MainApp(App):
 
     def open_departments(self):
         self.sm.current = "departments"
+        self._refresh_global_text_color()
 
     def open_search_result(self, product):
 
@@ -6489,6 +6675,7 @@ class MainApp(App):
         self.current_department = department
         self.sm.current = "home"
         self.sm.get_screen("home").refresh()
+        self._refresh_global_text_color()
 
     def open_home(self):
 
@@ -6503,6 +6690,7 @@ class MainApp(App):
         self.sm.get_screen(
             "home"
         ).refresh()
+        self._refresh_global_text_color()
 
     def open_add(
         self,
