@@ -4922,8 +4922,26 @@ class MainApp(App):
                 ) < 0.03
                 for i in range(4)
             )
+
+            is_white_text = all(
+                channel >= 0.94
+                for channel in current_text[:3]
+            )
+            is_black_text = all(
+                channel <= 0.13
+                for channel in current_text[:3]
+            )
+
+            needs_contrast_fix = (
+                new_theme == "light"
+                and is_white_text
+            ) or (
+                new_theme == "dark"
+                and is_black_text
+            )
         except Exception:
             is_old_default = True
+            needs_contrast_fix = True
 
         self._theme_transition_in_progress = True
 
@@ -4951,7 +4969,7 @@ class MainApp(App):
             self.theme_name = new_theme
             apply_theme_globals(self.theme_name)
 
-            if is_old_default:
+            if is_old_default or needs_contrast_fix:
                 self.global_text_color = list(new_default_text)
 
             self._save_theme()
