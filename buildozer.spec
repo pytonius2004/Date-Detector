@@ -29,7 +29,7 @@ orientation = portrait
 
 fullscreen = 0
 
-presplash.filename = icon.png
+presplash.filename = presplash.png
 icon.filename = icon.png
 
 

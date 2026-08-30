@@ -5139,6 +5139,14 @@ class MainApp(App):
                     texture=snapshot_texture,
                     pos=snapshot.pos,
                     size=snapshot.size,
+                    # FBO хранит строки снизу вверх. При прямой отрисовке
+                    # разворачиваем только UV-координаты, не копируя текстуру.
+                    tex_coords=(
+                        0, 1,
+                        1, 1,
+                        1, 0,
+                        0, 0,
+                    ),
                 )
 
             def sync_snapshot(*_):
