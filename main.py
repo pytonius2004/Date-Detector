@@ -32,12 +32,16 @@ Config.set("kivy", "exit_on_escape", "0")
 from kivy.app import App
 from kivy.animation import Animation
 from kivy.clock import Clock, mainthread
-from kivy.core.image import Image as CoreImage
 from kivy.core.window import Window
 from kivy.core.text import Label as CoreLabel
 from kivy.graphics import Color, RoundedRectangle, Rectangle, Ellipse, Line
 from kivy.metrics import dp
-from kivy.properties import ListProperty, StringProperty, BooleanProperty
+from kivy.properties import (
+    ListProperty,
+    StringProperty,
+    BooleanProperty,
+    NumericProperty,
+)
 
 from kivy.uix.behaviors import ButtonBehavior
 from kivy.uix.anchorlayout import AnchorLayout
@@ -820,6 +824,63 @@ class ThemeToggleButton(ButtonBehavior, BoxLayout):
             background[2],
             0 if show_sun else background[3],
         )
+
+
+class LoadingSpinner(Widget):
+    """Неблокирующий векторный индикатор загрузки."""
+
+    angle = NumericProperty(0)
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("size_hint", (None, None))
+        kwargs.setdefault("size", (dp(38), dp(38)))
+        super().__init__(**kwargs)
+
+        self._animation = None
+
+        with self.canvas:
+            self._spinner_color = Color(*TEXT)
+            self._spinner_arc = Line(
+                circle=(0, 0, 0, 0, 270),
+                width=dp(2.2),
+                cap="round",
+            )
+
+        self.bind(
+            pos=self._update_spinner,
+            size=self._update_spinner,
+            angle=self._update_spinner,
+        )
+        self._update_spinner()
+
+    def _update_spinner(self, *_):
+        radius = max(
+            dp(4),
+            min(self.width, self.height) * 0.42,
+        )
+        self._spinner_arc.circle = (
+            self.center_x,
+            self.center_y,
+            radius,
+            self.angle,
+            self.angle + 270,
+        )
+        self._spinner_color.rgba = TEXT
+
+    def start(self):
+        Animation.cancel_all(self, "angle")
+        self.angle = 0
+        self._animation = Animation(
+            angle=360,
+            d=0.72,
+            t="linear",
+        )
+        self._animation.repeat = True
+        self._animation.start(self)
+
+    def stop(self):
+        Animation.cancel_all(self, "angle")
+        self._animation = None
 
 
 class ColorSwatch(ButtonBehavior, Widget):
@@ -3201,7 +3262,7 @@ class DepartmentScreen(BaseScreen):
 
 class HomeScreen(BaseScreen):
 
-    PAGE_SIZE = 36
+    PAGE_SIZE = 20
 
     def __init__(
         self,
@@ -3215,6 +3276,7 @@ class HomeScreen(BaseScreen):
         self.total_count = 0
         self._load_generation = 0
         self._search_event = None
+        self._card_load_event = None
 
     def on_pre_enter(
         self,
@@ -3224,7 +3286,22 @@ class HomeScreen(BaseScreen):
         self.search_query = ""
         if hasattr(self, "search_input"):
             self.search_input.text = ""
-        self.refresh()
+
+        show_loading = bool(
+            getattr(
+                self.app,
+                "_department_load_in_progress",
+                False,
+            )
+        )
+        self.refresh(
+            incremental=show_loading,
+            on_complete=(
+                self.app._hide_department_loading
+                if show_loading
+                else None
+            ),
+        )
 
     def set_filter(
         self,
@@ -3264,9 +3341,20 @@ class HomeScreen(BaseScreen):
             0.16,
         )
 
-    def refresh(self):
+    def refresh(
+        self,
+        incremental=False,
+        on_complete=None,
+    ):
 
         self._load_generation += 1
+
+        if self._card_load_event is not None:
+            try:
+                self._card_load_event.cancel()
+            except Exception:
+                pass
+            self._card_load_event = None
 
         if hasattr(self, "department_button"):
             self.department_button.text = (
@@ -3286,9 +3374,14 @@ class HomeScreen(BaseScreen):
 
         if self.total_count == 0:
             self._show_empty()
+            if on_complete is not None:
+                Clock.schedule_once(on_complete, 0)
             return
 
-        self.load_more()
+        self.load_more(
+            incremental=incremental,
+            on_complete=on_complete,
+        )
 
     def _capture_scroll_offset(self):
         if not hasattr(self, "product_scroll"):
@@ -3313,9 +3406,15 @@ class HomeScreen(BaseScreen):
                 min(1.0, 1.0 - (offset / content_height))
             )
 
-    def load_more(self):
+    def load_more(
+        self,
+        incremental=False,
+        on_complete=None,
+    ):
 
         if self.loaded_count >= self.total_count:
+            if on_complete is not None:
+                Clock.schedule_once(on_complete, 0)
             return
 
         # Запоминаем точное положение в пикселях относительно верха.
@@ -3345,7 +3444,7 @@ class HomeScreen(BaseScreen):
         today = date.today()
         tomorrow = today + timedelta(days=1)
 
-        for product in rows:
+        def add_product_card(product):
             exp_date = None
 
             if product["next_exp"]:
@@ -3366,28 +3465,79 @@ class HomeScreen(BaseScreen):
                 )
             )
 
-        self.loaded_count += len(rows)
+        def finish_loading_rows():
+            if generation != self._load_generation:
+                if on_complete is not None:
+                    Clock.schedule_once(on_complete, 0)
+                return
 
-        if self.loaded_count < self.total_count:
-            self.more_button = RoundedButton(
-                text=(
-                    "Показать ещё"
-                    f"  ({self.loaded_count}/{self.total_count})"
-                ),
-                size_hint_y=None,
-                height=dp(52),
-                font_size="14sp",
-                normal_color=BUTTON_BG,
-                down_color=BUTTON_BG_DOWN,
-            )
-            self.more_button.bind(
-                on_release=lambda *_: self.load_more()
-            )
-            self.product_list.add_widget(self.more_button)
+            self._card_load_event = None
+            self.loaded_count += len(rows)
 
-        # Kivy должен сначала пересчитать minimum_height.
-        Clock.schedule_once(
-            lambda *_: self._restore_scroll_offset(old_offset),
+            if self.loaded_count < self.total_count:
+                self.more_button = RoundedButton(
+                    text=(
+                        "Показать ещё"
+                        f"  ({self.loaded_count}/{self.total_count})"
+                    ),
+                    size_hint_y=None,
+                    height=dp(52),
+                    font_size="14sp",
+                    normal_color=BUTTON_BG,
+                    down_color=BUTTON_BG_DOWN,
+                )
+                self.more_button.bind(
+                    on_release=lambda *_: self.load_more()
+                )
+                self.product_list.add_widget(self.more_button)
+
+            # Kivy должен сначала пересчитать minimum_height.
+            Clock.schedule_once(
+                lambda *_: self._restore_scroll_offset(old_offset),
+                0,
+            )
+
+            if on_complete is not None:
+                Clock.schedule_once(on_complete, 0)
+
+        if not incremental:
+            for product in rows:
+                add_product_card(product)
+            finish_loading_rows()
+            return
+
+        # Первую страницу создаём маленькими порциями. Между ними Kivy
+        # продолжает отрисовывать вращающийся индикатор и не выглядит зависшим.
+        next_index = 0
+        batch_size = 4
+
+        def add_next_batch(*_):
+            nonlocal next_index
+
+            if generation != self._load_generation:
+                self._card_load_event = None
+                if on_complete is not None:
+                    Clock.schedule_once(on_complete, 0)
+                return
+
+            batch_end = min(
+                next_index + batch_size,
+                len(rows),
+            )
+            for product in rows[next_index:batch_end]:
+                add_product_card(product)
+            next_index = batch_end
+
+            if next_index < len(rows):
+                self._card_load_event = Clock.schedule_once(
+                    add_next_batch,
+                    1 / 60,
+                )
+            else:
+                finish_loading_rows()
+
+        self._card_load_event = Clock.schedule_once(
+            add_next_batch,
             0,
         )
 
@@ -4946,20 +5096,12 @@ class MainApp(App):
         self._theme_transition_in_progress = True
 
         snapshot = None
-        snapshot_path = None
+        snapshot_image = None
 
         def finish_transition(*_):
             try:
                 if snapshot is not None:
                     Window.remove_widget(snapshot)
-            except Exception:
-                pass
-
-            try:
-                if snapshot_path is not None:
-                    Path(snapshot_path).unlink(
-                        missing_ok=True,
-                    )
             except Exception:
                 pass
 
@@ -4977,26 +5119,11 @@ class MainApp(App):
             self._rebuild_ui_for_theme(target_screen="settings")
 
         try:
-            snapshot_name = (
-                ".theme_transition_"
-                + datetime.now().strftime(
-                    "%Y%m%d_%H%M%S_%f"
-                )
-                + ".png"
-            )
-
-            requested_path = (
-                Path(self.user_data_dir)
-                / snapshot_name
-            )
-            snapshot_path = Window.screenshot(
-                name=str(requested_path),
-            )
-
-            snapshot_texture = CoreImage(
-                snapshot_path,
-                nocache=True,
-            ).texture
+            # Снимаем текущий интерфейс прямо в видеопамять. Старый вариант
+            # сохранял PNG на диск, что на телефоне задерживало отклик кнопки
+            # на 1–2 секунды.
+            snapshot_image = self.sm.export_as_image()
+            snapshot_texture = snapshot_image.texture
 
             snapshot = Widget(
                 size_hint=(None, None),
@@ -5004,6 +5131,7 @@ class MainApp(App):
                 pos=(0, 0),
                 opacity=1,
             )
+            snapshot._source_image = snapshot_image
 
             with snapshot.canvas:
                 Color(1, 1, 1, 1)
@@ -6708,6 +6836,88 @@ class MainApp(App):
     # NAVIGATION
     # =====================================================
 
+    def _show_department_loading(self):
+        existing = getattr(
+            self,
+            "_department_loading_overlay",
+            None,
+        )
+        if existing is not None:
+            return
+
+        overlay = ModalView(
+            size_hint=(1, 1),
+            auto_dismiss=False,
+            background="",
+            background_color=(0, 0, 0, 0),
+            overlay_color=(0, 0, 0, 0.28),
+        )
+
+        card = RoundedPanel(
+            orientation="vertical",
+            size_hint=(None, None),
+            size=(dp(220), dp(118)),
+            padding=(dp(20), dp(15)),
+            spacing=dp(8),
+            bg_color=CARD,
+            radius=22,
+        )
+
+        spinner_row = AnchorLayout(
+            anchor_x="center",
+            anchor_y="center",
+            size_hint_y=0.58,
+        )
+        spinner = LoadingSpinner()
+        spinner_row.add_widget(spinner)
+        card.add_widget(spinner_row)
+
+        card.add_widget(
+            Label(
+                text="Загрузка товаров…",
+                color=TEXT,
+                font_size="14sp",
+                bold=True,
+                size_hint_y=0.42,
+            )
+        )
+
+        wrapper = AnchorLayout(
+            anchor_x="center",
+            anchor_y="center",
+        )
+        wrapper.add_widget(card)
+        overlay.add_widget(wrapper)
+
+        overlay._loading_spinner = spinner
+        self._department_loading_overlay = overlay
+        overlay.open(animation=False)
+        spinner.start()
+
+    def _hide_department_loading(self, *_):
+        overlay = getattr(
+            self,
+            "_department_loading_overlay",
+            None,
+        )
+        self._department_loading_overlay = None
+
+        if overlay is None:
+            self._department_load_in_progress = False
+            return
+
+        try:
+            overlay._loading_spinner.stop()
+        except Exception:
+            pass
+
+        try:
+            overlay.dismiss(animation=False)
+        except Exception:
+            pass
+
+        self._department_load_in_progress = False
+
     def open_departments(self):
         self.sm.current = "departments"
         self._refresh_global_text_color()
@@ -6728,10 +6938,29 @@ class MainApp(App):
         )
 
     def select_department(self, department):
+        if getattr(self, "_department_load_in_progress", False):
+            return
+
+        self._department_load_in_progress = True
         self.current_department = department
-        self.sm.current = "home"
-        self.sm.get_screen("home").refresh()
-        self._refresh_global_text_color()
+        self._show_department_loading()
+
+        def open_selected_department(*_):
+            try:
+                # on_pre_enter сам обновляет HomeScreen. Раньше refresh()
+                # вызывался ещё раз здесь, удваивая время открытия отдела.
+                self.sm.current = "home"
+                self._refresh_global_text_color()
+            except Exception as exc:
+                print("department loading error:", exc)
+                self._hide_department_loading()
+
+        # Следующий кадр успевает показать реакцию на нажатие до тяжёлой
+        # выборки из БД и создания карточек.
+        Clock.schedule_once(
+            open_selected_department,
+            0.06,
+        )
 
     def open_home(self):
 
@@ -6739,13 +6968,12 @@ class MainApp(App):
             self.open_departments()
             return
 
-        self.sm.current = (
-            "home"
-        )
+        already_home = self.sm.current == "home"
+        self.sm.current = "home"
 
-        self.sm.get_screen(
-            "home"
-        ).refresh()
+        # При переходе с другого экрана on_pre_enter уже обновил список.
+        if already_home:
+            self.sm.get_screen("home").refresh()
         self._refresh_global_text_color()
 
     def open_add(
