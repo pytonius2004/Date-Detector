@@ -7093,12 +7093,7 @@ class MainApp(App):
         )
 
         with card.canvas.before:
-            _card_color = Color(
-                0.12,
-                0.13,
-                0.15,
-                1,
-            )
+            _card_color = Color(*CARD)
             _card_rect = RoundedRectangle(
                 pos=card.pos,
                 size=card.size,
