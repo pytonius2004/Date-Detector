@@ -32,6 +32,7 @@ Config.set("kivy", "exit_on_escape", "0")
 from kivy.app import App
 from kivy.animation import Animation
 from kivy.clock import Clock, mainthread
+from kivy.core.image import Image as CoreImage
 from kivy.core.window import Window
 from kivy.core.text import Label as CoreLabel
 from kivy.graphics import Color, RoundedRectangle, Rectangle, Ellipse, Line
@@ -4926,31 +4927,24 @@ class MainApp(App):
 
         self._theme_transition_in_progress = True
 
-        fade = Widget(
-            size_hint=(None, None),
-            size=Window.size,
-            pos=(0, 0),
-            opacity=0,
-        )
-
-        with fade.canvas:
-            fade_color = Color(*BG)
-            fade_rect = Rectangle(
-                pos=fade.pos,
-                size=fade.size,
-            )
-
-        def sync_fade(*_):
-            fade_rect.pos = fade.pos
-            fade_rect.size = fade.size
-
-        fade.bind(pos=sync_fade, size=sync_fade)
+        snapshot = None
+        snapshot_path = None
 
         def finish_transition(*_):
             try:
-                Window.remove_widget(fade)
+                if snapshot is not None:
+                    Window.remove_widget(snapshot)
             except Exception:
                 pass
+
+            try:
+                if snapshot_path is not None:
+                    Path(snapshot_path).unlink(
+                        missing_ok=True,
+                    )
+            except Exception:
+                pass
+
             self._theme_transition_in_progress = False
 
         def update_theme_state():
@@ -4964,28 +4958,72 @@ class MainApp(App):
             self._save_status_colors()
             self._rebuild_ui_for_theme(target_screen="settings")
 
-        def apply_new_theme(*_):
-            update_theme_state()
-            fade_color.rgba = BG
-            fade_out = Animation(
-                opacity=0,
-                d=0.22,
-                t="out_quad",
-            )
-            fade_out.bind(on_complete=finish_transition)
-            fade_out.start(fade)
-
         try:
-            Window.add_widget(fade)
-            fade_in = Animation(
-                opacity=1,
-                d=0.16,
-                t="out_quad",
+            snapshot_name = (
+                ".theme_transition_"
+                + datetime.now().strftime(
+                    "%Y%m%d_%H%M%S_%f"
+                )
+                + ".png"
             )
-            fade_in.bind(on_complete=apply_new_theme)
-            fade_in.start(fade)
-        except Exception:
+
+            requested_path = (
+                Path(self.user_data_dir)
+                / snapshot_name
+            )
+            snapshot_path = Window.screenshot(
+                name=str(requested_path),
+            )
+
+            snapshot_texture = CoreImage(
+                snapshot_path,
+                nocache=True,
+            ).texture
+
+            snapshot = Widget(
+                size_hint=(None, None),
+                size=Window.size,
+                pos=(0, 0),
+                opacity=1,
+            )
+
+            with snapshot.canvas:
+                Color(1, 1, 1, 1)
+                snapshot_rect = Rectangle(
+                    texture=snapshot_texture,
+                    pos=snapshot.pos,
+                    size=snapshot.size,
+                )
+
+            def sync_snapshot(*_):
+                snapshot_rect.pos = snapshot.pos
+                snapshot_rect.size = snapshot.size
+
+            snapshot.bind(
+                pos=sync_snapshot,
+                size=sync_snapshot,
+            )
+
+            Window.add_widget(snapshot)
             update_theme_state()
+
+            def start_crossfade(*_):
+                crossfade = Animation(
+                    opacity=0,
+                    d=0.36,
+                    t="in_out_quad",
+                )
+                crossfade.bind(
+                    on_complete=finish_transition
+                )
+                crossfade.start(snapshot)
+
+            Clock.schedule_once(start_crossfade, 0)
+        except Exception:
+            try:
+                update_theme_state()
+            except Exception as exc:
+                print("theme update error:", exc)
             finish_transition()
 
     def _rebuild_ui_for_theme(
