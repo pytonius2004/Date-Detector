@@ -9,7 +9,7 @@ source.dir = .
 
 source.include_exts = py,png,jpg,jpeg,webp,kv,atlas,json,db,ttf
 
-source.exclude_dirs = .git,.github,.buildozer,bin,venv,__pycache__,scripts,google_apps_script
+source.exclude_dirs = .git,.github,.buildozer,bin,venv,__pycache__
 
 version = 0.0.7
 
@@ -18,7 +18,7 @@ version = 0.0.7
 # PYTHON / KIVY
 # =========================================================
 
-requirements = python3==3.11.6,hostpython3==3.11.6,kivy==2.3.1,plyer,pyjnius,filetype,certifi
+requirements = python3==3.11.6,hostpython3==3.11.6,kivy==2.3.1,plyer,pyjnius,filetype
 
 
 # =========================================================
