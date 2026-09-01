@@ -7,7 +7,7 @@ import re
 import sqlite3
 import sys
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -53,6 +53,28 @@ TOP_LEVEL_MAP = {
     "suurpakendid": "Большие упаковки",
     "selver gurmee": "Готовые продукты",
 }
+
+CATEGORY_ORDER = [
+    "Фрукты и овощи",
+    "Мясные и рыбные продукты",
+    "Молочные продукты, яйца, сливочное масло",
+    "Сыры",
+    "Хлеб, булка, кондитерские изделия",
+    "Готовые продукты",
+    "Большие упаковки",
+    "Бакалея и консервы",
+    "Мировая кухня, приправы и бульоны",
+    "Соусы, масло",
+    "Сладости, печенье, чипсы",
+    "Замороженные продтовары",
+    "Напитки",
+    "Детские товары",
+    "Товары для домашних питомцев",
+    "Личная гигиена",
+    "Хозяйственные и бытовые товары",
+    "Товары для досуга",
+    "Товары для праздников",
+]
 
 
 def post_search(offset: int) -> dict:
@@ -180,11 +202,93 @@ def write_database(path: Path, records: list[dict], expected_total: int) -> None
             );
             CREATE INDEX idx_catalog_department ON catalog_products(department);
             CREATE TABLE catalog_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+
+            -- The same file can be selected in the application's Import dialog.
+            CREATE TABLE products (
+                barcode TEXT PRIMARY KEY,
+                name TEXT NOT NULL DEFAULT '',
+                department TEXT NOT NULL DEFAULT '',
+                photo_path TEXT NOT NULL DEFAULT '',
+                photo_url TEXT NOT NULL DEFAULT '',
+                product_url TEXT NOT NULL DEFAULT '',
+                manual_no_date INTEGER NOT NULL DEFAULT 1,
+                hidden_from_list INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE expirations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                barcode TEXT NOT NULL,
+                exp_date TEXT NOT NULL,
+                written_off INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (barcode) REFERENCES products(barcode) ON DELETE CASCADE
+            );
+            CREATE TABLE categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX idx_products_department ON products(department);
+            CREATE INDEX idx_products_name ON products(name COLLATE NOCASE);
+            CREATE INDEX idx_products_created_at ON products(created_at DESC);
+            CREATE INDEX idx_categories_sort_order ON categories(sort_order, id);
+            CREATE UNIQUE INDEX idx_barcode_expiration ON expirations(barcode, exp_date);
+            CREATE INDEX idx_active_expirations ON expirations(barcode, written_off, exp_date);
             """
         )
         connection.executemany(
             "INSERT INTO catalog_products VALUES (?, ?, ?, ?, ?, ?)",
             rows.values(),
+        )
+        generated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        inventory_rows = []
+        for index, row in enumerate(rows.values()):
+            barcode, name, department, photo_url, product_url, _source = row
+            created_at = (generated_at + timedelta(microseconds=index)).isoformat(
+                timespec="microseconds"
+            )
+            inventory_rows.append(
+                (
+                    barcode,
+                    name,
+                    department,
+                    "",
+                    photo_url,
+                    product_url,
+                    1,
+                    0,
+                    created_at,
+                )
+            )
+        connection.executemany(
+            """
+            INSERT INTO products(
+                barcode, name, department, photo_path, photo_url, product_url,
+                manual_no_date, hidden_from_list, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            inventory_rows,
+        )
+
+        available_categories = {row[2] for row in rows.values()}
+        ordered_categories = [
+            category for category in CATEGORY_ORDER
+            if category in available_categories
+        ]
+        ordered_categories.extend(
+            sorted(available_categories - set(ordered_categories), key=str.casefold)
+        )
+        connection.executemany(
+            "INSERT INTO categories(name, sort_order, created_at) VALUES (?, ?, ?)",
+            [
+                (
+                    category,
+                    index,
+                    generated_at.isoformat(timespec="microseconds"),
+                )
+                for index, category in enumerate(ordered_categories)
+            ],
         )
         connection.executemany(
             "INSERT INTO catalog_meta(key, value) VALUES (?, ?)",
