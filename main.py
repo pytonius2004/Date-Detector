@@ -1202,6 +1202,14 @@ class RoundedTextInput(TextInput):
             text=self._update_search_visuals,
         )
 
+        # Android can restore the IME/focus after returning from the native
+        # scanner.  On some devices TextInput then briefly falls back to its
+        # default (black) foreground, which makes a scanned barcode invisible
+        # in the dark theme even though ``text`` contains the right value.
+        self.bind(
+            focus=self._refresh_theme_after_focus,
+        )
+
         Clock.schedule_once(
             self._update_search_visuals,
             0,
@@ -1230,6 +1238,36 @@ class RoundedTextInput(TextInput):
             )
         if hasattr(self, "_search_bg"):
             self._update_search_visuals()
+
+    def _refresh_theme_after_focus(self, *_):
+        self.apply_theme()
+        Clock.schedule_once(
+            lambda _dt: self.apply_theme(),
+            0,
+        )
+
+    def set_visible_text(self, value):
+        """Set text coming from Android and force a fresh visible render."""
+        self.text = str(value or "")
+        self._finish_programmatic_text_update()
+        Clock.schedule_once(
+            self._finish_programmatic_text_update,
+            0,
+        )
+        Clock.schedule_once(
+            self._finish_programmatic_text_update,
+            0.12,
+        )
+
+    def _finish_programmatic_text_update(self, *_):
+        self.apply_theme()
+        self.scroll_x = 0
+        try:
+            self.cancel_selection()
+            self.cursor = self.get_cursor_from_index(len(self.text))
+            self._trigger_update_graphics()
+        except Exception:
+            pass
 
     def _update_search_visuals(
         self,
@@ -4065,9 +4103,10 @@ class AddProductScreen(BaseScreen):
             barcode
         )
 
-        self.barcode_input.text = (
-            barcode
-        )
+        if isinstance(self.barcode_input, RoundedTextInput):
+            self.barcode_input.set_visible_text(barcode)
+        else:
+            self.barcode_input.text = barcode
 
         self.autofill_product(
             barcode
