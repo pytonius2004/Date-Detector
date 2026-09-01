@@ -9404,3 +9404,9373 @@ if __name__ == "__main__":
 
     print("PYTON DETECTOR UI BUILD: v20_inputs_catalog_categories")
     MainApp().run()
+from kivy.graphics import (
+    Color,
+    RoundedRectangle,
+    Rectangle,
+    Ellipse,
+    Line,
+    PushMatrix,
+    PopMatrix,
+    Rotate,
+)
+from kivy.metrics import dp
+from kivy.properties import (
+    ListProperty,
+    StringProperty,
+    BooleanProperty,
+    NumericProperty,
+)
+
+from kivy.uix.behaviors import ButtonBehavior
+from kivy.uix.anchorlayout import AnchorLayout
+from kivy.uix.modalview import ModalView
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.gridlayout import GridLayout
+from kivy.uix.floatlayout import FloatLayout
+from kivy.uix.button import Button
+from kivy.uix.image import Image, AsyncImage
+from kivy.uix.label import Label
+from kivy.uix.popup import Popup
+from kivy.uix.screenmanager import (
+    Screen,
+    ScreenManager,
+    NoTransition,
+)
+from kivy.uix.scrollview import ScrollView
+from kivy.uix.textinput import TextInput
+from kivy.uix.widget import Widget
+
+from kivy.utils import platform
+
+
+# =========================================================
+# COLORS / THEME
+# =========================================================
+
+BG = (
+    0.965,
+    0.968,
+    0.975,
+    1,
+)
+
+CARD = (
+    1.0,
+    1.0,
+    1.0,
+    1,
+)
+
+CARD_DISABLED = (
+    0.88,
+    0.89,
+    0.91,
+    1,
+)
+
+TEXT = (
+    0.09,
+    0.10,
+    0.12,
+    1,
+)
+
+TEXT_SECONDARY = (
+    0.39,
+    0.41,
+    0.46,
+    1,
+)
+
+BUTTON_BG = (
+    0.91,
+    0.92,
+    0.94,
+    1,
+)
+
+BUTTON_BG_DOWN = (
+    0.83,
+    0.85,
+    0.88,
+    1,
+)
+
+INPUT_BG = (0.925, 0.935, 0.955, 1)
+INPUT_BG_FOCUS = (0.89, 0.905, 0.935, 1)
+
+LIGHT_THEME = {
+    "BG": (0.965, 0.968, 0.975, 1),
+    "CARD": (1.0, 1.0, 1.0, 1),
+    "CARD_DISABLED": (0.88, 0.89, 0.91, 1),
+    "TEXT": (0.09, 0.10, 0.12, 1),
+    "TEXT_SECONDARY": (0.39, 0.41, 0.46, 1),
+    "BUTTON_BG": (0.91, 0.92, 0.94, 1),
+    "BUTTON_BG_DOWN": (0.83, 0.85, 0.88, 1),
+    "INPUT_BG": (0.925, 0.935, 0.955, 1),
+    "INPUT_BG_FOCUS": (0.89, 0.905, 0.935, 1),
+    "THUMBNAIL_BG": (0.90, 0.91, 0.93, 1),
+}
+
+DARK_THEME = {
+    "BG": (0.045, 0.047, 0.055, 1),
+    "CARD": (0.10, 0.105, 0.12, 1),
+    "CARD_DISABLED": (0.20, 0.20, 0.22, 1),
+    "TEXT": (0.96, 0.96, 0.97, 1),
+    "TEXT_SECONDARY": (0.67, 0.68, 0.72, 1),
+    "BUTTON_BG": (0.20, 0.21, 0.24, 1),
+    "BUTTON_BG_DOWN": (0.27, 0.28, 0.32, 1),
+    "INPUT_BG": (0.135, 0.14, 0.165, 1),
+    "INPUT_BG_FOCUS": (0.18, 0.19, 0.22, 1),
+    "THUMBNAIL_BG": (0.28, 0.29, 0.32, 1),
+}
+
+YELLOW = (
+    1.00,
+    0.78,
+    0.13,
+    1,
+)
+
+YELLOW_TEXT = (
+    0.10,
+    0.08,
+    0.03,
+    1,
+)
+
+RED = (
+    0.82,
+    0.12,
+    0.13,
+    1,
+)
+
+RED_TEXT = (
+    1,
+    1,
+    1,
+    1,
+)
+
+GREEN = (
+    0.13,
+    0.57,
+    0.27,
+    1,
+)
+
+PURPLE = (
+    0.46,
+    0.25,
+    0.68,
+    1,
+)
+
+PURPLE_DOWN = (
+    0.36,
+    0.18,
+    0.56,
+    1,
+)
+
+
+# Настраиваемые цвета статусов товаров.
+# Значения по умолчанию повторяют текущую цветовую схему приложения.
+DEFAULT_STATUS_COLORS = {
+    "expired": RED,        # просрочено / списать
+    "today": YELLOW,       # истекает сегодня / уценить
+    "tomorrow": GREEN,     # истекает завтра
+    "no_date": PURPLE,     # без даты
+    "normal": CARD,        # остальные товары
+}
+
+STATUS_COLOR_LABELS = {
+    "expired": "Просрочено / списать",
+    "today": "Истекает сегодня / уценить",
+    "tomorrow": "Истекает завтра",
+    "no_date": "Без даты",
+    "normal": "Остальные товары",
+}
+
+# Палитра, из которой пользователь может выбрать цвет прямо в приложении.
+# Это надёжнее системного Android color picker и не требует новых зависимостей.
+STATUS_COLOR_PALETTE = [
+    # Основные
+    (0.82, 0.12, 0.13, 1),   # красный
+    (1.00, 0.78, 0.13, 1),   # жёлтый
+    (0.13, 0.57, 0.27, 1),   # зелёный
+    (0.46, 0.25, 0.68, 1),   # фиолетовый
+    (0.12, 0.45, 0.78, 1),   # синий
+    (0.08, 0.63, 0.68, 1),   # бирюзовый
+    (0.93, 0.39, 0.10, 1),   # оранжевый
+    (0.72, 0.23, 0.55, 1),   # малиновый
+
+    # Дополнительные / светлые
+    (0.96, 0.38, 0.40, 1),   # светло-красный
+    (1.00, 0.88, 0.42, 1),   # светло-жёлтый
+    (0.39, 0.76, 0.49, 1),   # светло-зелёный
+    (0.67, 0.48, 0.84, 1),   # светло-фиолетовый
+    (0.42, 0.68, 0.92, 1),   # светло-синий
+    (0.39, 0.79, 0.82, 1),   # светло-бирюзовый
+    (1.00, 0.62, 0.30, 1),   # светло-оранжевый
+    (0.88, 0.47, 0.72, 1),   # светло-розовый
+
+    # Нейтральные
+    (1.00, 1.00, 1.00, 1),   # белый
+    (0.76, 0.77, 0.80, 1),   # светло-серый
+    (0.30, 0.31, 0.35, 1),   # серый
+    (0.10, 0.105, 0.12, 1),  # почти чёрный
+]
+
+DEFAULT_STATUS_TEXT_COLORS = {
+    key: readable
+    for key, readable in {
+        "expired": TEXT,
+        "today": (0.08, 0.08, 0.08, 1),
+        "tomorrow": TEXT,
+        "no_date": TEXT,
+        "normal": TEXT,
+    }.items()
+}
+
+
+
+def readable_text_color(background):
+    """Возвращает белый или почти чёрный текст для выбранного фона."""
+    try:
+        r, g, b = background[:3]
+        luminance = 0.299 * r + 0.587 * g + 0.114 * b
+        return YELLOW_TEXT if luminance > 0.64 else TEXT
+    except Exception:
+        return TEXT
+
+# Основной фирменный акцент из иконки приложения: #83121e
+ACCENT_RED = (
+    131 / 255,
+    18 / 255,
+    30 / 255,
+    1,
+)
+
+# Чуть темнее при нажатии
+ACCENT_RED_DOWN = (
+    0.40,
+    0.045,
+    0.075,
+    1,
+)
+
+Window.clearcolor = BG
+
+
+def apply_theme_globals(theme_name):
+    global BG, CARD, CARD_DISABLED
+    global TEXT, TEXT_SECONDARY
+    global BUTTON_BG, BUTTON_BG_DOWN
+    global INPUT_BG, INPUT_BG_FOCUS
+    global THUMBNAIL_BG
+    global RED_TEXT, YELLOW_TEXT
+
+    theme = DARK_THEME if theme_name == "dark" else LIGHT_THEME
+
+    BG = tuple(theme["BG"])
+    CARD = tuple(theme["CARD"])
+    CARD_DISABLED = tuple(theme["CARD_DISABLED"])
+    TEXT = tuple(theme["TEXT"])
+    TEXT_SECONDARY = tuple(theme["TEXT_SECONDARY"])
+    BUTTON_BG = tuple(theme["BUTTON_BG"])
+    BUTTON_BG_DOWN = tuple(theme["BUTTON_BG_DOWN"])
+    INPUT_BG = tuple(theme["INPUT_BG"])
+    INPUT_BG_FOCUS = tuple(theme["INPUT_BG_FOCUS"])
+    THUMBNAIL_BG = tuple(theme["THUMBNAIL_BG"])
+
+    RED_TEXT = TEXT
+    YELLOW_TEXT = TEXT
+
+    # Меняем реальный фон Window раньше любой смены экрана.
+    Window.clearcolor = BG
+
+
+
+# =========================================================
+# ANDROID / PYJNIUS
+# =========================================================
+
+ANDROID = platform == "android"
+
+PYJNIUS_AVAILABLE = False
+PYJNIUS_ERROR = ""
+
+autoclass = None
+cast = None
+activity_helper = None
+
+
+if ANDROID:
+
+    try:
+
+        from jnius import autoclass, cast
+
+        PYJNIUS_AVAILABLE = True
+
+    except Exception as exc:
+
+        PYJNIUS_ERROR = (
+            type(exc).__name__
+            +
+            ": "
+            +
+            str(exc)
+        )
+
+    try:
+
+        from android import activity
+
+        activity_helper = activity
+
+    except Exception:
+
+        activity_helper = None
+
+
+# =========================================================
+# CONSTANTS
+# =========================================================
+
+APP_TITLE = "Сроки Годности"
+BUILD_MARKER = "v20_inputs_catalog_categories"
+
+HEADER_TITLE = "Pyton Detector"
+
+LOGO_FILE = "logo1.png"
+SPINNER_FILE = str(
+    Path(__file__).resolve().parent
+    /
+    "loading_spinner.png"
+)
+
+ACTION_BUTTON_TEXT = (1, 1, 1, 1)
+
+DB_NAME = "inventory.db"
+CATALOG_DB_FILE = "selver_base.db"
+
+DATE_DB_FORMAT = "%Y-%m-%d"
+DATE_USER_FORMAT = "%d.%m.%y"
+
+REQUEST_SCAN_BARCODE = 7001
+REQUEST_IMPORT_DB = 4102
+REQUEST_PICK_PRODUCT_PHOTO = 7201
+REQUEST_TAKE_PRODUCT_PHOTO = 7202
+REQUEST_SCAN_PRODUCT_NAME = 7301
+
+# =========================================================
+# SAFE AREA
+# =========================================================
+
+if ANDROID:
+
+    SAFE_TOP = dp(32)
+    SAFE_BOTTOM = dp(34)
+
+else:
+
+    SAFE_TOP = 0
+    SAFE_BOTTOM = 0
+
+
+def safe_padding(
+    horizontal=12,
+    top=12,
+    bottom=12
+):
+
+    return (
+        dp(horizontal),
+        dp(top) + SAFE_TOP,
+        dp(horizontal),
+        dp(bottom) + SAFE_BOTTOM,
+    )
+
+
+class SafeAreaLayout(BoxLayout):
+    """Root layout whose padding follows the currently visible system bars."""
+
+    def __init__(
+        self,
+        safe_horizontal=12,
+        safe_top=12,
+        safe_bottom=12,
+        **kwargs
+    ):
+        self.safe_horizontal = safe_horizontal
+        self.safe_top = safe_top
+        self.safe_bottom = safe_bottom
+        kwargs.pop("padding", None)
+        super().__init__(**kwargs)
+        self.refresh_safe_padding()
+
+    def refresh_safe_padding(self):
+        self.padding = safe_padding(
+            horizontal=self.safe_horizontal,
+            top=self.safe_top,
+            bottom=self.safe_bottom,
+        )
+
+
+# =========================================================
+# BARCODE
+# =========================================================
+
+def normalize_barcode(value):
+
+    if value is None:
+
+        return ""
+
+    return str(value).strip()
+
+
+def barcode_variants(barcode):
+
+    barcode = normalize_barcode(
+        barcode
+    )
+
+    if not barcode:
+
+        return []
+
+    result = [
+        barcode
+    ]
+
+    if (
+        barcode.startswith("0")
+        and
+        len(barcode) > 1
+    ):
+
+        result.append(
+            barcode[1:]
+        )
+
+    if (
+        len(barcode) == 12
+        and
+        barcode.isdigit()
+    ):
+
+        result.append(
+            "0" + barcode
+        )
+
+    unique = []
+
+    for item in result:
+
+        if item not in unique:
+
+            unique.append(
+                item
+            )
+
+    return unique
+
+
+# =========================================================
+# DATE
+# =========================================================
+
+def parse_user_date(value):
+
+    digits = "".join(
+        char
+        for char in str(value)
+        if char.isdigit()
+    )
+
+    if len(digits) == 6:
+
+        try:
+
+            day = int(
+                digits[0:2]
+            )
+
+            month = int(
+                digits[2:4]
+            )
+
+            year = (
+                2000
+                +
+                int(
+                    digits[4:6]
+                )
+            )
+
+            parsed = date(
+                year,
+                month,
+                day
+            )
+
+            return parsed.strftime(
+                DATE_DB_FORMAT
+            )
+
+        except ValueError:
+
+            return None
+
+    if len(digits) == 8:
+
+        try:
+
+            day = int(
+                digits[0:2]
+            )
+
+            month = int(
+                digits[2:4]
+            )
+
+            year = int(
+                digits[4:8]
+            )
+
+            parsed = date(
+                year,
+                month,
+                day
+            )
+
+            return parsed.strftime(
+                DATE_DB_FORMAT
+            )
+
+        except ValueError:
+
+            return None
+
+    return None
+
+
+def format_date(value):
+
+    if not value:
+
+        return "—"
+
+    try:
+
+        return datetime.strptime(
+            value,
+            DATE_DB_FORMAT
+        ).strftime(
+            DATE_USER_FORMAT
+        )
+
+    except ValueError:
+
+        return value
+
+
+# =========================================================
+# CUSTOM BUTTON
+# =========================================================
+
+class RoundedButton(Button):
+
+    normal_color = ListProperty(
+        BUTTON_BG
+    )
+
+    down_color = ListProperty(
+        BUTTON_BG_DOWN
+    )
+
+    force_white_text = BooleanProperty(False)
+
+    radius = dp(14)
+
+    def __init__(
+        self,
+        **kwargs
+    ):
+
+        # ListProperty defaults are created when this class is defined, before
+        # the saved theme is loaded. Resolve unspecified button colors here so
+        # every newly built screen uses the currently active theme.
+        kwargs.setdefault("normal_color", BUTTON_BG)
+        kwargs.setdefault("down_color", BUTTON_BG_DOWN)
+        requested_color = kwargs.get("color")
+        if "force_white_text" not in kwargs:
+            normal = tuple(kwargs["normal_color"])
+            kwargs["force_white_text"] = all(
+                abs(float(normal[index]) - float(ACCENT_RED[index])) < 0.025
+                for index in range(3)
+            )
+
+        super().__init__(
+            **kwargs
+        )
+
+        self.background_normal = ""
+        self.background_down = ""
+
+        self.background_color = (
+            0,
+            0,
+            0,
+            0,
+        )
+
+        if self.force_white_text:
+            self.color = ACTION_BUTTON_TEXT
+        elif requested_color is None:
+            self.color = TEXT
+
+        with self.canvas.before:
+
+            self._color = Color(
+                *self.normal_color
+            )
+
+            self._rect = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[
+                    self.radius,
+                ],
+            )
+
+        self.bind(
+            pos=self._update_canvas,
+            size=self._update_canvas,
+            state=self._update_state,
+            normal_color=self._update_state,
+            down_color=self._update_state,
+        )
+
+    def _update_canvas(
+        self,
+        *_
+    ):
+
+        self._rect.pos = (
+            self.pos
+        )
+
+        self._rect.size = (
+            self.size
+        )
+
+    def _update_state(
+        self,
+        *_
+    ):
+
+        if self.state == "down":
+
+            color = (
+                self.down_color
+            )
+
+        else:
+
+            color = (
+                self.normal_color
+            )
+
+        self._color.rgba = (
+            color
+        )
+
+    def set_foreground(self, color):
+        # Унифицированный метод для кнопок-предпросмотров цвета.
+        self.color = list(color)
+
+
+class ThemeToggleButton(ButtonBehavior, BoxLayout):
+    """Кнопка темы с векторной иконкой следующего режима."""
+
+    theme_name = StringProperty("dark")
+
+    def __init__(self, theme_name="dark", **kwargs):
+        super().__init__(**kwargs)
+
+        self.orientation = "horizontal"
+        self.size_hint_y = None
+        self.height = dp(60)
+        self.padding = (dp(18), dp(8), dp(14), dp(8))
+        self.spacing = dp(10)
+        self.theme_name = theme_name
+
+        with self.canvas.before:
+            self._background_color = Color(*BUTTON_BG)
+            self._background = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(18)],
+            )
+
+        self.title_label = Label(
+            text="Тема",
+            color=TEXT,
+            font_size="16sp",
+            halign="left",
+            valign="middle",
+        )
+        self.title_label.bind(
+            size=lambda instance, value:
+            setattr(instance, "text_size", value)
+        )
+        self.add_widget(self.title_label)
+
+        self.icon = Widget(
+            size_hint=(None, 1),
+            width=dp(42),
+        )
+
+        with self.icon.canvas.after:
+            self._sun_color = Color(1, 1, 1, 0)
+            self._sun_core = Ellipse()
+            self._sun_rays = [
+                Line(
+                    points=[],
+                    width=dp(1.7),
+                    cap="round",
+                )
+                for _ in range(8)
+            ]
+
+            self._moon_color = Color(0.12, 0.13, 0.16, 0)
+            self._moon_outer = Ellipse()
+            self._moon_cutout_color = Color(*BUTTON_BG)
+            self._moon_cutout = Ellipse()
+
+        self.icon.bind(
+            pos=self._update_icon,
+            size=self._update_icon,
+        )
+        self.bind(
+            pos=self._update_visuals,
+            size=self._update_visuals,
+            state=self._update_visuals,
+            theme_name=self._update_visuals,
+        )
+
+        self.add_widget(self.icon)
+        self._update_visuals()
+
+    def _update_visuals(self, *_):
+        self._background.pos = self.pos
+        self._background.size = self.size
+
+        background = (
+            BUTTON_BG_DOWN
+            if self.state == "down"
+            else BUTTON_BG
+        )
+        self._background_color.rgba = background
+        self.title_label.color = list(TEXT)
+        self._update_icon()
+
+    def _update_icon(self, *_):
+        size = min(dp(30), self.icon.width, self.icon.height)
+        center_x = self.icon.center_x
+        center_y = self.icon.center_y
+
+        sun_radius = size * 0.20
+        self._sun_core.pos = (
+            center_x - sun_radius,
+            center_y - sun_radius,
+        )
+        self._sun_core.size = (
+            sun_radius * 2,
+            sun_radius * 2,
+        )
+
+        for ray, angle in zip(
+            self._sun_rays,
+            range(0, 360, 45),
+        ):
+            radians = math.radians(angle)
+            inner = size * 0.32
+            outer = size * 0.47
+            ray.points = [
+                center_x + inner * math.cos(radians),
+                center_y + inner * math.sin(radians),
+                center_x + outer * math.cos(radians),
+                center_y + outer * math.sin(radians),
+            ]
+
+        moon_size = size * 0.76
+        moon_x = center_x - moon_size * 0.50
+        moon_y = center_y - moon_size * 0.50
+        self._moon_outer.pos = (moon_x, moon_y)
+        self._moon_outer.size = (moon_size, moon_size)
+
+        cutout_size = moon_size * 0.82
+        self._moon_cutout.pos = (
+            moon_x + moon_size * 0.34,
+            moon_y + moon_size * 0.22,
+        )
+        self._moon_cutout.size = (cutout_size, cutout_size)
+
+        show_sun = self.theme_name == "dark"
+        self._sun_color.rgba = (
+            1, 1, 1, 1 if show_sun else 0
+        )
+        self._moon_color.rgba = (
+            0.12, 0.13, 0.16, 0 if show_sun else 1
+        )
+        background = tuple(self._background_color.rgba)
+        self._moon_cutout_color.rgba = (
+            background[0],
+            background[1],
+            background[2],
+            0 if show_sun else background[3],
+        )
+
+
+class LoadingSpinner(Widget):
+    """Плавный индикатор из сглаженного PNG, вращаемого видеокартой."""
+
+    angle = NumericProperty(0)
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("size_hint", (None, None))
+        kwargs.setdefault("size", (dp(38), dp(38)))
+        super().__init__(**kwargs)
+
+        self._animation = None
+
+        with self.canvas:
+            self._spinner_color = Color(1, 1, 1, 1)
+            PushMatrix()
+            self._spinner_rotation = Rotate(
+                angle=0,
+                origin=self.center,
+            )
+            self._spinner_image = Rectangle(
+                source=SPINNER_FILE,
+                pos=self.pos,
+                size=self.size,
+            )
+            PopMatrix()
+
+        self.bind(
+            pos=self._update_spinner,
+            size=self._update_spinner,
+            angle=self._update_spinner,
+        )
+        self._update_spinner()
+
+    def _update_spinner(self, *_):
+        side = min(self.width, self.height)
+        self._spinner_image.pos = (
+            self.center_x - side / 2,
+            self.center_y - side / 2,
+        )
+        self._spinner_image.size = (side, side)
+        self._spinner_rotation.origin = self.center
+        self._spinner_rotation.angle = self.angle
+
+    def start(self):
+        Animation.cancel_all(self, "angle")
+        self.angle = 0
+        self._animation = Animation(
+            angle=360,
+            d=0.68,
+            t="linear",
+        )
+        self._animation.repeat = True
+        self._animation.start(self)
+
+    def stop(self):
+        Animation.cancel_all(self, "angle")
+        self._animation = None
+
+
+class ColorSwatch(ButtonBehavior, Widget):
+
+    swatch_color = ListProperty((1, 1, 1, 1))
+    selected = BooleanProperty(False)
+
+    def __init__(self, swatch_color=(1, 1, 1, 1), selected=False, **kwargs):
+        super().__init__(**kwargs)
+
+        self.swatch_color = list(swatch_color)
+        self.selected = bool(selected)
+
+        with self.canvas.before:
+            self._shadow_color = Color(0, 0, 0, 0.20)
+            self._shadow = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(15)],
+            )
+
+            self._fill_color = Color(*self.swatch_color)
+            self._fill = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(15)],
+            )
+
+        with self.canvas.after:
+            # Белый круг выбора.
+            self._selected_circle_color = Color(1, 1, 1, 0)
+            self._selected_circle = Ellipse(
+                pos=self.pos,
+                size=(dp(25), dp(25)),
+            )
+
+            # Галочка рисуется линиями, поэтому не зависит от шрифтов Android.
+            self._check_color = Color(0.08, 0.08, 0.08, 0)
+            self._check_line = Line(
+                points=[],
+                width=dp(2.0),
+                cap="round",
+                joint="round",
+            )
+
+        self.bind(
+            pos=self._update_swatch,
+            size=self._update_swatch,
+            swatch_color=self._update_swatch,
+            selected=self._update_swatch,
+        )
+
+        self._update_swatch()
+
+    def _update_swatch(self, *_):
+        self._shadow.pos = (self.x, self.y - dp(1))
+        self._shadow.size = self.size
+
+        self._fill.pos = self.pos
+        self._fill.size = self.size
+        self._fill_color.rgba = tuple(self.swatch_color)
+
+        indicator = min(dp(27), self.height * 0.42)
+        ix = self.right - indicator - dp(6)
+        iy = self.top - indicator - dp(6)
+
+        self._selected_circle.pos = (ix, iy)
+        self._selected_circle.size = (indicator, indicator)
+
+        if self.selected:
+            self._selected_circle_color.rgba = (1, 1, 1, 0.98)
+
+            x0 = ix + indicator * 0.25
+            y0 = iy + indicator * 0.50
+            x1 = ix + indicator * 0.43
+            y1 = iy + indicator * 0.31
+            x2 = ix + indicator * 0.76
+            y2 = iy + indicator * 0.70
+
+            self._check_color.rgba = (0.08, 0.08, 0.08, 1)
+            self._check_line.points = [x0, y0, x1, y1, x2, y2]
+        else:
+            self._selected_circle_color.rgba = (1, 1, 1, 0)
+            self._check_color.rgba = (0.08, 0.08, 0.08, 0)
+            self._check_line.points = []
+
+
+class SettingsColorRow(ButtonBehavior, BoxLayout):
+    """Нейтральная строка настроек + миниатюра текущего цвета справа."""
+
+    preview_color = ListProperty((1, 1, 1, 1))
+
+    def __init__(self, title="", preview_color=(1, 1, 1, 1), show_preview=True, **kwargs):
+        super().__init__(**kwargs)
+
+        self.orientation = "horizontal"
+        self.size_hint_y = None
+        self.height = dp(58)
+        self.padding = (dp(16), dp(8), dp(14), dp(8))
+        self.spacing = dp(10)
+        self.preview_color = list(preview_color)
+
+        with self.canvas.before:
+            self._row_color = Color(*BUTTON_BG)
+            self._row_rect = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(18)],
+            )
+
+        self.bind(
+            pos=self._update_row,
+            size=self._update_row,
+            state=self._update_row,
+        )
+
+        self.title_label = Label(
+            text=title,
+            color=TEXT,
+            font_size="15sp",
+            halign="left",
+            valign="middle",
+        )
+        self.title_label.bind(
+            size=lambda inst, value:
+            setattr(inst, "text_size", value)
+        )
+        self.add_widget(self.title_label)
+
+        self.show_preview = bool(show_preview)
+        self.preview = None
+        self._preview_color_instruction = None
+        self._preview_rect = None
+        self._preview_border = None
+
+        if self.show_preview:
+            self.preview = Widget(
+                size_hint=(None, None),
+                size=(dp(34), dp(34)),
+            )
+
+            with self.preview.canvas.before:
+                self._preview_color_instruction = Color(*self.preview_color)
+                self._preview_rect = RoundedRectangle(
+                    pos=self.preview.pos,
+                    size=self.preview.size,
+                    radius=[dp(10)],
+                )
+                self._preview_border_color = Color(0.15, 0.16, 0.18, 0.24)
+                self._preview_border = Line(
+                    rounded_rectangle=(
+                        self.preview.x,
+                        self.preview.y,
+                        self.preview.width,
+                        self.preview.height,
+                        dp(10),
+                    ),
+                    width=dp(1),
+                )
+
+            self.preview.bind(
+                pos=self._update_preview,
+                size=self._update_preview,
+            )
+            self.bind(
+                preview_color=self._update_preview,
+            )
+
+            self.add_widget(self.preview)
+
+    def _update_row(self, *_):
+        self._row_rect.pos = self.pos
+        self._row_rect.size = self.size
+        self._row_color.rgba = (
+            BUTTON_BG_DOWN if self.state == "down" else BUTTON_BG
+        )
+
+    def _update_preview(self, *_):
+        if not self.show_preview or self.preview is None:
+            return
+
+        self._preview_color_instruction.rgba = tuple(self.preview_color)
+        self._preview_rect.pos = self.preview.pos
+        self._preview_rect.size = self.preview.size
+        self._preview_border.rounded_rectangle = (
+            self.preview.x,
+            self.preview.y,
+            self.preview.width,
+            self.preview.height,
+            dp(10),
+        )
+
+    def set_preview(self, color):
+        self.preview_color = list(color)
+
+    def set_text_color(self, color):
+        self.title_label.color = list(color)
+
+
+class RoundedTextInput(TextInput):
+
+    def __init__(self, **kwargs):
+
+        requested_hint = kwargs.pop(
+            "hint_text",
+            ""
+        )
+
+        kwargs.pop(
+            "hint_text_color",
+            TEXT
+        )
+
+        super().__init__(**kwargs)
+
+        self.background_normal = ""
+        self.background_active = ""
+        self.background_color = (
+            0,
+            0,
+            0,
+            0,
+        )
+
+        self.write_tab = False
+
+        # Не используем стандартный hint_text Kivy.
+        # На некоторых Android-сборках он есть логически,
+        # но визуально вообще не рисуется.
+        self.hint_text = ""
+
+        self._placeholder_text = str(
+            requested_hint or ""
+        )
+
+        self._placeholder_color = tuple(TEXT_SECONDARY)
+
+        self._placeholder_core = None
+
+        with self.canvas.before:
+
+            self._search_bg_color = Color(
+                *INPUT_BG
+            )
+
+            self._search_bg = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[
+                    dp(18)
+                ],
+            )
+
+        # Рисуем placeholder ПОСЛЕ внутреннего canvas TextInput,
+        # поэтому Android/Kivy уже не может закрыть его фоном поля.
+        with self.canvas.after:
+
+            self._placeholder_canvas_color = Color(
+                1,
+                1,
+                1,
+                0,
+            )
+
+            self._placeholder_rect = Rectangle(
+                pos=self.pos,
+                size=(0, 0),
+            )
+
+            # На некоторых Android/SDL2 сборках стандартный glyph-renderer
+            # TextInput периодически не рисует введённый текст, хотя значение
+            # в self.text присутствует. Рисуем видимую копию текста поверх
+            # внутреннего canvas TextInput. Сам нативный текст на Android
+            # делаем прозрачным в apply_theme(), курсор остаётся отдельным.
+            self._value_canvas_color = Color(1, 1, 1, 0)
+            self._value_rect = Rectangle(
+                pos=self.pos,
+                size=(0, 0),
+            )
+            self._value_core = None
+
+        self.bind(
+            pos=self._update_search_visuals,
+            size=self._update_search_visuals,
+            padding=self._update_search_visuals,
+            font_size=self._update_search_visuals,
+            focus=self._update_search_visuals,
+            text=self._update_search_visuals,
+        )
+
+        # Android can restore the IME/focus after returning from the native
+        # scanner.  On some devices TextInput then briefly falls back to its
+        # default (black) foreground, which makes a scanned barcode invisible
+        # in the dark theme even though ``text`` contains the right value.
+        self.bind(
+            focus=self._refresh_theme_after_focus,
+        )
+
+        Clock.schedule_once(
+            self._update_search_visuals,
+            0,
+        )
+
+        self.apply_theme()
+
+    def apply_theme(self):
+        """Use theme contrast in fields, independent of the user text accent."""
+        app = App.get_running_app()
+        theme = (
+            DARK_THEME
+            if getattr(app, "theme_name", "dark") == "dark"
+            else LIGHT_THEME
+        )
+        input_text = tuple(theme["TEXT"])
+        # Android: текст отображаем собственным canvas-слоем ниже. Это
+        # обходит баг, при котором TextInput хранит строку, но не рисует её.
+        self.foreground_color = (
+            input_text[0], input_text[1], input_text[2],
+            0 if ANDROID else input_text[3]
+        )
+        self.cursor_color = input_text
+        self.selection_color = list(theme["BUTTON_BG_DOWN"])
+        self._placeholder_color = tuple(theme["TEXT_SECONDARY"])
+        if hasattr(self, "_search_bg_color"):
+            self._search_bg_color.rgba = (
+                tuple(theme["INPUT_BG_FOCUS"])
+                if self.focus
+                else tuple(theme["INPUT_BG"])
+            )
+        if hasattr(self, "_search_bg"):
+            self._update_search_visuals()
+
+    def _refresh_theme_after_focus(self, *_):
+        self.apply_theme()
+        Clock.schedule_once(
+            lambda _dt: self.apply_theme(),
+            0,
+        )
+
+    def set_visible_text(self, value):
+        """Set text coming from Android and force a fresh visible render."""
+        self.text = str(value or "")
+        self._finish_programmatic_text_update()
+        Clock.schedule_once(
+            self._finish_programmatic_text_update,
+            0,
+        )
+        Clock.schedule_once(
+            self._finish_programmatic_text_update,
+            0.12,
+        )
+
+    def _finish_programmatic_text_update(self, *_):
+        self.apply_theme()
+        self.scroll_x = 0
+        try:
+            self.cancel_selection()
+            self.cursor = self.get_cursor_from_index(len(self.text))
+            self._trigger_update_graphics()
+        except Exception:
+            pass
+
+    def _update_search_visuals(
+        self,
+        *_
+    ):
+
+        self._search_bg.pos = self.pos
+        self._search_bg.size = self.size
+        app = App.get_running_app()
+        theme = (
+            DARK_THEME
+            if getattr(app, "theme_name", "dark") == "dark"
+            else LIGHT_THEME
+        )
+        self._search_bg_color.rgba = (
+            tuple(theme["INPUT_BG_FOCUS"])
+            if self.focus
+            else tuple(theme["INPUT_BG"])
+        )
+
+        # Надёжное отображение фактического значения поля на Android.
+        # Это отдельная текстура, поэтому возврат из Camera/Activity или
+        # системная клавиатура не могут сделать введённый текст невидимым.
+        if ANDROID and self.text:
+            try:
+                pad = self.padding
+                pad_x = float(pad[0]) if isinstance(pad, (tuple, list)) else float(pad or dp(12))
+                pad_right = (
+                    float(pad[2])
+                    if isinstance(pad, (tuple, list)) and len(pad) >= 3
+                    else pad_x
+                )
+                input_text = tuple(theme["TEXT"])
+                available_width = max(dp(10), self.width - pad_x - pad_right)
+                self._value_core = CoreLabel(
+                    text=str(self.text),
+                    font_size=self.font_size,
+                    color=input_text,
+                )
+                self._value_core.refresh()
+                texture = self._value_core.texture
+                if texture is not None:
+                    tex_w, tex_h = texture.size
+                    # Для длинных однострочных значений показываем правую
+                    # часть, где обычно находится курсор.
+                    shown_w = min(tex_w, available_width)
+                    self._value_canvas_color.rgba = input_text
+                    self._value_rect.texture = texture
+                    self._value_rect.pos = (
+                        self.x + pad_x - max(0, tex_w - available_width),
+                        self.y + max(0, (self.height - tex_h) / 2),
+                    )
+                    self._value_rect.size = (tex_w, tex_h)
+                else:
+                    self._value_canvas_color.rgba = (1, 1, 1, 0)
+                    self._value_rect.texture = None
+                    self._value_rect.size = (0, 0)
+            except Exception:
+                self._value_canvas_color.rgba = (1, 1, 1, 0)
+                self._value_rect.texture = None
+                self._value_rect.size = (0, 0)
+        else:
+            self._value_canvas_color.rgba = (1, 1, 1, 0)
+            self._value_rect.texture = None
+            self._value_rect.size = (0, 0)
+
+        # Как в обычных приложениях:
+        # placeholder виден только когда поле ПУСТОЕ и НЕ в фокусе.
+        visible = (
+            (not self.focus)
+            and
+            (not self.text)
+            and
+            bool(self._placeholder_text)
+        )
+
+        if not visible:
+
+            self._placeholder_canvas_color.rgba = (
+                1,
+                1,
+                1,
+                0,
+            )
+
+            self._placeholder_rect.texture = None
+            self._placeholder_rect.size = (
+                0,
+                0,
+            )
+
+            return
+
+        try:
+
+            rgba = tuple(
+                float(x)
+                for x in self._placeholder_color[:4]
+            )
+
+        except Exception:
+
+            rgba = TEXT
+
+        # CoreLabel создаёт обычную текстуру текста.
+        # Это намного надёжнее child-Label внутри TextInput на Android.
+        self._placeholder_core = CoreLabel(
+            text=self._placeholder_text,
+            font_size=self.font_size,
+            color=rgba,
+        )
+
+        self._placeholder_core.refresh()
+
+        texture = (
+            self._placeholder_core.texture
+        )
+
+        if texture is None:
+            return
+
+        try:
+
+            pad = self.padding
+
+            if isinstance(
+                pad,
+                (tuple, list)
+            ):
+
+                pad_x = (
+                    float(pad[0])
+                    if len(pad) >= 1
+                    else dp(15)
+                )
+
+            else:
+
+                pad_x = float(
+                    pad or dp(15)
+                )
+
+        except Exception:
+
+            pad_x = dp(15)
+
+        tex_w, tex_h = texture.size
+
+        x = (
+            self.x
+            +
+            pad_x
+        )
+
+        y = (
+            self.y
+            +
+            max(
+                0,
+                (
+                    self.height
+                    -
+                    tex_h
+                )
+                /
+                2
+            )
+        )
+
+        self._placeholder_canvas_color.rgba = tuple(
+            self._placeholder_color
+        )
+
+        self._placeholder_rect.texture = (
+            texture
+        )
+
+        self._placeholder_rect.pos = (
+            x,
+            y,
+        )
+
+        self._placeholder_rect.size = (
+            tex_w,
+            tex_h,
+        )
+
+    def set_placeholder(
+        self,
+        text
+    ):
+
+        self._placeholder_text = str(
+            text or ""
+        )
+
+        self._update_search_visuals()
+
+
+class CameraIconButton(ButtonBehavior, Widget):
+    """Компактная кнопка камеры, полностью нарисованная Kivy canvas."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        with self.canvas.before:
+            self._camera_bg_color = Color(*INPUT_BG)
+            self._camera_bg = RoundedRectangle(
+                pos=self.pos, size=self.size, radius=[dp(18)]
+            )
+        with self.canvas.after:
+            self._camera_icon_color = Color(*TEXT)
+            self._camera_body = Line(
+                rounded_rectangle=(0, 0, 1, 1, dp(4)),
+                width=dp(1.8),
+            )
+            self._camera_lens = Line(circle=(0, 0, 1), width=dp(1.8))
+            self._camera_top = Line(points=[], width=dp(1.8), cap="round")
+        self.bind(
+            pos=self._update_camera_icon,
+            size=self._update_camera_icon,
+            state=self._update_camera_icon,
+        )
+        self._update_camera_icon()
+
+    def _update_camera_icon(self, *_):
+        app = App.get_running_app()
+        theme = DARK_THEME if getattr(app, "theme_name", "dark") == "dark" else LIGHT_THEME
+        self._camera_bg.pos = self.pos
+        self._camera_bg.size = self.size
+        self._camera_bg_color.rgba = (
+            tuple(theme["INPUT_BG_FOCUS"]) if self.state == "down" else tuple(theme["INPUT_BG"])
+        )
+        self._camera_icon_color.rgba = tuple(theme["TEXT"])
+
+        w = min(self.width, self.height)
+        body_w = w * 0.46
+        body_h = w * 0.32
+        bx = self.center_x - body_w / 2
+        by = self.center_y - body_h / 2
+        self._camera_body.rounded_rectangle = (bx, by, body_w, body_h, dp(4))
+        self._camera_lens.circle = (self.center_x, self.center_y, w * 0.095)
+        self._camera_top.points = [
+            self.center_x - w * 0.11, by + body_h,
+            self.center_x - w * 0.055, by + body_h + w * 0.075,
+            self.center_x + w * 0.055, by + body_h + w * 0.075,
+            self.center_x + w * 0.11, by + body_h,
+        ]
+
+
+class RoundedPanel(BoxLayout):
+
+    def __init__(
+        self,
+        bg_color=CARD,
+        radius=24,
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+
+        with self.canvas.before:
+            self._panel_color = Color(*bg_color)
+            self._panel_rect = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(radius)],
+            )
+
+        self.bind(
+            pos=self._update_panel_canvas,
+            size=self._update_panel_canvas,
+        )
+
+    def _update_panel_canvas(self, *_):
+        self._panel_rect.pos = self.pos
+        self._panel_rect.size = self.size
+
+
+# =========================================================
+# PRODUCT CARD
+# =========================================================
+
+class RoundedImageButton(ButtonBehavior, BoxLayout):
+
+    image_source = StringProperty("")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.padding = dp(13)
+
+        with self.canvas.before:
+            self._bg_color = Color(*BUTTON_BG)
+            self._bg_rect = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(18)]
+            )
+
+        self.bind(
+            pos=self._update_bg,
+            size=self._update_bg,
+            state=self._update_state,
+        )
+
+        self._icon = Image(
+            source=self.image_source,
+            fit_mode="contain",
+        )
+        self.add_widget(self._icon)
+        self.apply_theme()
+
+    def apply_theme(self):
+        app = App.get_running_app()
+        theme = (
+            DARK_THEME
+            if getattr(app, "theme_name", "dark") == "dark"
+            else LIGHT_THEME
+        )
+        if hasattr(self, "_icon"):
+            self._icon.color = list(theme["TEXT"])
+
+    def _update_bg(self, *_):
+        self._bg_rect.pos = self.pos
+        self._bg_rect.size = self.size
+
+    def _update_state(self, *_):
+        self._bg_color.rgba = (
+            BUTTON_BG_DOWN
+            if self.state == "down"
+            else BUTTON_BG
+        )
+
+
+class ProductThumbnail(BoxLayout):
+
+    def __init__(
+        self,
+        source="",
+        remote_source="",
+        thumb_width=84,
+        thumb_height=92,
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+
+        self.size_hint = (None, None)
+        self.width = dp(thumb_width)
+        self.height = dp(thumb_height)
+        self.padding = 0
+        self._has_image = False
+
+        with self.canvas.before:
+            self._bg_color = Color(
+                *THUMBNAIL_BG
+            )
+            self._bg_rect = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(14)],
+            )
+
+        self.bind(
+            pos=self._update_bg,
+            size=self._update_bg,
+        )
+
+        local_source = str(
+            source or ""
+        ).strip()
+
+        remote_source = str(
+            remote_source or ""
+        ).strip()
+
+        if (
+            local_source
+            and
+            Path(local_source).exists()
+        ):
+            self._has_image = True
+            self._bg_color.rgba = (0, 0, 0, 0)
+            self.add_widget(
+                Image(
+                    source=local_source,
+                    fit_mode="contain",
+                )
+            )
+            return
+
+        if remote_source.startswith(
+            ("http://", "https://")
+        ):
+            self._has_image = True
+            self._bg_color.rgba = (0, 0, 0, 0)
+            self.add_widget(
+                AsyncImage(
+                    source=remote_source,
+                    fit_mode="contain",
+                    nocache=False,
+                )
+            )
+            return
+
+        self.add_widget(
+            Label(
+                text="",
+                color=TEXT_SECONDARY,
+            )
+        )
+
+    def _update_bg(self, *_):
+        self._bg_rect.pos = self.pos
+        self._bg_rect.size = self.size
+
+
+class ProductCard(
+    ButtonBehavior,
+    BoxLayout
+):
+
+    background_color = ListProperty(CARD)
+    foreground_color = ListProperty(TEXT)
+
+    def __init__(
+        self,
+        product_name,
+        barcode,
+        exp_date,
+        photo_path="",
+        photo_url="",
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+
+        self.orientation = "horizontal"
+        self.size_hint_y = None
+        self.height = dp(116)
+        self.padding = (dp(12), dp(12))
+        self.spacing = dp(11)
+
+        with self.canvas.before:
+            self._bg_color = Color(
+                *self.background_color
+            )
+            self._bg_rect = RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[dp(17)],
+            )
+
+        self.bind(
+            pos=self._update_card,
+            size=self._update_card,
+            background_color=self._update_color,
+        )
+
+        thumb_holder = AnchorLayout(
+            size_hint_x=None,
+            width=dp(90),
+            anchor_x="center",
+            anchor_y="center",
+        )
+
+        self.thumbnail = ProductThumbnail(
+            source=photo_path,
+            remote_source=photo_url,
+            thumb_width=84,
+            thumb_height=92,
+        )
+
+        thumb_holder.add_widget(
+            self.thumbnail
+        )
+
+        self.add_widget(
+            thumb_holder
+        )
+
+        left = BoxLayout(
+            orientation="vertical",
+            spacing=dp(4),
+        )
+
+        self.name_label = Label(
+            text=product_name or "Без названия",
+            color=self.foreground_color,
+            bold=True,
+            font_size="17sp",
+            halign="left",
+            valign="top",
+            size_hint_y=None,
+            height=dp(52),
+        )
+
+        self.barcode_label = Label(
+            text=f"Штрихкод: {barcode}",
+            color=self.foreground_color,
+            font_size="12sp",
+            halign="left",
+            valign="middle",
+            size_hint_y=None,
+            height=dp(30),
+        )
+
+        self.name_label.bind(
+            width=self._sync_name_width,
+            texture_size=self._update_dynamic_height,
+        )
+
+        self.barcode_label.bind(
+            width=self._sync_barcode_width,
+        )
+
+        left.add_widget(
+            self.name_label
+        )
+        left.add_widget(
+            self.barcode_label
+        )
+
+        right = BoxLayout(
+            orientation="vertical",
+            size_hint_x=0.34,
+        )
+
+        self.valid_label = Label(
+            text="Годен до:",
+            color=self.foreground_color,
+            font_size="12sp",
+            halign="right",
+            valign="bottom",
+            size_hint_y=0.42,
+        )
+        self.valid_label.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        self.date_label = Label(
+            text=exp_date,
+            color=self.foreground_color,
+            bold=True,
+            font_size="19sp",
+            halign="right",
+            valign="top",
+            size_hint_y=0.58,
+        )
+        self.date_label.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        right.add_widget(
+            self.valid_label
+        )
+        right.add_widget(
+            self.date_label
+        )
+
+        self.add_widget(
+            left
+        )
+        self.add_widget(
+            right
+        )
+
+        Clock.schedule_once(
+            lambda *_:
+            self._refresh_text_layout(),
+            0
+        )
+
+    def _sync_name_width(
+        self,
+        instance,
+        width
+    ):
+        instance.text_size = (
+            max(dp(20), width),
+            None
+        )
+
+    def _sync_barcode_width(
+        self,
+        instance,
+        width
+    ):
+        instance.text_size = (
+            max(dp(20), width),
+            instance.height
+        )
+
+    def _refresh_text_layout(self):
+        self._sync_name_width(
+            self.name_label,
+            self.name_label.width
+        )
+        self._sync_barcode_width(
+            self.barcode_label,
+            self.barcode_label.width
+        )
+        self._update_dynamic_height(
+            self.name_label,
+            self.name_label.texture_size
+        )
+
+    def _update_dynamic_height(
+        self,
+        _instance,
+        texture_size
+    ):
+        name_height = max(
+            dp(48),
+            texture_size[1] + dp(8)
+        )
+
+        self.name_label.height = (
+            name_height
+        )
+
+        wanted = (
+            dp(24)
+            +
+            name_height
+            +
+            self.barcode_label.height
+        )
+
+        self.height = max(
+            dp(116),
+            wanted
+        )
+
+    def set_foreground(
+        self,
+        color
+    ):
+        self.foreground_color = color
+        self.name_label.color = color
+        self.barcode_label.color = color
+        self.valid_label.color = color
+        self.date_label.color = color
+
+    def _update_card(self, *_):
+        self._bg_rect.pos = self.pos
+        self._bg_rect.size = self.size
+
+    def _update_color(self, *_):
+        self._bg_color.rgba = (
+            self.background_color
+        )
+
+
+# =========================================================
+# DATE INPUT
+# =========================================================
+
+class DateInput(RoundedTextInput):
+
+    __events__ = ("on_date_complete",)
+
+    def on_date_complete(self, value):
+        pass
+
+    def _digits_only(
+        self,
+        value
+    ):
+
+        return "".join(
+            char
+            for char in str(value)
+            if char.isdigit()
+        )[:6]
+
+    def _format_digits(
+        self,
+        digits
+    ):
+
+        digits = self._digits_only(
+            digits
+        )
+
+        if len(digits) <= 2:
+            return digits
+
+        if len(digits) <= 4:
+            return (
+                digits[:2]
+                +
+                "."
+                +
+                digits[2:]
+            )
+
+        return (
+            digits[:2]
+            +
+            "."
+            +
+            digits[2:4]
+            +
+            "."
+            +
+            digits[4:6]
+        )
+
+    def _digit_index_from_cursor(
+        self,
+        cursor_col=None
+    ):
+
+        if cursor_col is None:
+            cursor_col = self.cursor_col
+
+        cursor_col = max(
+            0,
+            min(
+                int(cursor_col),
+                len(self.text)
+            )
+        )
+
+        return sum(
+            1
+            for char in self.text[:cursor_col]
+            if char.isdigit()
+        )
+
+    def _cursor_col_from_digit_index(
+        self,
+        digit_index
+    ):
+
+        digit_index = max(
+            0,
+            int(digit_index)
+        )
+
+        if digit_index == 0:
+            return 0
+
+        seen = 0
+
+        for index, char in enumerate(
+            self.text
+        ):
+
+            if char.isdigit():
+                seen += 1
+
+                if seen >= digit_index:
+                    return index + 1
+
+        return len(
+            self.text
+        )
+
+    def _set_cursor_for_digit_index(
+        self,
+        digit_index
+    ):
+
+        self.cursor = (
+            self._cursor_col_from_digit_index(
+                digit_index
+            ),
+            0
+        )
+
+    def insert_text(
+        self,
+        substring,
+        from_undo=False
+    ):
+
+        incoming = self._digits_only(
+            substring
+        )
+
+        if not incoming:
+            return
+
+        current_digits = self._digits_only(
+            self.text
+        )
+
+        # Если пользователь выделил часть даты — заменяем именно её.
+        if self.selection_text:
+
+            selection_start = min(
+                self.selection_from,
+                self.selection_to
+            )
+
+            selection_end = max(
+                self.selection_from,
+                self.selection_to
+            )
+
+            start_digit = sum(
+                1
+                for char in self.text[:selection_start]
+                if char.isdigit()
+            )
+
+            end_digit = sum(
+                1
+                for char in self.text[:selection_end]
+                if char.isdigit()
+            )
+
+            current_digits = (
+                current_digits[:start_digit]
+                +
+                current_digits[end_digit:]
+            )
+
+            digit_index = start_digit
+            self.cancel_selection()
+
+        else:
+
+            digit_index = (
+                self._digit_index_from_cursor()
+            )
+
+        free_space = (
+            6
+            -
+            len(current_digits)
+        )
+
+        if free_space <= 0:
+            return
+
+        incoming = incoming[:free_space]
+
+        new_digits = (
+            current_digits[:digit_index]
+            +
+            incoming
+            +
+            current_digits[digit_index:]
+        )
+
+        new_digit_index = (
+            digit_index
+            +
+            len(incoming)
+        )
+
+        self.text = self._format_digits(
+            new_digits
+        )
+
+        self._dispatch_if_complete()
+
+        self._set_cursor_for_digit_index(
+            new_digit_index
+        )
+
+    def do_backspace(
+        self,
+        from_undo=False,
+        mode="bkspc"
+    ):
+
+        if self.selection_text:
+
+            selection_start = min(
+                self.selection_from,
+                self.selection_to
+            )
+
+            selection_end = max(
+                self.selection_from,
+                self.selection_to
+            )
+
+            digits = self._digits_only(
+                self.text
+            )
+
+            start_digit = sum(
+                1
+                for char in self.text[:selection_start]
+                if char.isdigit()
+            )
+
+            end_digit = sum(
+                1
+                for char in self.text[:selection_end]
+                if char.isdigit()
+            )
+
+            new_digits = (
+                digits[:start_digit]
+                +
+                digits[end_digit:]
+            )
+
+            self.cancel_selection()
+
+            self.text = self._format_digits(
+                new_digits
+            )
+
+            self._set_cursor_for_digit_index(
+                start_digit
+            )
+
+            return
+
+        digits = self._digits_only(
+            self.text
+        )
+
+        if not digits:
+            return
+
+        digit_index = (
+            self._digit_index_from_cursor()
+        )
+
+        # Курсор в самом начале — удалять нечего.
+        if digit_index <= 0:
+            return
+
+        delete_index = (
+            digit_index
+            -
+            1
+        )
+
+        new_digits = (
+            digits[:delete_index]
+            +
+            digits[digit_index:]
+        )
+
+        self.text = self._format_digits(
+            new_digits
+        )
+
+        self._dispatch_if_complete()
+
+        self._set_cursor_for_digit_index(
+            delete_index
+        )
+
+    def _dispatch_if_complete(self):
+
+        digits = self._digits_only(
+            self.text
+        )
+
+        if len(digits) == 6:
+            self.dispatch(
+                "on_date_complete",
+                self.text
+            )
+
+    def keyboard_on_key_down(
+        self,
+        window,
+        keycode,
+        text_value,
+        modifiers
+    ):
+
+        # Delete (вперёд), если физическая клавиатура его присылает.
+        if keycode[1] == "delete":
+
+            digits = self._digits_only(
+                self.text
+            )
+
+            digit_index = (
+                self._digit_index_from_cursor()
+            )
+
+            if digit_index < len(digits):
+
+                self.text = self._format_digits(
+                    digits[:digit_index]
+                    +
+                    digits[digit_index + 1:]
+                )
+
+                self._set_cursor_for_digit_index(
+                    digit_index
+                )
+
+            return True
+
+        return super().keyboard_on_key_down(
+            window,
+            keycode,
+            text_value,
+            modifiers
+        )
+
+
+# =========================================================
+# DATABASE
+# =========================================================
+
+class Database:
+
+    def __init__(
+        self,
+        path
+    ):
+
+        self.path = Path(
+            path
+        )
+
+        self.conn = sqlite3.connect(
+            str(
+                self.path
+            )
+        )
+
+        self.conn.row_factory = (
+            sqlite3.Row
+        )
+
+        self.conn.execute(
+            "PRAGMA foreign_keys = ON"
+        )
+
+        self.create_schema()
+
+    def create_schema(self):
+
+        self.conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS products (
+                barcode TEXT PRIMARY KEY,
+                name TEXT NOT NULL DEFAULT '',
+                department TEXT NOT NULL DEFAULT '',
+                photo_path TEXT NOT NULL DEFAULT '',
+                photo_url TEXT NOT NULL DEFAULT '',
+                product_url TEXT NOT NULL DEFAULT '',
+                manual_no_date INTEGER NOT NULL DEFAULT 0,
+                hidden_from_list INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS expirations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                barcode TEXT NOT NULL,
+                exp_date TEXT NOT NULL,
+                written_off INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+
+                FOREIGN KEY (barcode)
+                    REFERENCES products(barcode)
+                    ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS
+            idx_categories_sort_order
+            ON categories(
+                sort_order,
+                id
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS
+            idx_barcode_expiration
+            ON expirations(
+                barcode,
+                exp_date
+            );
+
+            CREATE INDEX IF NOT EXISTS
+            idx_active_expirations
+            ON expirations(
+                barcode,
+                written_off,
+                exp_date
+            );
+
+            CREATE INDEX IF NOT EXISTS
+            idx_products_department
+            ON products(
+                department
+            );
+
+            CREATE INDEX IF NOT EXISTS
+            idx_products_name
+            ON products(
+                name COLLATE NOCASE
+            );
+            """
+        )
+
+        product_columns = {
+            row["name"]
+            for row in self.conn.execute(
+                "PRAGMA table_info(products)"
+            ).fetchall()
+        }
+
+        if "department" not in product_columns:
+            self.conn.execute(
+                "ALTER TABLE products "
+                "ADD COLUMN department TEXT NOT NULL DEFAULT ''"
+            )
+
+        if "photo_path" not in product_columns:
+            self.conn.execute(
+                "ALTER TABLE products "
+                "ADD COLUMN photo_path TEXT NOT NULL DEFAULT ''"
+            )
+
+        if "photo_url" not in product_columns:
+            self.conn.execute(
+                "ALTER TABLE products "
+                "ADD COLUMN photo_url TEXT NOT NULL DEFAULT ''"
+            )
+
+        if "product_url" not in product_columns:
+            self.conn.execute(
+                "ALTER TABLE products "
+                "ADD COLUMN product_url TEXT NOT NULL DEFAULT ''"
+            )
+
+        if "manual_no_date" not in product_columns:
+            self.conn.execute(
+                "ALTER TABLE products "
+                "ADD COLUMN manual_no_date INTEGER NOT NULL DEFAULT 0"
+            )
+
+        if "hidden_from_list" not in product_columns:
+            self.conn.execute(
+                "ALTER TABLE products "
+                "ADD COLUMN hidden_from_list INTEGER NOT NULL DEFAULT 0"
+            )
+
+        if "created_at" not in product_columns:
+            self.conn.execute(
+                "ALTER TABLE products "
+                "ADD COLUMN created_at TEXT NOT NULL DEFAULT ''"
+            )
+
+        self.conn.execute(
+            "UPDATE products SET created_at = ? "
+            "WHERE TRIM(COALESCE(created_at, '')) = ''",
+            (datetime.now().isoformat(timespec="microseconds"),),
+        )
+
+
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS "
+            "idx_products_department "
+            "ON products(department)"
+        )
+
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS "
+            "idx_products_name "
+            "ON products(name COLLATE NOCASE)"
+        )
+
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS "
+            "idx_products_created_at "
+            "ON products(created_at DESC)"
+        )
+
+        # Старые базы не имели отдельного справочника категорий. Сохраняем
+        # встречающиеся в товарах названия, но ничего не добавляем в новую
+        # пустую базу — пользователь сам формирует нужные ему отделы.
+        existing_departments = self.conn.execute(
+            """
+            SELECT DISTINCT TRIM(department) AS name
+            FROM products
+            WHERE TRIM(COALESCE(department, '')) <> ''
+            ORDER BY name COLLATE NOCASE
+            """
+        ).fetchall()
+
+        next_order = self.conn.execute(
+            "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM categories"
+        ).fetchone()[0]
+
+        for row in existing_departments:
+            cursor = self.conn.execute(
+                """
+                INSERT OR IGNORE INTO categories(
+                    name,
+                    sort_order,
+                    created_at
+                )
+                VALUES (?, ?, ?)
+                """,
+                (
+                    row["name"],
+                    next_order,
+                    datetime.now().isoformat(timespec="seconds"),
+                ),
+            )
+            if cursor.rowcount:
+                next_order += 1
+
+        self.conn.commit()
+
+    def close(self):
+
+        try:
+
+            self.conn.close()
+
+        except Exception:
+
+            pass
+
+    def clear_all(self):
+
+        self.conn.execute(
+            "DELETE FROM expirations"
+        )
+
+        self.conn.execute(
+            "DELETE FROM products"
+        )
+
+        self.conn.execute(
+            "DELETE FROM categories"
+        )
+
+        self.conn.commit()
+
+    def list_categories(self):
+        return self.conn.execute(
+            """
+            SELECT
+                c.id,
+                c.name,
+                c.sort_order,
+                COUNT(p.barcode) AS product_count
+            FROM categories c
+            LEFT JOIN products p
+              ON p.department = c.name COLLATE NOCASE
+            GROUP BY c.id, c.name, c.sort_order
+            ORDER BY c.sort_order ASC, c.id ASC
+            """
+        ).fetchall()
+
+    def add_category(self, name):
+        name = " ".join(str(name or "").strip().split())
+        if not name:
+            raise ValueError("Введите название категории.")
+
+        if len(name) > 80:
+            raise ValueError("Название категории слишком длинное.")
+
+        normalized_name = name.casefold()
+        existing_names = self.conn.execute(
+            "SELECT name FROM categories"
+        ).fetchall()
+        if any(
+            str(row["name"]).casefold() == normalized_name
+            for row in existing_names
+        ):
+            raise ValueError("Такая категория уже существует.")
+
+        next_order = self.conn.execute(
+            "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM categories"
+        ).fetchone()[0]
+
+        try:
+            self.conn.execute(
+                """
+                INSERT INTO categories(name, sort_order, created_at)
+                VALUES (?, ?, ?)
+                """,
+                (
+                    name,
+                    next_order,
+                    datetime.now().isoformat(timespec="seconds"),
+                ),
+            )
+            self.conn.commit()
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("Такая категория уже существует.") from exc
+
+        return name
+
+    def ensure_category(self, name):
+        name = " ".join(str(name or "").strip().split())
+        if not name:
+            return ""
+
+        row = self.conn.execute(
+            "SELECT name FROM categories WHERE name = ? COLLATE NOCASE",
+            (name,),
+        ).fetchone()
+        if row:
+            return row["name"]
+
+        return self.add_category(name)
+
+    def move_product_to_category(self, barcode, category):
+        product = self.get_product(barcode)
+        if not product:
+            return False
+
+        category = self.ensure_category(category)
+        if not category:
+            return False
+
+        self.conn.execute(
+            "UPDATE products SET department = ? WHERE barcode = ?",
+            (category, product["barcode"]),
+        )
+        self.conn.commit()
+        return True
+
+    def delete_category(self, category_id):
+        row = self.conn.execute(
+            "SELECT name FROM categories WHERE id = ?",
+            (int(category_id),),
+        ).fetchone()
+        if row is None:
+            return False
+
+        product_count = self.conn.execute(
+            "SELECT COUNT(*) FROM products WHERE department = ? COLLATE NOCASE",
+            (row["name"],),
+        ).fetchone()[0]
+        if product_count:
+            raise ValueError(
+                "В этой категории есть товары. Сначала перенесите или удалите их."
+            )
+
+        self.conn.execute(
+            "DELETE FROM categories WHERE id = ?",
+            (int(category_id),),
+        )
+        self.conn.commit()
+        return True
+
+    def get_product(
+        self,
+        barcode
+    ):
+
+        for candidate in barcode_variants(
+            barcode
+        ):
+
+            row = self.conn.execute(
+                """
+                SELECT *
+                FROM products
+                WHERE barcode = ?
+                """,
+                (
+                    candidate,
+                ),
+            ).fetchone()
+
+            if row:
+
+                return row
+
+        return None
+
+    def save_product(
+        self,
+        barcode,
+        name,
+        department=None,
+        photo_path=None,
+        photo_url=None
+    ):
+
+        barcode = normalize_barcode(
+            barcode
+        )
+
+        name = str(name or "").strip()
+
+        department = (
+            str(department).strip()
+            if department is not None
+            else None
+        )
+
+        photo_path = (
+            str(photo_path).strip()
+            if photo_path is not None
+            else None
+        )
+
+        photo_url = (
+            str(photo_url).strip()
+            if photo_url is not None
+            else None
+        )
+
+        existing = self.get_product(
+            barcode
+        )
+
+        if existing:
+
+            final_department = (
+                department
+                if department is not None
+                else (
+                    existing["department"]
+                    or
+                    ""
+                )
+            )
+
+            final_photo_path = (
+                photo_path
+                if photo_path is not None
+                else (
+                    existing["photo_path"]
+                    or
+                    ""
+                )
+            )
+
+            existing_keys = existing.keys()
+
+            final_photo_url = (
+                photo_url
+                if photo_url is not None
+                else (
+                    existing["photo_url"]
+                    if "photo_url" in existing_keys
+                    else ""
+                )
+            )
+
+            self.conn.execute(
+                """
+                UPDATE products
+                SET
+                    name = ?,
+                    department = ?,
+                    photo_path = ?,
+                    photo_url = ?,
+                    hidden_from_list = 0
+                WHERE barcode = ?
+                """,
+                (
+                    name,
+                    final_department,
+                    final_photo_path,
+                    final_photo_url,
+                    existing["barcode"],
+                ),
+            )
+
+        else:
+
+            self.conn.execute(
+                """
+                INSERT INTO products(
+                    barcode,
+                    name,
+                    department,
+                    photo_path,
+                    photo_url,
+                    created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    barcode,
+                    name,
+                    department or "",
+                    photo_path or "",
+                    photo_url or "",
+                    datetime.now().isoformat(timespec="microseconds"),
+                ),
+            )
+
+        self.conn.commit()
+
+    def add_expiration(
+        self,
+        barcode,
+        exp_date
+    ):
+
+        product = self.get_product(
+            barcode
+        )
+
+        if product:
+
+            barcode = (
+                product[
+                    "barcode"
+                ]
+            )
+
+        try:
+
+            self.conn.execute(
+                """
+                INSERT INTO expirations(
+                    barcode,
+                    exp_date,
+                    written_off,
+                    created_at
+                )
+                VALUES (?, ?, 0, ?)
+                """,
+                (
+                    barcode,
+                    exp_date,
+                    datetime.now().isoformat(
+                        timespec="seconds"
+                    ),
+                ),
+            )
+
+            self.conn.commit()
+
+            return True
+
+        except sqlite3.IntegrityError:
+
+            return False
+
+    def get_active_expirations(
+        self,
+        barcode
+    ):
+
+        product = self.get_product(
+            barcode
+        )
+
+        if product:
+
+            barcode = (
+                product[
+                    "barcode"
+                ]
+            )
+
+        return self.conn.execute(
+            """
+            SELECT *
+            FROM expirations
+            WHERE barcode = ?
+              AND written_off = 0
+            ORDER BY
+                exp_date ASC,
+                id ASC
+            """,
+            (
+                barcode,
+            ),
+        ).fetchall()
+
+    def get_all_expirations(
+        self,
+        barcode
+    ):
+
+        product = self.get_product(
+            barcode
+        )
+
+        if product:
+
+            barcode = (
+                product[
+                    "barcode"
+                ]
+            )
+
+        return self.conn.execute(
+            """
+            SELECT *
+            FROM expirations
+            WHERE barcode = ?
+            ORDER BY
+                written_off ASC,
+                exp_date ASC,
+                id ASC
+            """,
+            (
+                barcode,
+            ),
+        ).fetchall()
+
+    def get_next_expiration(
+        self,
+        barcode
+    ):
+
+        product = self.get_product(
+            barcode
+        )
+
+        if product:
+
+            barcode = (
+                product[
+                    "barcode"
+                ]
+            )
+
+        return self.conn.execute(
+            """
+            SELECT *
+            FROM expirations
+            WHERE barcode = ?
+              AND written_off = 0
+            ORDER BY
+                exp_date ASC,
+                id ASC
+            LIMIT 1
+            """,
+            (
+                barcode,
+            ),
+        ).fetchone()
+
+    def write_off_next(
+        self,
+        barcode
+    ):
+
+        row = self.get_next_expiration(
+            barcode
+        )
+
+        if not row:
+
+            return False
+
+        self.conn.execute(
+            """
+            UPDATE expirations
+            SET written_off = 1
+            WHERE id = ?
+            """,
+            (
+                row["id"],
+            ),
+        )
+
+        remaining = self.conn.execute(
+            """
+            SELECT 1
+            FROM expirations
+            WHERE barcode = ?
+              AND written_off = 0
+            LIMIT 1
+            """,
+            (row["barcode"],),
+        ).fetchone()
+
+        self.conn.execute(
+            """
+            UPDATE products
+            SET manual_no_date = ?
+            WHERE barcode = ?
+            """,
+            (0 if remaining else 1, row["barcode"]),
+        )
+
+        self.conn.commit()
+
+        return True
+
+    def delete_next_expiration(
+        self,
+        barcode
+    ):
+
+        row = self.get_next_expiration(
+            barcode
+        )
+
+        if not row:
+            return False
+
+        self.conn.execute(
+            """
+            DELETE FROM expirations
+            WHERE id = ?
+            """,
+            (
+                row["id"],
+            ),
+        )
+
+        self.conn.execute(
+            """
+            UPDATE products
+            SET manual_no_date = 1
+            WHERE barcode = ?
+            """,
+            (row["barcode"],),
+        )
+
+        self.conn.commit()
+        return True
+
+    def remove_product_from_list(
+        self,
+        barcode
+    ):
+        product = self.get_product(barcode)
+        if not product:
+            return False
+
+        real_barcode = product["barcode"]
+
+        # Удаляем только активные сроки. История списанных сроков остаётся.
+        self.conn.execute(
+            """
+            DELETE FROM expirations
+            WHERE barcode = ?
+              AND written_off = 0
+            """,
+            (real_barcode,),
+        )
+        self.conn.execute(
+            """
+            UPDATE products
+            SET hidden_from_list = 1,
+                manual_no_date = 0
+            WHERE barcode = ?
+            """,
+            (real_barcode,),
+        )
+        self.conn.commit()
+        return True
+
+    def delete_product_completely(
+        self,
+        barcode
+    ):
+        product = self.get_product(barcode)
+
+        if not product:
+            return False
+
+        real_barcode = product["barcode"]
+
+        # Явно удаляем сроки, затем сам товар.
+        # Это работает и со старыми БД, где foreign_keys могли быть выключены.
+        with self.conn:
+            self.conn.execute(
+                "DELETE FROM expirations WHERE barcode = ?",
+                (real_barcode,),
+            )
+            self.conn.execute(
+                "DELETE FROM products WHERE barcode = ?",
+                (real_barcode,),
+            )
+
+        return True
+
+    def update_product_record(
+        self,
+        old_barcode,
+        new_barcode,
+        name,
+        department=None,
+        photo_path=None,
+        photo_url=None,
+        exp_date_marker=None
+    ):
+        old_product = self.get_product(old_barcode)
+        if not old_product:
+            return False, "Товар не найден."
+
+        old_real = old_product["barcode"]
+        new_barcode = normalize_barcode(new_barcode)
+        name = str(name or "").strip()
+
+        if not new_barcode:
+            return False, "Введите штрихкод."
+        if not name:
+            return False, "Введите название товара."
+
+        existing_new = self.get_product(new_barcode)
+        if existing_new and existing_new["barcode"] != old_real:
+            return False, "Товар с таким штрихкодом уже существует."
+
+        final_department = (
+            str(department).strip()
+            if department is not None
+            else (old_product["department"] or "")
+        )
+        final_photo_path = (
+            str(photo_path or "").strip()
+            if photo_path is not None
+            else (old_product["photo_path"] or "")
+        )
+        final_photo_url = (
+            str(photo_url or "").strip()
+            if photo_url is not None
+            else (old_product["photo_url"] or "")
+        )
+        product_url = (
+            old_product["product_url"]
+            if "product_url" in old_product.keys()
+            else ""
+        ) or ""
+        manual_no_date = int(
+            old_product["manual_no_date"]
+            if "manual_no_date" in old_product.keys()
+            else 0
+        )
+        hidden = int(
+            old_product["hidden_from_list"]
+            if "hidden_from_list" in old_product.keys()
+            else 0
+        )
+
+        try:
+            with self.conn:
+                if new_barcode != old_real:
+                    self.conn.execute(
+                        """
+                        INSERT INTO products(
+                            barcode, name, department, photo_path, photo_url,
+                            product_url, manual_no_date, hidden_from_list, created_at
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            new_barcode, name, final_department, final_photo_path,
+                            final_photo_url, product_url, manual_no_date, hidden,
+                            old_product["created_at"],
+                        ),
+                    )
+                    self.conn.execute(
+                        "UPDATE expirations SET barcode = ? WHERE barcode = ?",
+                        (new_barcode, old_real),
+                    )
+                    self.conn.execute(
+                        "DELETE FROM products WHERE barcode = ?",
+                        (old_real,),
+                    )
+                else:
+                    self.conn.execute(
+                        """
+                        UPDATE products
+                        SET name = ?, department = ?, photo_path = ?, photo_url = ?
+                        WHERE barcode = ?
+                        """,
+                        (
+                            name, final_department, final_photo_path,
+                            final_photo_url, old_real,
+                        ),
+                    )
+
+                active_row = self.conn.execute(
+                    """
+                    SELECT * FROM expirations
+                    WHERE barcode = ? AND written_off = 0
+                    ORDER BY exp_date ASC, id ASC
+                    LIMIT 1
+                    """,
+                    (new_barcode,),
+                ).fetchone()
+
+                if exp_date_marker == "__REMOVE_NEAREST__":
+                    if active_row:
+                        self.conn.execute(
+                            "DELETE FROM expirations WHERE id = ?",
+                            (active_row["id"],),
+                        )
+                elif exp_date_marker:
+                    if active_row:
+                        self.conn.execute(
+                            "UPDATE expirations SET exp_date = ? WHERE id = ?",
+                            (exp_date_marker, active_row["id"]),
+                        )
+                    else:
+                        self.conn.execute(
+                            """
+                            INSERT INTO expirations(barcode, exp_date, written_off, created_at)
+                            VALUES (?, ?, 0, ?)
+                            """,
+                            (
+                                new_barcode, exp_date_marker,
+                                datetime.now().isoformat(timespec="seconds"),
+                            ),
+                        )
+
+                remaining = self.conn.execute(
+                    """
+                    SELECT 1 FROM expirations
+                    WHERE barcode = ? AND written_off = 0
+                    LIMIT 1
+                    """,
+                    (new_barcode,),
+                ).fetchone()
+                self.conn.execute(
+                    "UPDATE products SET manual_no_date = ? WHERE barcode = ?",
+                    (0 if remaining else 1, new_barcode),
+                )
+
+            return True, new_barcode
+        except sqlite3.IntegrityError:
+            return False, "Такой срок уже существует у этого товара."
+
+    def set_manual_no_date(
+        self,
+        barcode,
+        enabled
+    ):
+
+        product = self.get_product(
+            barcode
+        )
+
+        if product:
+            barcode = product["barcode"]
+
+        self.conn.execute(
+            """
+            UPDATE products
+            SET manual_no_date = ?
+            WHERE barcode = ?
+            """,
+            (
+                1 if enabled else 0,
+                barcode,
+            ),
+        )
+
+        self.conn.commit()
+
+    def has_written_off_history(
+        self,
+        barcode
+    ):
+
+        product = self.get_product(
+            barcode
+        )
+
+        if product:
+            barcode = product["barcode"]
+
+        row = self.conn.execute(
+            """
+            SELECT 1
+            FROM expirations
+            WHERE barcode = ?
+              AND written_off = 1
+            LIMIT 1
+            """,
+            (barcode,),
+        ).fetchone()
+
+        return bool(row)
+
+    def get_product_list(
+        self,
+        department=None,
+        filter_mode="all",
+        limit=40,
+        offset=0,
+        search_query="",
+        sort_mode="expiry"
+    ):
+        department = str(department).strip() if department else ""
+        filter_mode = str(filter_mode or "all")
+        search_query = str(search_query or "").strip()
+        sort_mode = str(sort_mode or "expiry").strip()
+        search_like = "%" + search_query + "%"
+
+        today_value = date.today().strftime(DATE_DB_FORMAT)
+        where_filter = "1=1"
+        filter_params = []
+
+        if filter_mode == "expired":
+            where_filter = "a.next_exp IS NOT NULL AND a.next_exp < ?"
+            filter_params.append(today_value)
+
+        elif filter_mode == "expiring":
+            tomorrow_value = (
+                date.today() + timedelta(days=1)
+            ).strftime(DATE_DB_FORMAT)
+            where_filter = (
+                "a.next_exp IS NOT NULL "
+                "AND a.next_exp >= ? AND a.next_exp <= ?"
+            )
+            filter_params.extend([today_value, tomorrow_value])
+
+        elif filter_mode == "no_date":
+            where_filter = "a.next_exp IS NULL"
+
+        if sort_mode == "added":
+            # Товары без срока не образуют отдельную группу: важен только
+            # точный момент добавления товара.
+            order_sql = (
+                "datetime(p.created_at) DESC, "
+                "p.created_at DESC, "
+                "p.rowid DESC"
+            )
+        elif sort_mode == "alphabet":
+            order_sql = (
+                "p.name COLLATE NOCASE ASC, "
+                "p.barcode ASC"
+            )
+        else:
+            # Ближайший срок наверху, товары без даты — после дат.
+            order_sql = (
+                "CASE WHEN a.next_exp IS NULL THEN 1 ELSE 0 END ASC, "
+                "a.next_exp ASC, "
+                "p.name COLLATE NOCASE ASC"
+            )
+
+        # Один GROUP BY вместо коррелированного подзапроса для каждого товара.
+        # На базе в сотни/тысячи товаров отдел открывается заметно быстрее.
+        query = f"""
+            WITH active_min AS (
+                SELECT barcode, MIN(exp_date) AS next_exp
+                FROM expirations
+                WHERE written_off = 0
+                GROUP BY barcode
+            )
+            SELECT
+                p.barcode,
+                p.name,
+                p.department,
+                p.photo_path,
+                p.photo_url,
+                p.manual_no_date,
+                a.next_exp
+            FROM products p
+            LEFT JOIN active_min a
+              ON a.barcode = p.barcode
+            WHERE COALESCE(p.hidden_from_list, 0) = 0
+              AND (? = '' OR p.department = ?)
+              AND (
+                    ? = ''
+                    OR p.name LIKE ? COLLATE NOCASE
+                    OR p.barcode LIKE ?
+              )
+              AND {where_filter}
+            ORDER BY
+                {order_sql}
+            LIMIT ? OFFSET ?
+        """
+
+        params = [
+            department,
+            department,
+            search_query,
+            search_like,
+            search_like,
+            *filter_params,
+            int(limit),
+            int(offset),
+        ]
+
+        return self.conn.execute(query, params).fetchall()
+
+    def count_product_list(
+        self,
+        department=None,
+        filter_mode="all",
+        search_query=""
+    ):
+        department = str(department).strip() if department else ""
+        filter_mode = str(filter_mode or "all")
+        search_query = str(search_query or "").strip()
+        search_like = "%" + search_query + "%"
+
+        today_value = date.today().strftime(DATE_DB_FORMAT)
+        where_filter = "1=1"
+        filter_params = []
+
+        if filter_mode == "expired":
+            where_filter = "a.next_exp IS NOT NULL AND a.next_exp < ?"
+            filter_params.append(today_value)
+
+        elif filter_mode == "expiring":
+            tomorrow_value = (
+                date.today() + timedelta(days=1)
+            ).strftime(DATE_DB_FORMAT)
+            where_filter = (
+                "a.next_exp IS NOT NULL "
+                "AND a.next_exp >= ? AND a.next_exp <= ?"
+            )
+            filter_params.extend([today_value, tomorrow_value])
+
+        elif filter_mode == "no_date":
+            where_filter = "a.next_exp IS NULL"
+
+        query = f"""
+            WITH active_min AS (
+                SELECT barcode, MIN(exp_date) AS next_exp
+                FROM expirations
+                WHERE written_off = 0
+                GROUP BY barcode
+            )
+            SELECT COUNT(*)
+            FROM products p
+            LEFT JOIN active_min a
+              ON a.barcode = p.barcode
+            WHERE COALESCE(p.hidden_from_list, 0) = 0
+              AND (? = '' OR p.department = ?)
+              AND (
+                    ? = ''
+                    OR p.name LIKE ? COLLATE NOCASE
+                    OR p.barcode LIKE ?
+              )
+              AND {where_filter}
+        """
+
+        params = [
+            department,
+            department,
+            search_query,
+            search_like,
+            search_like,
+            *filter_params,
+        ]
+
+        return int(self.conn.execute(query, params).fetchone()[0])
+
+    def search_products(
+        self,
+        query,
+        limit=30
+    ):
+
+        query = str(query or "").strip()
+
+        if not query:
+            return []
+
+        like = "%" + query + "%"
+
+        return self.conn.execute(
+            """
+            SELECT
+                p.barcode,
+                p.name,
+                p.department,
+                p.photo_path,
+                p.photo_url,
+                p.manual_no_date,
+                EXISTS(
+                    SELECT 1
+                    FROM expirations ew
+                    WHERE ew.barcode = p.barcode
+                      AND ew.written_off = 1
+                ) AS has_written_off,
+                (
+                    SELECT e.exp_date
+                    FROM expirations e
+                    WHERE e.barcode = p.barcode
+                      AND e.written_off = 0
+                    ORDER BY e.exp_date ASC, e.id ASC
+                    LIMIT 1
+                ) AS next_exp
+            FROM products p
+            WHERE p.name LIKE ? COLLATE NOCASE
+               OR p.barcode LIKE ?
+            ORDER BY
+                CASE
+                    WHEN lower(p.name) = lower(?) THEN 0
+                    WHEN lower(p.name) LIKE lower(?) THEN 1
+                    ELSE 2
+                END,
+                p.name COLLATE NOCASE ASC
+            LIMIT ?
+            """,
+            (
+                like,
+                like,
+                query,
+                query + "%",
+                int(limit),
+            ),
+        ).fetchall()
+
+    def backup_to(
+        self,
+        target
+    ):
+
+        target = Path(
+            target
+        )
+
+        target.parent.mkdir(
+            parents=True,
+            exist_ok=True
+        )
+
+        if target.exists():
+
+            target.unlink()
+
+        target_conn = sqlite3.connect(
+            str(
+                target
+            )
+        )
+
+        try:
+
+            with target_conn:
+
+                self.conn.backup(
+                    target_conn
+                )
+
+        finally:
+
+            target_conn.close()
+
+    @staticmethod
+    def validate(
+        path
+    ):
+
+        try:
+
+            con = sqlite3.connect(
+                str(
+                    path
+                )
+            )
+
+            tables = {
+                row[0]
+                for row
+                in con.execute(
+                    """
+                    SELECT name
+                    FROM sqlite_master
+                    WHERE type='table'
+                    """
+                )
+            }
+
+            con.close()
+
+            return (
+                "products" in tables
+                and
+                "expirations" in tables
+            )
+
+        except Exception:
+
+            return False
+
+
+# =========================================================
+# SCREENS
+# =========================================================
+
+class BaseScreen(Screen):
+
+    def __init__(
+        self,
+        **kwargs
+    ):
+
+        super().__init__(
+            **kwargs
+        )
+
+        self.app = (
+            App.get_running_app()
+        )
+
+
+class DepartmentScreen(BaseScreen):
+
+    def on_pre_enter(self, *_):
+        if hasattr(self, "search_input"):
+            self.search_input.text = ""
+        self.refresh_search("")
+        self.refresh_categories()
+
+    def refresh_categories(self):
+        if not hasattr(self, "departments_list"):
+            return
+        self.app.populate_categories(self)
+
+    def refresh_search(self, value=None):
+
+        if not hasattr(self, "search_results"):
+            return
+
+        if value is None and hasattr(self, "search_input"):
+            value = self.search_input.text
+
+        query = str(value or "").strip()
+        self.search_results.clear_widgets()
+
+        if not query:
+            self.search_results.height = 0
+            self.search_results.opacity = 0
+            return
+
+        rows = self.app.db.search_products(query)
+
+        if not rows:
+            label = Label(
+                text="Ничего не найдено",
+                color=TEXT_SECONDARY,
+                size_hint_y=None,
+                height=dp(44),
+                font_size="13sp",
+            )
+            self.search_results.add_widget(label)
+        else:
+            for product in rows:
+                department = product["department"] or "Без категории"
+                button = RoundedButton(
+                    text=(
+                        f'{product["name"] or "Без названия"}\\n'
+                        f'{department}  •  {product["barcode"]}'
+                    ),
+                    size_hint_y=None,
+                    height=dp(62),
+                    font_size="13sp",
+                    halign="left",
+                    valign="middle",
+                    padding=(dp(14), dp(8)),
+                    normal_color=CARD,
+                    down_color=BUTTON_BG_DOWN,
+                )
+                button.bind(
+                    size=lambda instance, size:
+                    setattr(
+                        instance,
+                        "text_size",
+                        (size[0] - dp(28), size[1])
+                    )
+                )
+                button.bind(
+                    on_release=lambda _btn, row=product:
+                    self.app.open_search_result(row)
+                )
+                self.search_results.add_widget(button)
+
+        target_height = min(
+            dp(250),
+            sum(
+                getattr(child, "height", dp(50))
+                for child in self.search_results.children
+            )
+        )
+        self.search_results.height = max(dp(44), target_height)
+        self.search_results.opacity = 1
+
+    def submit_search(self):
+
+        query = self.search_input.text.strip()
+
+        if not query:
+            return
+
+        rows = self.app.db.search_products(query, limit=2)
+
+        if rows:
+            self.app.open_search_result(rows[0])
+
+
+class HomeScreen(BaseScreen):
+
+    PAGE_SIZE = 20
+
+    def __init__(
+        self,
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+        self.filter_mode = "all"
+        self.sort_mode = "expiry"
+        self.search_query = ""
+        self.current_page = 0
+        self.total_count = 0
+        self._load_generation = 0
+        self._search_event = None
+        self._card_load_event = None
+
+    def on_pre_enter(
+        self,
+        *_
+    ):
+        # При входе в отдел поиск начинается пустым.
+        self.search_query = ""
+        if hasattr(self, "search_input"):
+            self.search_input.text = ""
+
+        show_loading = bool(
+            getattr(
+                self.app,
+                "_department_load_in_progress",
+                False,
+            )
+        )
+        self.refresh(
+            incremental=show_loading,
+            on_complete=(
+                self.app._hide_department_loading
+                if show_loading
+                else None
+            ),
+        )
+
+    def set_filter(
+        self,
+        mode
+    ):
+        self.filter_mode = mode
+        self.refresh(page=0)
+
+    def set_sort(
+        self,
+        mode
+    ):
+        self.sort_mode = str(mode or "expiry")
+        self.refresh(page=0)
+
+    def set_search(
+        self,
+        value
+    ):
+        self.search_query = str(value or "").strip()
+        self.refresh(page=0)
+
+    def schedule_search(
+        self,
+        value
+    ):
+        # Не пересобираем весь список на каждый отдельный символ.
+        # Короткая задержка делает ввод плавнее на телефоне.
+        if self._search_event is not None:
+            try:
+                self._search_event.cancel()
+            except Exception:
+                pass
+
+        self._search_event = Clock.schedule_once(
+            lambda *_: self.set_search(value),
+            0.16,
+        )
+
+    def refresh(
+        self,
+        incremental=False,
+        on_complete=None,
+        page=0,
+    ):
+
+        self._load_generation += 1
+
+        if self._card_load_event is not None:
+            try:
+                self._card_load_event.cancel()
+            except Exception:
+                pass
+            self._card_load_event = None
+
+        self.total_count = self.app.db.count_product_list(
+            self.app.current_department,
+            self.filter_mode,
+            search_query=self.search_query,
+        )
+
+        if self.total_count == 0:
+            self.product_list.clear_widgets()
+            self.current_page = 0
+            self._update_pagination_controls()
+            self._show_empty()
+            if on_complete is not None:
+                Clock.schedule_once(on_complete, 0)
+            return
+
+        self.load_page(
+            page,
+            incremental=incremental,
+            on_complete=on_complete,
+        )
+
+    def load_page(
+        self,
+        page,
+        incremental=False,
+        on_complete=None,
+    ):
+
+        total_pages = max(
+            1,
+            (self.total_count + self.PAGE_SIZE - 1) // self.PAGE_SIZE,
+        )
+        page = max(0, min(int(page), total_pages - 1))
+        self.current_page = page
+        self.product_list.clear_widgets()
+        self._update_pagination_controls()
+        self.product_scroll.scroll_y = 1
+
+        self._load_generation += 1
+        generation = self._load_generation
+
+        rows = self.app.db.get_product_list(
+            self.app.current_department,
+            self.filter_mode,
+            limit=self.PAGE_SIZE,
+            offset=page * self.PAGE_SIZE,
+            search_query=self.search_query,
+            sort_mode=self.sort_mode,
+        )
+
+        if generation != self._load_generation:
+            return
+
+        today = date.today()
+        tomorrow = today + timedelta(days=1)
+
+        def add_product_card(product):
+            exp_date = None
+
+            if product["next_exp"]:
+                try:
+                    exp_date = datetime.strptime(
+                        product["next_exp"],
+                        DATE_DB_FORMAT,
+                    ).date()
+                except ValueError:
+                    exp_date = None
+
+            self.product_list.add_widget(
+                self.make_product_card(
+                    product,
+                    exp_date,
+                    today,
+                    tomorrow,
+                )
+            )
+
+        def finish_loading_rows():
+            if generation != self._load_generation:
+                if on_complete is not None:
+                    Clock.schedule_once(on_complete, 0)
+                return
+
+            self._card_load_event = None
+            self._update_pagination_controls()
+            Clock.schedule_once(
+                lambda *_: setattr(self.product_scroll, "scroll_y", 1),
+                0,
+            )
+
+            if on_complete is not None:
+                Clock.schedule_once(on_complete, 0)
+
+        if not incremental:
+            for product in rows:
+                add_product_card(product)
+            finish_loading_rows()
+            return
+
+        # Первую страницу создаём маленькими порциями. Между ними Kivy
+        # продолжает отрисовывать вращающийся индикатор и не выглядит зависшим.
+        next_index = 0
+        batch_size = 4
+
+        def add_next_batch(*_):
+            nonlocal next_index
+
+            if generation != self._load_generation:
+                self._card_load_event = None
+                if on_complete is not None:
+                    Clock.schedule_once(on_complete, 0)
+                return
+
+            batch_end = min(
+                next_index + batch_size,
+                len(rows),
+            )
+            for product in rows[next_index:batch_end]:
+                add_product_card(product)
+            next_index = batch_end
+
+            if next_index < len(rows):
+                self._card_load_event = Clock.schedule_once(
+                    add_next_batch,
+                    1 / 60,
+                )
+            else:
+                finish_loading_rows()
+
+        self._card_load_event = Clock.schedule_once(
+            add_next_batch,
+            0,
+        )
+
+    def change_page(self, delta):
+        target = self.current_page + int(delta)
+        total_pages = max(
+            1,
+            (self.total_count + self.PAGE_SIZE - 1) // self.PAGE_SIZE,
+        )
+        if target < 0 or target >= total_pages:
+            return
+        self.load_page(target, incremental=True)
+
+    def _update_pagination_controls(self):
+        if not hasattr(self, "pagination_bar"):
+            return
+
+        total_pages = max(
+            1,
+            (self.total_count + self.PAGE_SIZE - 1) // self.PAGE_SIZE,
+        )
+        visible = self.total_count > self.PAGE_SIZE
+        self.pagination_bar.height = dp(50) if visible else 0
+        self.pagination_bar.opacity = 1 if visible else 0
+        self.pagination_bar.disabled = not visible
+        self.page_label.text = (
+            f"Страница {self.current_page + 1} из {total_pages}"
+        )
+        self.previous_page_button.disabled = self.current_page <= 0
+        self.next_page_button.disabled = self.current_page >= total_pages - 1
+
+    def _show_empty(self):
+
+        empty = BoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            height=dp(210),
+            padding=dp(20),
+        )
+
+        empty.add_widget(
+            Label(
+                text="Пока ничего нет",
+                color=TEXT,
+                bold=True,
+                font_size="20sp",
+            )
+        )
+
+        empty.add_widget(
+            Label(
+                text=(
+                    "В этом списке пока нет товаров"
+                ),
+                color=TEXT_SECONDARY,
+                halign="center",
+                font_size="14sp",
+            )
+        )
+
+        self.product_list.add_widget(
+            empty
+        )
+
+    def make_product_card(
+        self,
+        product,
+        exp_date,
+        today,
+        tomorrow
+    ):
+
+        if exp_date is None:
+
+            status_key = "no_date"
+            date_text = "Без даты"
+
+        elif exp_date < today:
+
+            status_key = "expired"
+            date_text = format_date(
+                product["next_exp"]
+            )
+
+        elif exp_date == today:
+
+            status_key = "today"
+            date_text = format_date(
+                product["next_exp"]
+            )
+
+        elif exp_date == tomorrow:
+
+            status_key = "tomorrow"
+            date_text = format_date(
+                product["next_exp"]
+            )
+
+        else:
+
+            status_key = "normal"
+            date_text = format_date(
+                product["next_exp"]
+            )
+
+        bg = self.app.get_status_color(status_key)
+        fg = self.app.get_global_text_color()
+
+        keys = product.keys()
+
+        cached_photo = (
+            self.app.get_cached_photo_path(
+                product["barcode"]
+            )
+        )
+
+        local_photo = (
+            product["photo_path"]
+            if "photo_path" in keys
+            else ""
+        ) or ""
+
+        card = ProductCard(
+            product_name=(
+                product["name"]
+                or
+                "Без названия"
+            ),
+            barcode=product["barcode"],
+            exp_date=date_text,
+            photo_path=(
+                local_photo
+                or
+                cached_photo
+            ),
+            photo_url=(
+                product["photo_url"]
+                if "photo_url" in keys
+                else ""
+            ),
+        )
+
+        card.background_color = bg
+        card.set_foreground(fg)
+
+        card.bind(
+            on_release=lambda *_:
+            self.app.open_product(
+                product["barcode"]
+            )
+        )
+
+        return card
+
+
+class AddProductScreen(BaseScreen):
+
+    def __init__(
+        self,
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+        self._auto_save_event = None
+        self._auto_save_signature = None
+        self._save_in_progress = False
+        self.pending_photo_url = ""
+        self.suggested_department = ""
+        self.editing_barcode = ""
+        self.editing_original_date = ""
+
+    def on_date_change(
+        self,
+        instance,
+        value
+    ):
+
+        # В режиме редактирования не сохраняем автоматически:
+        # пользователь должен иметь возможность спокойно поменять дату.
+        if self.editing_barcode:
+            return
+
+        digits = "".join(
+            char
+            for char in str(value or "")
+            if char.isdigit()
+        )
+
+        if len(digits) != 6:
+            return
+
+        if self._auto_save_event is not None:
+            try:
+                self._auto_save_event.cancel()
+            except Exception:
+                pass
+
+        self._auto_save_event = Clock.schedule_once(
+            self._try_auto_save,
+            0.03
+        )
+
+    def _try_auto_save(
+        self,
+        *_
+    ):
+
+        self._auto_save_event = None
+
+        if self._save_in_progress:
+            return
+
+        if self.editing_barcode:
+            return
+
+        barcode = normalize_barcode(
+            self.barcode_input.text
+        )
+
+        name = self.name_input.text.strip()
+        date_text = self.date_input.text.strip()
+
+        # Ещё раз пробуем автозаполнение названия,
+        # если товар уже известен базе.
+        if barcode and not name:
+            self.autofill_product(
+                barcode
+            )
+            name = self.name_input.text.strip()
+
+        parsed = parse_user_date(
+            date_text
+        )
+
+        if (
+            not barcode
+            or
+            not name
+            or
+            not parsed
+        ):
+            return
+
+        signature = (
+            barcode,
+            name,
+            parsed,
+        )
+
+        if signature == self._auto_save_signature:
+            return
+
+        self._auto_save_signature = signature
+        self.save(
+            automatic=True
+        )
+
+    def clear_form(self):
+
+        self._auto_save_signature = None
+        self._save_in_progress = False
+        self.editing_barcode = ""
+        self.editing_original_date = ""
+
+        if hasattr(self, "title_label"):
+            self.title_label.text = "Добавить срок"
+        if hasattr(self, "save_button"):
+            self.save_button.text = "Сохранить срок"
+
+        for field in (
+            self.barcode_input,
+            self.name_input,
+            self.date_input,
+        ):
+            field.focus = False
+            field.text = ""
+            if isinstance(field, RoundedTextInput):
+                field.apply_theme()
+
+        self.pending_photo_path = ""
+        self.pending_photo_url = ""
+        self.suggested_department = ""
+
+        if hasattr(
+            self,
+            "photo_preview"
+        ):
+            self.photo_preview.source = ""
+            self.photo_preview.opacity = 0
+
+        if hasattr(
+            self,
+            "photo_status"
+        ):
+            self.photo_status.text = (
+                "Фото не добавлено"
+            )
+
+    def load_barcode(
+        self,
+        barcode
+    ):
+
+        barcode = normalize_barcode(
+            barcode
+        )
+
+        if isinstance(self.barcode_input, RoundedTextInput):
+            self.barcode_input.set_visible_text(barcode)
+        else:
+            self.barcode_input.text = barcode
+
+        self.autofill_product(
+            barcode
+        )
+
+        Clock.schedule_once(
+            lambda *_:
+            self.autofill_product(
+                barcode
+            ),
+            0.1
+        )
+
+    def autofill_product(
+        self,
+        barcode=None
+    ):
+
+        if barcode is None:
+
+            barcode = (
+                self.barcode_input.text
+            )
+
+        barcode = normalize_barcode(
+            barcode
+        )
+
+        if not barcode:
+
+            return
+
+        stored_product = self.app.db.get_product(barcode)
+        catalog_product = self.app.lookup_catalog_product(barcode)
+        product = stored_product or catalog_product
+
+        if not product:
+
+            return
+
+        self.suggested_department = (
+            str(catalog_product["department"] or "")
+            if catalog_product is not None and stored_product is None
+            else ""
+        )
+
+        name = (
+            product[
+                "name"
+            ]
+            or
+            ""
+        ).strip()
+
+        if name:
+
+            self.name_input.text = (
+                name
+            )
+
+        product_keys = product.keys()
+        photo_path = (
+            product["photo_path"]
+            if "photo_path" in product_keys
+            else ""
+        ) or ""
+
+        photo_url = (
+            product["photo_url"]
+            if "photo_url" in product_keys
+            else ""
+        ) or ""
+
+        self.pending_photo_url = (
+            photo_url
+        )
+
+        if photo_path:
+
+            self.set_photo(
+                photo_path
+            )
+
+        elif photo_url and hasattr(
+            self,
+            "photo_preview"
+        ):
+
+            self.photo_preview.source = (
+                photo_url
+            )
+
+            self.photo_preview.opacity = 1
+
+            if hasattr(
+                self,
+                "photo_status"
+            ):
+                self.photo_status.text = (
+                    "URL картинки добавлен"
+                )
+
+        if not self.editing_barcode and hasattr(self, "date_input"):
+            Clock.schedule_once(
+                lambda *_: setattr(self.date_input, "focus", True),
+                0.08
+            )
+
+    def load_for_edit(self, barcode):
+        self.clear_form()
+        product = self.app.db.get_product(barcode)
+        if not product:
+            return False
+
+        self.editing_barcode = product["barcode"]
+        self.barcode_input.text = product["barcode"]
+        self.name_input.text = (product["name"] or "")
+
+        photo_path = (product["photo_path"] or "")
+        photo_url = (
+            product["photo_url"]
+            if "photo_url" in product.keys()
+            else ""
+        ) or ""
+
+        self.pending_photo_path = photo_path
+        self.pending_photo_url = photo_url
+
+        if photo_path and Path(photo_path).exists():
+            self.set_photo(photo_path)
+        elif photo_url:
+            self.photo_preview.source = photo_url
+            self.photo_preview.opacity = 1
+            self.photo_status.text = "URL картинки добавлен"
+
+        active = self.app.db.get_active_expirations(product["barcode"])
+        if active:
+            self.editing_original_date = active[0]["exp_date"]
+            self.date_input.text = format_date(active[0]["exp_date"])
+        else:
+            self.editing_original_date = ""
+            self.date_input.text = ""
+
+        if hasattr(self, "title_label"):
+            self.title_label.text = "Редактировать товар"
+        if hasattr(self, "save_button"):
+            self.save_button.text = "Сохранить изменения"
+
+        return True
+
+    def on_barcode_change(
+        self,
+        instance,
+        value
+    ):
+
+        barcode = normalize_barcode(
+            value
+        )
+
+        if not barcode:
+
+            return
+
+        Clock.schedule_once(
+            lambda *_:
+            self.autofill_product(
+                barcode
+            ),
+            0.05
+        )
+
+    def set_photo(
+        self,
+        photo_path
+    ):
+
+        self.pending_photo_path = (
+            str(photo_path or "")
+        )
+
+        if not hasattr(
+            self,
+            "photo_preview"
+        ):
+            return
+
+        if (
+            self.pending_photo_path
+            and
+            Path(
+                self.pending_photo_path
+            ).exists()
+        ):
+
+            self.photo_preview.source = (
+                self.pending_photo_path
+            )
+
+            self.photo_preview.reload()
+            self.photo_preview.opacity = 1
+
+            if hasattr(
+                self,
+                "photo_status"
+            ):
+                self.photo_status.text = (
+                    "Фото добавлено"
+                )
+
+        else:
+
+            self.photo_preview.source = ""
+            self.photo_preview.opacity = 0
+
+            if hasattr(
+                self,
+                "photo_status"
+            ):
+                self.photo_status.text = (
+                    "Фото не добавлено"
+                )
+
+    def add_image_url(
+        self
+    ):
+
+        content = BoxLayout(
+            orientation="vertical",
+            spacing=dp(10),
+            padding=dp(12),
+        )
+
+        url_input = RoundedTextInput(
+            text=(
+                getattr(
+                    self,
+                    "pending_photo_url",
+                    ""
+                )
+                or
+                ""
+            ),
+            hint_text="https://...",
+            multiline=False,
+            size_hint_y=None,
+            height=dp(52),
+            font_size="14sp",
+            padding=(
+                dp(12),
+                dp(13),
+            ),
+        )
+
+        info = Label(
+            text=(
+                "Вставь прямую ссылку на картинку товара."
+            ),
+            color=TEXT_SECONDARY,
+            font_size="12sp",
+            size_hint_y=None,
+            height=dp(38),
+            halign="center",
+            valign="middle",
+        )
+
+        info.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        buttons = BoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=dp(52),
+            spacing=dp(8),
+        )
+
+        cancel_button = RoundedButton(
+            text="Отмена",
+            font_size="14sp",
+        )
+
+        save_button = RoundedButton(
+            text="Сохранить URL",
+            font_size="14sp",
+            normal_color=ACCENT_RED,
+            down_color=ACCENT_RED_DOWN,
+        )
+
+        buttons.add_widget(
+            cancel_button
+        )
+
+        buttons.add_widget(
+            save_button
+        )
+
+        content.add_widget(
+            info
+        )
+
+        content.add_widget(
+            url_input
+        )
+
+        content.add_widget(
+            buttons
+        )
+
+        popup = Popup(
+            title="URL картинки",
+            content=content,
+            size_hint=(0.92, None),
+            height=dp(235),
+            auto_dismiss=False,
+        )
+
+        cancel_button.bind(
+            on_release=lambda *_:
+            popup.dismiss()
+        )
+
+        def save_url(*_):
+
+            url = (
+                url_input.text
+                .strip()
+            )
+
+            if (
+                url
+                and
+                not url.startswith(
+                    (
+                        "http://",
+                        "https://",
+                    )
+                )
+            ):
+                self.app.message(
+                    "URL должен начинаться с http:// или https://"
+                )
+                return
+
+            self.pending_photo_url = (
+                url
+            )
+
+            if url:
+                self.photo_preview.source = (
+                    url
+                )
+                self.photo_preview.opacity = 1
+                self.photo_status.text = (
+                    "URL картинки добавлен"
+                )
+            else:
+                self.photo_preview.source = ""
+                self.photo_preview.opacity = 0
+                self.photo_status.text = (
+                    "Фото не добавлено"
+                )
+
+            popup.dismiss()
+
+        save_button.bind(
+            on_release=save_url
+        )
+
+        popup.open()
+
+        Clock.schedule_once(
+            lambda *_:
+            setattr(
+                url_input,
+                "focus",
+                True
+            ),
+            0.15
+        )
+
+    def scan_name_from_camera(
+        self
+    ):
+        self.app.start_product_name_scanner(self)
+
+    def choose_photo(
+        self
+    ):
+
+        self.app.choose_product_photo(
+            self
+        )
+
+    def take_photo(
+        self
+    ):
+
+        self.app.take_product_photo(
+            self
+        )
+
+    def save(self, automatic=False):
+
+        barcode = normalize_barcode(
+            self.barcode_input.text
+        )
+
+        name = (
+            self.name_input.text
+            .strip()
+        )
+
+        date_text = (
+            self.date_input.text
+            .strip()
+        )
+
+        if self._save_in_progress:
+            return
+
+
+        if not barcode:
+
+            self.app.message(
+                "Введите штрихкод."
+            )
+
+            return
+
+        if not name:
+
+            product = (
+                self.app.db.get_product(
+                    barcode
+                )
+            )
+
+            if product:
+
+                name = (
+                    product[
+                        "name"
+                    ]
+                    or
+                    ""
+                ).strip()
+
+                if name:
+
+                    self.name_input.text = (
+                        name
+                    )
+
+        if not name:
+
+            self.app.message(
+                "Введите название товара."
+            )
+
+            return
+
+        exp_date = None
+
+        if date_text:
+            exp_date = parse_user_date(
+                date_text
+            )
+
+            if not exp_date:
+                self.app.message(
+                    "Введите срок в формате ДД.ММ.ГГ.\n\n"
+                    "Например: 280826 → 28.08.26"
+                )
+                return
+
+        if self.editing_barcode:
+            marker = exp_date if exp_date else "__REMOVE_NEAREST__"
+            ok, result = self.app.db.update_product_record(
+                old_barcode=self.editing_barcode,
+                new_barcode=barcode,
+                name=name,
+                department=self.app.current_department,
+                photo_path=getattr(self, "pending_photo_path", ""),
+                photo_url=getattr(self, "pending_photo_url", ""),
+                exp_date_marker=marker,
+            )
+            if not ok:
+                self.app.message(result)
+                return
+
+            self.editing_barcode = result
+            self.app.message("Изменения сохранены.")
+            self.app.dismiss_keyboard()
+            self.app.open_product(result)
+            return
+
+        existing_product = (
+            self.app.db.get_product(
+                barcode
+            )
+        )
+
+        target_department = self.app.current_department
+        if existing_product:
+            target_department = (
+                existing_product["department"]
+                or target_department
+            )
+        elif self.suggested_department:
+            target_department = self.app.db.ensure_category(
+                self.suggested_department
+            )
+
+        if target_department:
+            self.app.current_department = target_department
+
+        self._save_in_progress = True
+
+        self.app.db.save_product(
+            barcode=barcode,
+            name=name,
+            department=target_department,
+            photo_path=getattr(
+                self,
+                "pending_photo_path",
+                ""
+            ),
+            photo_url=getattr(
+                self,
+                "pending_photo_url",
+                ""
+            ),
+        )
+
+        if existing_product:
+
+            barcode_for_expiration = (
+                existing_product[
+                    "barcode"
+                ]
+            )
+
+        else:
+
+            barcode_for_expiration = (
+                barcode
+            )
+
+        if exp_date:
+            if not self.app.db.add_expiration(
+                barcode_for_expiration,
+                exp_date
+            ):
+                self._save_in_progress = False
+                self.app.message(
+                    "Такой срок у этого товара уже существует."
+                )
+                return
+
+            if not automatic:
+                self.app.message(
+                    "Срок успешно добавлен."
+                )
+        else:
+            self.app.db.set_manual_no_date(
+                barcode_for_expiration,
+                True
+            )
+
+            if not automatic:
+                self.app.message(
+                    "Товар сохранён без срока.\n"
+                    "Он будет показан фиолетовым."
+                )
+
+        self._save_in_progress = False
+        self.app.dismiss_keyboard()
+        self.app.open_home()
+
+
+class ProductScreen(BaseScreen):
+
+    barcode = StringProperty(
+        ""
+    )
+
+    def load(
+        self,
+        barcode
+    ):
+
+        product = (
+            self.app.db.get_product(
+                barcode
+            )
+        )
+
+        if not product:
+            return
+
+        self.barcode = (
+            product[
+                "barcode"
+            ]
+        )
+
+        self.product_name_label.text = (
+            product[
+                "name"
+            ]
+            or
+            "Без названия"
+        )
+
+        self.product_barcode_label.text = (
+            "Штрихкод: "
+            +
+            self.barcode
+        )
+
+        created_at = str(product["created_at"] or "").strip()
+        try:
+            created_value = datetime.fromisoformat(created_at)
+            created_text = created_value.strftime("%d.%m.%Y в %H:%M:%S")
+        except Exception:
+            created_text = created_at or "—"
+
+        if hasattr(self, "created_at_label"):
+            self.created_at_label.text = "Добавлен: " + created_text
+
+        keys = product.keys()
+
+        photo_path = (
+            product["photo_path"]
+            if "photo_path" in keys
+            else ""
+        ) or ""
+
+        photo_url = (
+            product["photo_url"]
+            if "photo_url" in keys
+            else ""
+        ) or ""
+
+        if (
+            photo_path
+            and
+            Path(photo_path).exists()
+        ):
+            self.product_image.texture = None
+            self.product_image.source = (
+                photo_path
+            )
+            self.product_image.opacity = 1
+            if hasattr(self, "product_image_bg_color"):
+                self.product_image_bg_color.rgba = (0, 0, 0, 0)
+
+        elif photo_url.startswith(
+            ("http://", "https://")
+        ):
+            self.product_image.texture = None
+            self.product_image.source = (
+                photo_url
+            )
+            self.product_image.opacity = 1
+            if hasattr(self, "product_image_bg_color"):
+                self.product_image_bg_color.rgba = (0, 0, 0, 0)
+
+        else:
+            self.product_image.texture = None
+            self.product_image.source = ""
+            self.product_image.opacity = 0
+            if hasattr(self, "product_image_bg_color"):
+                self.product_image_bg_color.rgba = THUMBNAIL_BG
+
+        active = (
+            self.app.db.get_active_expirations(
+                self.barcode
+            )
+        )
+
+        if active:
+            self.nearest_date_label.text = (
+                "Годен до: "
+                +
+                format_date(
+                    active[0][
+                        "exp_date"
+                    ]
+                )
+            )
+        else:
+            self.nearest_date_label.text = (
+                "Активных сроков нет"
+            )
+
+        history = []
+
+        for item in (
+            self.app.db.get_all_expirations(
+                self.barcode
+            )
+        ):
+
+            if item[
+                "written_off"
+            ]:
+                status = "СПИСАНО"
+            else:
+                status = "АКТИВЕН"
+
+            history.append(
+                format_date(
+                    item[
+                        "exp_date"
+                    ]
+                )
+                +
+                " — "
+                +
+                status
+            )
+
+        if history:
+            self.history_label.text = (
+                "\n".join(
+                    history
+                )
+            )
+        else:
+            self.history_label.text = (
+                "История пока пустая."
+            )
+
+        has_active = bool(active)
+
+        self.writeoff_button.disabled = (
+            not has_active
+        )
+
+        if hasattr(self, "delete_product_button"):
+            self.delete_product_button.disabled = False
+
+    def write_off(self):
+
+        if not self.app.db.write_off_next(self.barcode):
+            self.app.message("У товара нет активных сроков.")
+            return
+
+        # Сразу возвращаемся в отдел. Карточка автоматически покажет
+        # следующий ближайший срок, а если сроков больше нет — попадёт
+        # в фиолетовый список «Без даты».
+        self.app.open_home()
+
+    def delete_product(self):
+        self.app.confirm_delete_product(self.barcode)
+
+
+
+class SettingsScreen(BaseScreen):
+
+    def refresh_color_previews(self):
+        try:
+            self.app.refresh_color_settings_screens()
+        except Exception:
+            pass
+
+
+
+# =========================================================
+# MAIN APP
+# =========================================================
+
+class MainApp(App):
+
+    title = APP_TITLE
+
+    def get_photo_cache_dir(self):
+
+        cache_dir = (
+            Path(self.user_data_dir)
+            /
+            "product_images"
+        )
+
+        cache_dir.mkdir(
+            parents=True,
+            exist_ok=True
+        )
+
+        return cache_dir
+
+    def get_cached_photo_path(
+        self,
+        barcode
+    ):
+
+        barcode = normalize_barcode(
+            barcode
+        )
+
+        for suffix in (
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".webp",
+            ".img",
+        ):
+            path = (
+                self.get_photo_cache_dir()
+                /
+                f"{barcode}{suffix}"
+            )
+
+            if path.exists():
+                return str(path)
+
+        return ""
+
+    def _load_status_colors(self):
+
+        backgrounds = {
+            key: list(value)
+            for key, value in DEFAULT_STATUS_COLORS.items()
+        }
+
+        global_text = list(TEXT)
+
+        try:
+            if self.status_colors_path.exists():
+                saved = json.loads(
+                    self.status_colors_path.read_text(
+                        encoding="utf-8"
+                    )
+                )
+
+                if isinstance(saved, dict):
+                    saved_backgrounds = saved.get("backgrounds")
+
+                    # Совместимость со старыми версиями.
+                    if not isinstance(saved_backgrounds, dict):
+                        saved_backgrounds = saved
+
+                    for key in DEFAULT_STATUS_COLORS:
+                        value = saved_backgrounds.get(key)
+
+                        if isinstance(value, list) and len(value) == 4:
+                            backgrounds[key] = [
+                                max(0.0, min(1.0, float(channel)))
+                                for channel in value
+                            ]
+
+                    saved_global_text = saved.get("global_text")
+
+                    # Миграция со старого формата, где текст был отдельным
+                    # для каждой категории. Берём цвет "normal", если есть.
+                    if not (
+                        isinstance(saved_global_text, list)
+                        and len(saved_global_text) == 4
+                    ):
+                        old_texts = saved.get("texts")
+                        if isinstance(old_texts, dict):
+                            candidate = old_texts.get("normal")
+                            if isinstance(candidate, list) and len(candidate) == 4:
+                                saved_global_text = candidate
+
+                    if (
+                        isinstance(saved_global_text, list)
+                        and len(saved_global_text) == 4
+                    ):
+                        loaded_text = [
+                            max(0.0, min(1.0, float(channel)))
+                            for channel in saved_global_text
+                        ]
+
+                        current_theme_default = (
+                            DARK_THEME["TEXT"]
+                            if self.theme_name == "dark"
+                            else LIGHT_THEME["TEXT"]
+                        )
+
+                        # A saved default belongs to the theme that was active
+                        # when it was written. Move either known default to the
+                        # current theme; keep genuinely custom colors unchanged.
+                        is_saved_theme_default = any(
+                            all(
+                                abs(loaded_text[i] - default[i]) < 0.025
+                                for i in range(4)
+                            )
+                            for default in (
+                                LIGHT_THEME["TEXT"],
+                                DARK_THEME["TEXT"],
+                            )
+                        )
+
+                        global_text = (
+                            list(current_theme_default)
+                            if is_saved_theme_default
+                            else loaded_text
+                        )
+
+        except Exception as exc:
+            print("status color load error:", exc)
+
+        return backgrounds, global_text
+
+    def _save_status_colors(self):
+
+        try:
+            self.status_colors_path.parent.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+
+            payload = {
+                "backgrounds": self.status_colors,
+                "global_text": self.global_text_color,
+            }
+
+            self.status_colors_path.write_text(
+                json.dumps(
+                    payload,
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            return True
+
+        except Exception as exc:
+            print("status color save error:", exc)
+            return False
+
+    def get_status_color(self, key):
+
+        value = self.status_colors.get(
+            key,
+            DEFAULT_STATUS_COLORS.get(key, CARD),
+        )
+
+        try:
+            return tuple(float(x) for x in value[:4])
+        except Exception:
+            return DEFAULT_STATUS_COLORS.get(key, CARD)
+
+    def set_status_color(self, key, color):
+
+        if key not in DEFAULT_STATUS_COLORS:
+            return
+
+        self.status_colors[key] = [
+            float(channel)
+            for channel in color[:4]
+        ]
+
+        self._save_status_colors()
+
+        try:
+            settings = self.sm.get_screen("settings")
+            settings.refresh_color_previews()
+        except Exception:
+            pass
+
+        try:
+            home = self.sm.get_screen("home")
+            home.refresh()
+        except Exception:
+            pass
+
+    def get_global_text_color(self):
+        try:
+            return tuple(float(x) for x in self.global_text_color[:4])
+        except Exception:
+            return TEXT
+
+    def get_status_text_color(self, key):
+        # Совместимость со старым кодом: теперь у всей программы один цвет текста.
+        return self.get_global_text_color()
+
+    def _apply_global_text_color_to_tree(self, *_):
+        color = self.get_global_text_color()
+
+        def walk(widget):
+            try:
+                # Label и Button имеют property "color".
+                if (
+                    isinstance(widget, RoundedButton)
+                    and widget.force_white_text
+                ):
+                    widget.color = list(ACTION_BUTTON_TEXT)
+                elif isinstance(widget, (Label, Button)):
+                    widget.color = list(color)
+            except Exception:
+                pass
+
+            try:
+                if isinstance(widget, TextInput):
+                    if isinstance(widget, RoundedTextInput):
+                        widget.apply_theme()
+                    else:
+                        widget.foreground_color = list(color)
+                        widget.cursor_color = list(color)
+            except Exception:
+                pass
+
+            try:
+                if isinstance(widget, SettingsColorRow):
+                    widget.set_text_color(color)
+            except Exception:
+                pass
+
+            try:
+                if isinstance(widget, RoundedImageButton):
+                    widget.apply_theme()
+            except Exception:
+                pass
+
+            for child in getattr(widget, "children", []):
+                walk(child)
+
+        try:
+            walk(self.sm)
+        except Exception as exc:
+            print("apply global text color error:", exc)
+
+    def set_global_text_color(self, color):
+        global TEXT, TEXT_SECONDARY, RED_TEXT, YELLOW_TEXT
+
+        normalized = [
+            max(0.0, min(1.0, float(channel)))
+            for channel in color[:4]
+        ]
+
+        self.global_text_color = normalized
+
+        # Все НОВЫЕ элементы интерфейса тоже получают выбранный цвет.
+        TEXT = tuple(normalized)
+        TEXT_SECONDARY = tuple(normalized)
+        RED_TEXT = tuple(normalized)
+        YELLOW_TEXT = tuple(normalized)
+
+        self._save_status_colors()
+        self._refresh_global_text_color()
+
+        try:
+            self.refresh_color_settings_screens()
+        except Exception:
+            pass
+
+        try:
+            self.sm.get_screen("home").refresh()
+        except Exception:
+            pass
+
+        # refresh() может пересоздать карточки, поэтому синхронизируем
+        # цвет ещё раз после обновления дерева виджетов.
+        self._refresh_global_text_color()
+
+    def _refresh_global_text_color(self):
+        self._apply_global_text_color_to_tree()
+        Clock.schedule_once(
+            self._apply_global_text_color_to_tree,
+            0,
+        )
+
+
+    def reset_status_colors(self):
+
+        self.status_colors = {
+            key: list(value)
+            for key, value in DEFAULT_STATUS_COLORS.items()
+        }
+
+        self.set_global_text_color(TEXT)
+        self._save_status_colors()
+
+        try:
+            self.refresh_color_settings_screens()
+        except Exception:
+            pass
+
+        try:
+            self.sm.get_screen("home").refresh()
+        except Exception:
+            pass
+
+        self.message("Цвета восстановлены по умолчанию.")
+
+    def open_palette_picker(self, title_text, current_color, on_choose):
+
+        overlay = ModalView(
+            size_hint=(1, 1),
+            background_color=(0, 0, 0, 0.64),
+            auto_dismiss=True,
+        )
+
+        card = BoxLayout(
+            orientation="vertical",
+            size_hint=(0.88, None),
+            height=dp(360),
+            padding=dp(16),
+            spacing=dp(12),
+        )
+
+        with card.canvas.before:
+            _card_color = Color(*CARD)
+            _card_rect = RoundedRectangle(
+                pos=card.pos,
+                size=card.size,
+                radius=[dp(24)],
+            )
+
+        def sync_card(*_):
+            _card_rect.pos = card.pos
+            _card_rect.size = card.size
+
+        card.bind(pos=sync_card, size=sync_card)
+
+        title = Label(
+            text=title_text,
+            color=self.get_global_text_color(),
+            bold=True,
+            font_size="18sp",
+            size_hint_y=None,
+            height=dp(46),
+            halign="left",
+            valign="middle",
+        )
+        title.bind(
+            size=lambda inst, value:
+            setattr(inst, "text_size", value)
+        )
+        card.add_widget(title)
+
+        grid = GridLayout(
+            cols=5,
+            rows=4,
+            spacing=dp(8),
+            size_hint_y=None,
+            height=dp(220),
+        )
+
+        for color in STATUS_COLOR_PALETTE:
+            selected = (
+                tuple(round(x, 4) for x in current_color)
+                ==
+                tuple(round(x, 4) for x in color)
+            )
+
+            swatch = ColorSwatch(
+                swatch_color=color,
+                selected=selected,
+            )
+
+            def choose(_button, chosen=color):
+                on_choose(chosen)
+                overlay.dismiss()
+
+            swatch.bind(on_release=choose)
+            grid.add_widget(swatch)
+
+        card.add_widget(grid)
+
+        cancel = RoundedButton(
+            text="Отмена",
+            size_hint_y=None,
+            height=dp(52),
+            normal_color=BUTTON_BG,
+            down_color=BUTTON_BG_DOWN,
+        )
+        cancel.bind(
+            on_release=lambda *_:
+            overlay.dismiss()
+        )
+        card.add_widget(cancel)
+
+        wrapper = AnchorLayout(
+            anchor_x="center",
+            anchor_y="center",
+        )
+        wrapper.add_widget(card)
+        overlay.add_widget(wrapper)
+        overlay.open()
+
+    def open_status_color_picker(self, status_key):
+
+        if status_key not in DEFAULT_STATUS_COLORS:
+            return
+
+        self.open_palette_picker(
+            STATUS_COLOR_LABELS.get(status_key, status_key),
+            self.get_status_color(status_key),
+            lambda chosen:
+            self._set_card_status_color_and_refresh(status_key, chosen),
+        )
+
+    def _set_card_status_color_and_refresh(self, status_key, color):
+        self.set_status_color(status_key, color)
+        self.refresh_color_settings_screens()
+
+    def open_global_text_color_picker(self):
+        self.open_palette_picker(
+            "Цвет текста",
+            self.get_global_text_color(),
+            self.set_global_text_color,
+        )
+
+    def refresh_color_settings_screens(self):
+
+        try:
+            screen = self.sm.get_screen("color_settings")
+            if hasattr(screen, "card_color_row"):
+                screen.card_color_row.set_preview(
+                    self.get_status_color("normal")
+                )
+            if hasattr(screen, "text_color_row"):
+                screen.text_color_row.set_preview(
+                    self.get_global_text_color()
+                )
+        except Exception:
+            pass
+
+        try:
+            screen = self.sm.get_screen("card_colors")
+            rows = getattr(screen, "status_rows", {})
+            for key, row in rows.items():
+                row.set_preview(self.get_status_color(key))
+                row.set_text_color(self.get_global_text_color())
+        except Exception:
+            pass
+
+
+    def _load_theme(self):
+        try:
+            if self.theme_path.exists():
+                data = json.loads(
+                    self.theme_path.read_text(
+                        encoding="utf-8"
+                    )
+                )
+                value = str(
+                    data.get("theme", "dark")
+                ).strip().lower()
+
+                if value in ("dark", "light"):
+                    return value
+
+        except Exception as exc:
+            print("theme load error:", exc)
+
+        return "dark"
+
+    def _save_theme(self):
+        try:
+            self.theme_path.parent.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+            self.theme_path.write_text(
+                json.dumps(
+                    {"theme": self.theme_name},
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+        except Exception as exc:
+            print("theme save error:", exc)
+
+    def toggle_theme(self):
+        if getattr(self, "_theme_transition_in_progress", False):
+            return
+
+        old_theme = self.theme_name
+        new_theme = (
+            "light"
+            if old_theme == "dark"
+            else "dark"
+        )
+
+        old_default_text = (
+            DARK_THEME["TEXT"]
+            if old_theme == "dark"
+            else LIGHT_THEME["TEXT"]
+        )
+
+        new_default_text = (
+            LIGHT_THEME["TEXT"]
+            if new_theme == "light"
+            else DARK_THEME["TEXT"]
+        )
+
+        try:
+            current_text = tuple(
+                float(x)
+                for x in self.global_text_color[:4]
+            )
+            is_old_default = all(
+                abs(
+                    current_text[i]
+                    -
+                    old_default_text[i]
+                ) < 0.03
+                for i in range(4)
+            )
+
+            is_white_text = all(
+                channel >= 0.94
+                for channel in current_text[:3]
+            )
+            is_black_text = all(
+                channel <= 0.13
+                for channel in current_text[:3]
+            )
+
+            needs_contrast_fix = (
+                new_theme == "light"
+                and is_white_text
+            ) or (
+                new_theme == "dark"
+                and is_black_text
+            )
+        except Exception:
+            is_old_default = True
+            needs_contrast_fix = True
+
+        self._theme_transition_in_progress = True
+
+        snapshot = None
+        snapshot_image = None
+
+        def finish_transition(*_):
+            try:
+                if snapshot is not None:
+                    Window.remove_widget(snapshot)
+            except Exception:
+                pass
+
+            self._theme_transition_in_progress = False
+
+        def update_theme_state():
+            self.theme_name = new_theme
+            apply_theme_globals(self.theme_name)
+
+            if is_old_default or needs_contrast_fix:
+                self.global_text_color = list(new_default_text)
+
+            self._save_theme()
+            self._save_status_colors()
+            self._rebuild_ui_for_theme(target_screen="settings")
+
+        try:
+            # Снимаем текущий интерфейс прямо в видеопамять. Старый вариант
+            # сохранял PNG на диск, что на телефоне задерживало отклик кнопки
+            # на 1–2 секунды.
+            snapshot_image = self.sm.export_as_image()
+            snapshot_texture = snapshot_image.texture
+
+            snapshot = Widget(
+                size_hint=(None, None),
+                size=Window.size,
+                pos=(0, 0),
+                opacity=1,
+            )
+            snapshot._source_image = snapshot_image
+
+            with snapshot.canvas:
+                Color(1, 1, 1, 1)
+                snapshot_rect = Rectangle(
+                    texture=snapshot_texture,
+                    pos=snapshot.pos,
+                    size=snapshot.size,
+                    # FBO хранит строки снизу вверх. При прямой отрисовке
+                    # разворачиваем только UV-координаты, не копируя текстуру.
+                    tex_coords=(
+                        0, 1,
+                        1, 1,
+                        1, 0,
+                        0, 0,
+                    ),
+                )
+
+            def sync_snapshot(*_):
+                snapshot_rect.pos = snapshot.pos
+                snapshot_rect.size = snapshot.size
+
+            snapshot.bind(
+                pos=sync_snapshot,
+                size=sync_snapshot,
+            )
+
+            Window.add_widget(snapshot)
+            update_theme_state()
+
+            def start_crossfade(*_):
+                crossfade = Animation(
+                    opacity=0,
+                    d=0.36,
+                    t="in_out_quad",
+                )
+                crossfade.bind(
+                    on_complete=finish_transition
+                )
+                crossfade.start(snapshot)
+
+            Clock.schedule_once(start_crossfade, 0)
+        except Exception:
+            try:
+                update_theme_state()
+            except Exception as exc:
+                print("theme update error:", exc)
+            finish_transition()
+
+    def _rebuild_ui_for_theme(
+        self,
+        target_screen="settings"
+    ):
+        current_department = (
+            self.current_department
+        )
+
+        Window.clearcolor = BG
+
+        manager = self.sm
+        manager.transition = NoTransition()
+
+        manager.clear_widgets()
+
+        manager.add_widget(
+            self.create_department_screen()
+        )
+        manager.add_widget(
+            self.create_home_screen()
+        )
+        manager.add_widget(
+            self.create_add_screen()
+        )
+        manager.add_widget(
+            self.create_product_screen()
+        )
+        manager.add_widget(
+            self.create_settings_screen()
+        )
+        manager.add_widget(
+            self.create_color_settings_screen()
+        )
+        manager.add_widget(
+            self.create_card_colors_screen()
+        )
+
+        self.current_department = (
+            current_department
+        )
+
+        if target_screen not in {
+            "departments",
+            "home",
+            "add",
+            "product",
+            "settings",
+            "color_settings",
+            "card_colors",
+        }:
+            target_screen = "settings"
+
+        manager.current = target_screen
+
+        self._apply_global_text_color_to_tree()
+
+    def build(self):
+        global TEXT, TEXT_SECONDARY, RED_TEXT, YELLOW_TEXT
+
+        self.db_path = (
+            Path(
+                self.user_data_dir
+            )
+            /
+            DB_NAME
+        )
+
+        self.current_department = None
+        self.pending_photo_screen = None
+        self.pending_ocr_screen = None
+
+        self.theme_path = (
+            Path(self.user_data_dir)
+            /
+            "theme.json"
+        )
+
+        self.theme_name = self._load_theme()
+        apply_theme_globals(
+            self.theme_name
+        )
+
+        self.status_colors_path = (
+            Path(self.user_data_dir)
+            /
+            "status_colors.json"
+        )
+
+        try:
+            (
+                self.status_colors,
+                self.global_text_color,
+            ) = self._load_status_colors()
+        except Exception as exc:
+            print("status colors startup fallback:", exc)
+            self.status_colors = {
+                key: list(value)
+                for key, value in DEFAULT_STATUS_COLORS.items()
+            }
+            self.global_text_color = list(TEXT)
+
+        # Сразу применяем сохранённый общий цвет текста ко всем
+        # элементам, которые будут созданы после этого места.
+        TEXT = tuple(self.global_text_color)
+        TEXT_SECONDARY = tuple(self.global_text_color)
+        RED_TEXT = tuple(self.global_text_color)
+        YELLOW_TEXT = tuple(self.global_text_color)
+
+        manager = ScreenManager(
+            transition=NoTransition()
+        )
+        self.sm = manager
+        manager.add_widget(
+            self._create_startup_screen()
+        )
+
+        return manager
+
+    def _create_startup_screen(self):
+        screen = Screen(name="startup")
+
+        card = RoundedPanel(
+            orientation="vertical",
+            size_hint=(None, None),
+            size=(dp(245), dp(142)),
+            padding=(dp(22), dp(18)),
+            spacing=dp(10),
+            bg_color=CARD,
+            radius=24,
+        )
+
+        spinner_row = AnchorLayout(
+            anchor_x="center",
+            anchor_y="center",
+            size_hint_y=0.62,
+        )
+        spinner = LoadingSpinner(
+            size=(dp(44), dp(44))
+        )
+        spinner_row.add_widget(spinner)
+        card.add_widget(spinner_row)
+
+        self._startup_label = Label(
+            text="Запуск приложения…",
+            color=TEXT,
+            font_size="14sp",
+            bold=True,
+            size_hint_y=0.38,
+        )
+        card.add_widget(self._startup_label)
+
+        wrapper = AnchorLayout(
+            anchor_x="center",
+            anchor_y="center",
+        )
+        wrapper.add_widget(card)
+        screen.add_widget(wrapper)
+        self._startup_spinner = spinner
+        return screen
+
+    def on_start(self):
+        self._startup_spinner.start()
+        self._startup_steps = [
+            ("Подготовка базы данных…", self._initialize_runtime),
+            ("Загрузка разделов…", self.create_department_screen),
+            ("Загрузка товаров…", self.create_home_screen),
+            ("Подготовка редактора…", self.create_add_screen),
+            ("Подготовка карточек…", self.create_product_screen),
+            ("Загрузка настроек…", self.create_settings_screen),
+            ("Загрузка палитры…", self.create_color_settings_screen),
+            ("Почти готово…", self.create_card_colors_screen),
+        ]
+        Clock.schedule_once(self._run_startup_step, 0.08)
+
+    def _initialize_runtime(self):
+        self.db = Database(self.db_path)
+        self.catalog_conn = None
+        catalog_path = Path(__file__).resolve().parent / CATALOG_DB_FILE
+        try:
+            self.catalog_conn = sqlite3.connect(
+                catalog_path.resolve().as_uri() + "?mode=ro",
+                uri=True,
+                check_same_thread=False,
+            )
+            self.catalog_conn.row_factory = sqlite3.Row
+            self.catalog_conn.execute(
+                "SELECT 1 FROM catalog_products LIMIT 1"
+            ).fetchone()
+        except Exception as exc:
+            print("catalog startup error:", exc)
+            if self.catalog_conn is not None:
+                self.catalog_conn.close()
+            self.catalog_conn = None
+
+        if ANDROID and activity_helper is not None:
+            try:
+                activity_helper.bind(
+                    on_activity_result=self._on_activity_result
+                )
+            except Exception as exc:
+                print("activity.bind error:", exc)
+
+        Window.bind(on_keyboard=self._on_keyboard)
+        Window.bind(size=self._on_window_size_for_safe_area)
+        self._refresh_system_insets()
+        Clock.schedule_once(self._refresh_system_insets, 0.20)
+        Clock.schedule_once(self._refresh_system_insets, 0.80)
+
+    def lookup_catalog_product(self, barcode):
+        connection = getattr(self, "catalog_conn", None)
+        if connection is None:
+            return None
+
+        for candidate in barcode_variants(barcode):
+            row = connection.execute(
+                "SELECT * FROM catalog_products WHERE barcode = ?",
+                (candidate,),
+            ).fetchone()
+            if row:
+                return row
+
+        return None
+
+    def _read_android_system_insets(self):
+        if not ANDROID or not PYJNIUS_AVAILABLE:
+            return (0, 0)
+
+        try:
+            PythonActivity = autoclass("org.kivy.android.PythonActivity")
+            activity = PythonActivity.mActivity
+            decor_view = activity.getWindow().getDecorView()
+            insets = decor_view.getRootWindowInsets()
+            if insets is None:
+                return None
+
+            BuildVersion = autoclass("android.os.Build$VERSION")
+            if int(BuildVersion.SDK_INT) >= 30:
+                InsetsType = autoclass("android.view.WindowInsets$Type")
+                status_type = InsetsType.statusBars()
+                navigation_type = InsetsType.navigationBars()
+
+                status = insets.getInsets(status_type)
+                navigation = insets.getInsets(navigation_type)
+                top = int(status.top) if insets.isVisible(status_type) else 0
+                bottom = (
+                    int(navigation.bottom)
+                    if insets.isVisible(navigation_type)
+                    else 0
+                )
+            else:
+                top = int(insets.getSystemWindowInsetTop())
+                bottom = int(insets.getSystemWindowInsetBottom())
+
+            return (max(0, top), max(0, bottom))
+        except Exception as exc:
+            print("system insets error:", exc)
+            return None
+
+    def _refresh_system_insets(self, *_):
+        global SAFE_TOP, SAFE_BOTTOM
+
+        measured = self._read_android_system_insets()
+        if measured is not None:
+            SAFE_TOP, SAFE_BOTTOM = measured
+
+        manager = getattr(self, "sm", None)
+        if manager is None:
+            return
+
+        for screen in getattr(manager, "screens", []):
+            for widget in screen.walk(restrict=True):
+                if isinstance(widget, SafeAreaLayout):
+                    widget.refresh_safe_padding()
+
+    def _on_window_size_for_safe_area(self, *_):
+        Clock.schedule_once(self._refresh_system_insets, 0.05)
+
+    def on_resume(self):
+        Clock.schedule_once(self._refresh_system_insets, 0.05)
+        Clock.schedule_once(self._refresh_system_insets, 0.35)
+
+    def _run_startup_step(self, *_):
+        if not self._startup_steps:
+            self._finish_startup()
+            return
+
+        message, step = self._startup_steps.pop(0)
+        self._startup_label.text = message
+
+        try:
+            result = step()
+            if isinstance(result, Screen):
+                self.sm.add_widget(result)
+        except Exception as exc:
+            print("startup error:", exc)
+            self._startup_spinner.stop()
+            self.message(
+                "Не удалось запустить приложение:\n\n"
+                + str(exc)
+            )
+            return
+
+        Clock.schedule_once(self._run_startup_step, 0.01)
+
+    def _finish_startup(self):
+        startup = self.sm.get_screen("startup")
+        self.sm.current = "departments"
+        self._apply_global_text_color_to_tree()
+        self._startup_spinner.stop()
+        self.sm.remove_widget(startup)
+
+
+    # =====================================================
+    # BACK
+    # =====================================================
+
+    def _on_keyboard(
+        self,
+        _window,
+        key,
+        _scancode,
+        _codepoint,
+        _modifier
+    ):
+
+        if key != 27:
+            return False
+
+        if self.sm.current == "departments":
+            return False
+
+        if self.sm.current == "home":
+            self.open_departments()
+            return True
+
+        if self.sm.current == "settings":
+            self.open_departments()
+            return True
+
+        if self.sm.current == "color_settings":
+            self.open_settings()
+            return True
+
+        if self.sm.current == "card_colors":
+            self.open_color_settings()
+            return True
+
+        self.open_home()
+        return True
+
+
+    # =====================================================
+    # HEADER
+    # =====================================================
+
+    def create_header(self):
+
+        header = BoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=dp(72),
+            spacing=dp(10),
+            padding=(
+                dp(8),
+                dp(4),
+            ),
+        )
+
+        logo = Image(
+            source=LOGO_FILE,
+            size_hint_x=None,
+            width=dp(58),
+            allow_stretch=True,
+            keep_ratio=True,
+        )
+
+        header.add_widget(
+            Widget()
+        )
+
+        header.add_widget(
+            logo
+        )
+
+        title = Label(
+            text=HEADER_TITLE,
+            color=TEXT,
+            bold=True,
+            font_size="25sp",
+            size_hint_x=None,
+            width=dp(210),
+            halign="left",
+            valign="middle",
+        )
+
+        title.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        header.add_widget(
+            title
+        )
+
+        header.add_widget(
+            Widget()
+        )
+
+        return header
+
+
+    # =====================================================
+    # DEPARTMENT SELECTION
+    # =====================================================
+
+    def create_department_screen(self):
+
+        screen = DepartmentScreen(name="departments")
+
+        root = SafeAreaLayout(
+            orientation="vertical",
+            safe_horizontal=14,
+            safe_top=7,
+            safe_bottom=12,
+            spacing=dp(10),
+        )
+
+        root.add_widget(self.create_header())
+
+        # Поиск товара находится именно на стартовом экране.
+        search_input = RoundedTextInput(
+            hint_text="Поиск...",
+            hint_text_color=TEXT,
+            multiline=False,
+            size_hint_y=None,
+            height=dp(52),
+            font_size="16sp",
+            padding=(dp(15), dp(13)),
+        )
+
+        root.add_widget(search_input)
+        screen.search_input = search_input
+
+        search_results_scroll = ScrollView(
+            do_scroll_x=False,
+            size_hint_y=None,
+            height=0,
+            opacity=0,
+        )
+        search_results = BoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            spacing=dp(6),
+        )
+        search_results.bind(
+            minimum_height=search_results.setter("height")
+        )
+        search_results_scroll.add_widget(search_results)
+        root.add_widget(search_results_scroll)
+
+        screen.search_results = search_results
+        screen.search_results_scroll = search_results_scroll
+
+        def update_search(_instance, value):
+            screen.refresh_search(value)
+            if value.strip():
+                search_results_scroll.height = min(
+                    dp(250),
+                    max(dp(50), search_results.height)
+                )
+                search_results_scroll.opacity = 1
+            else:
+                search_results_scroll.height = 0
+                search_results_scroll.opacity = 0
+
+        search_input.bind(text=update_search)
+        search_input.bind(
+            on_text_validate=lambda *_: screen.submit_search()
+        )
+
+        settings_button = RoundedButton(
+            text="Настройки",
+            size_hint_y=None,
+            height=dp(52),
+            font_size="15sp",
+        )
+        settings_button.bind(
+            on_release=lambda *_: self.open_settings()
+        )
+        root.add_widget(settings_button)
+
+        title = Label(
+            text="Выберите категорию",
+            color=TEXT,
+            bold=True,
+            font_size="22sp",
+            size_hint_y=None,
+            height=dp(46),
+            halign="left",
+            valign="middle",
+        )
+        title.bind(
+            size=lambda instance, value:
+            setattr(instance, "text_size", value)
+        )
+        root.add_widget(title)
+
+        add_category = RoundedButton(
+            text="+  Добавить категорию",
+            size_hint_y=None,
+            height=dp(52),
+            font_size="15sp",
+            normal_color=ACCENT_RED,
+            down_color=ACCENT_RED_DOWN,
+        )
+        add_category.bind(
+            on_release=lambda *_: self.open_add_category_dialog()
+        )
+        root.add_widget(add_category)
+
+        scroll = ScrollView(do_scroll_x=False)
+
+        departments_list = BoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            spacing=dp(8),
+            padding=(0, dp(2), 0, dp(10)),
+        )
+        departments_list.bind(
+            minimum_height=departments_list.setter("height")
+        )
+
+        scroll.add_widget(departments_list)
+        root.add_widget(scroll)
+        screen.departments_list = departments_list
+        self.populate_categories(screen)
+
+        screen.add_widget(root)
+        return screen
+
+    def populate_categories(self, screen=None):
+        if screen is None:
+            try:
+                screen = self.sm.get_screen("departments")
+            except Exception:
+                return
+
+        container = getattr(screen, "departments_list", None)
+        if container is None:
+            return
+
+        container.clear_widgets()
+        categories = self.db.list_categories()
+
+        if not categories:
+            empty = RoundedPanel(
+                orientation="vertical",
+                size_hint_y=None,
+                height=dp(150),
+                padding=dp(20),
+                bg_color=CARD,
+                radius=18,
+            )
+            empty.add_widget(
+                Label(
+                    text=(
+                        "Категорий пока нет\n"
+                        "Создайте первую кнопкой выше"
+                    ),
+                    color=TEXT_SECONDARY,
+                    font_size="15sp",
+                    halign="center",
+                    valign="middle",
+                )
+            )
+            container.add_widget(empty)
+            return
+
+        for category in categories:
+            row = BoxLayout(
+                orientation="horizontal",
+                size_hint_y=None,
+                height=dp(58),
+                spacing=dp(8),
+            )
+
+            category_button = RoundedButton(
+                text=category["name"],
+                font_size="14sp",
+                halign="left",
+                valign="middle",
+                padding=(dp(18), dp(10)),
+                normal_color=CARD,
+                down_color=BUTTON_BG_DOWN,
+                size_hint_x=0.84,
+            )
+            category_button.bind(
+                size=lambda instance, value: setattr(
+                    instance,
+                    "text_size",
+                    (value[0] - dp(36), value[1]),
+                )
+            )
+            category_button.bind(
+                on_release=lambda _button, name=category["name"]:
+                self.select_department(name)
+            )
+
+            delete_button = RoundedButton(
+                text="×",
+                font_size="23sp",
+                normal_color=BUTTON_BG,
+                down_color=ACCENT_RED_DOWN,
+                size_hint_x=0.16,
+            )
+            delete_button.bind(
+                on_release=lambda _button, row=category:
+                self.confirm_delete_category(row)
+            )
+
+            row.add_widget(category_button)
+            row.add_widget(delete_button)
+            container.add_widget(row)
+
+    def open_add_category_dialog(self):
+        overlay = ModalView(
+            size_hint=(1, 1),
+            background="",
+            background_color=(0, 0, 0, 0),
+            overlay_color=(0, 0, 0, 0.68),
+            auto_dismiss=False,
+        )
+
+        card = RoundedPanel(
+            orientation="vertical",
+            size_hint=(0.88, None),
+            height=dp(255),
+            padding=dp(18),
+            spacing=dp(12),
+            bg_color=CARD,
+            radius=24,
+        )
+
+        title = Label(
+            text="[b]Новая категория[/b]",
+            markup=True,
+            color=TEXT,
+            font_size="19sp",
+            size_hint_y=None,
+            height=dp(38),
+            halign="left",
+            valign="middle",
+        )
+        title.bind(
+            size=lambda instance, value: setattr(instance, "text_size", value)
+        )
+
+        category_input = RoundedTextInput(
+            hint_text="Название категории",
+            hint_text_color=TEXT_SECONDARY,
+            multiline=False,
+            size_hint_y=None,
+            height=dp(54),
+            font_size="16sp",
+            padding=(dp(15), dp(14)),
+        )
+
+        error_label = Label(
+            text="",
+            color=ACCENT_RED,
+            font_size="12sp",
+            size_hint_y=None,
+            height=dp(24),
+            halign="left",
+            valign="middle",
+        )
+        error_label.bind(
+            size=lambda instance, value: setattr(instance, "text_size", value)
+        )
+
+        buttons = BoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=dp(52),
+            spacing=dp(10),
+        )
+        cancel = RoundedButton(
+            text="Отмена",
+            font_size="15sp",
+            normal_color=BUTTON_BG,
+            down_color=BUTTON_BG_DOWN,
+        )
+        save = RoundedButton(
+            text="Добавить",
+            font_size="15sp",
+            normal_color=ACCENT_RED,
+            down_color=ACCENT_RED_DOWN,
+        )
+
+        def add_category(*_):
+            try:
+                self.db.add_category(category_input.text)
+            except ValueError as exc:
+                error_label.text = str(exc)
+                return
+
+            overlay.dismiss()
+            self.populate_categories()
+
+        cancel.bind(on_release=lambda *_: overlay.dismiss())
+        save.bind(on_release=add_category)
+        category_input.bind(on_text_validate=add_category)
+        buttons.add_widget(cancel)
+        buttons.add_widget(save)
+
+        card.add_widget(title)
+        card.add_widget(category_input)
+        card.add_widget(error_label)
+        card.add_widget(buttons)
+
+        wrapper = AnchorLayout(anchor_x="center", anchor_y="center")
+        wrapper.add_widget(card)
+        overlay.add_widget(wrapper)
+        overlay.open()
+        Clock.schedule_once(
+            lambda *_: setattr(category_input, "focus", True),
+            0.15,
+        )
+
+    def confirm_delete_category(self, category):
+        category_name = category["name"]
+        product_count = int(category["product_count"] or 0)
+
+        if product_count:
+            self.message(
+                f"В категории «{category_name}» есть товары: {product_count}.\n\n"
+                "Сначала перенесите или удалите их."
+            )
+            return
+
+        def do_delete():
+            try:
+                self.db.delete_category(category["id"])
+            except ValueError as exc:
+                self.message(str(exc))
+                return
+
+            if self.current_department == category_name:
+                self.current_department = None
+            self.populate_categories()
+
+        self._open_rounded_dialog(
+            message_text=(
+                f"Удалить пустую категорию «{category_name}»?"
+            ),
+            title_text="Удалить категорию",
+            confirm_text="Удалить",
+            cancel_text="Отмена",
+            on_confirm=do_delete,
+        )
+
+
+    # =====================================================
+    # HOME UI
+    # =====================================================
+
+    def create_home_screen(self):
+
+        screen = HomeScreen(
+            name="home"
+        )
+
+        root = SafeAreaLayout(
+            orientation="vertical",
+            safe_horizontal=14,
+            safe_top=7,
+            safe_bottom=12,
+            spacing=dp(14),
+        )
+
+        root.add_widget(
+            self.create_header()
+        )
+
+        # Поиск только внутри текущего отдела.
+        local_search = RoundedTextInput(
+            hint_text="Поиск...",
+            hint_text_color=TEXT,
+            multiline=False,
+            size_hint_y=None,
+            height=dp(48),
+            font_size="15sp",
+            padding=(dp(15), dp(12)),
+        )
+        local_search.bind(
+            text=lambda _instance, value: screen.schedule_search(value)
+        )
+
+        root.add_widget(local_search)
+        screen.search_input = local_search
+
+        actions = BoxLayout(
+            size_hint_y=None,
+            height=dp(58),
+            spacing=dp(8),
+        )
+
+        add_button = RoundedButton(
+            text="+  Добавить срок",
+            font_size="16sp",
+            normal_color=ACCENT_RED,
+            down_color=ACCENT_RED_DOWN,
+            size_hint_x=0.82,
+        )
+        add_button.bind(
+            on_release=lambda *_:
+            self.start_barcode_scanner()
+        )
+
+        sort_button = RoundedImageButton(
+            image_source="sort.png",
+            size_hint_x=0.18,
+        )
+        sort_button.bind(
+            on_release=lambda *_:
+            self.open_sort_popup()
+        )
+
+        actions.add_widget(add_button)
+        actions.add_widget(sort_button)
+
+        root.add_widget(actions)
+
+
+        scroll = ScrollView(
+            do_scroll_x=False,
+        )
+
+        product_list = BoxLayout(
+            orientation="vertical",
+            spacing=dp(11),
+            padding=(
+                0,
+                dp(4),
+                0,
+                dp(10),
+            ),
+            size_hint_y=None,
+        )
+
+        product_list.bind(
+            minimum_height=
+            product_list.setter(
+                "height"
+            )
+        )
+
+        scroll.add_widget(
+            product_list
+        )
+
+        root.add_widget(
+            scroll
+        )
+
+        pagination = BoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=0,
+            opacity=0,
+            disabled=True,
+            spacing=dp(8),
+        )
+        previous_page = RoundedButton(
+            text="‹",
+            font_size="24sp",
+            size_hint_x=0.23,
+            normal_color=BUTTON_BG,
+            down_color=BUTTON_BG_DOWN,
+        )
+        page_label = Label(
+            text="Страница 1 из 1",
+            color=TEXT,
+            bold=True,
+            font_size="13sp",
+            size_hint_x=0.54,
+        )
+        next_page = RoundedButton(
+            text="›",
+            font_size="24sp",
+            size_hint_x=0.23,
+            normal_color=BUTTON_BG,
+            down_color=BUTTON_BG_DOWN,
+        )
+        previous_page.bind(
+            on_release=lambda *_: screen.change_page(-1)
+        )
+        next_page.bind(
+            on_release=lambda *_: screen.change_page(1)
+        )
+        pagination.add_widget(previous_page)
+        pagination.add_widget(page_label)
+        pagination.add_widget(next_page)
+        root.add_widget(pagination)
+
+        screen.product_list = (
+            product_list
+        )
+        screen.product_scroll = scroll
+        screen.pagination_bar = pagination
+        screen.previous_page_button = previous_page
+        screen.next_page_button = next_page
+        screen.page_label = page_label
+
+        screen.add_widget(
+            root
+        )
+
+        return screen
+
+
+    # =====================================================
+    # ADD SCREEN
+    # =====================================================
+
+    def create_add_screen(self):
+
+        screen = AddProductScreen(
+            name="add"
+        )
+
+        root = SafeAreaLayout(
+            orientation="vertical",
+            safe_horizontal=14,
+            safe_top=8,
+            safe_bottom=12,
+            spacing=dp(12),
+        )
+
+        back = RoundedButton(
+            text="Назад",
+            size_hint_y=None,
+            height=dp(50),
+            font_size="15sp",
+        )
+
+        back.bind(
+            on_release=lambda *_:
+            self.open_home()
+        )
+
+        root.add_widget(
+            back
+        )
+
+        add_title = Label(
+            text="Добавить срок",
+            color=TEXT,
+            font_size="25sp",
+            bold=True,
+            size_hint_y=None,
+            height=dp(58),
+        )
+        root.add_widget(add_title)
+
+        info = Label(
+            text=(
+                "Отсканируй штрихкод или введи его вручную.\n"
+                "Дата и фото необязательны."
+            ),
+            color=TEXT_SECONDARY,
+            font_size="13sp",
+            halign="center",
+            valign="middle",
+            size_hint_y=None,
+            height=dp(74),
+        )
+
+        info.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                (
+                    value[0] - dp(20),
+                    None
+                )
+            )
+        )
+
+        root.add_widget(
+            info
+        )
+
+        barcode = RoundedTextInput(
+            hint_text="Штрихкод",
+            multiline=False,
+            size_hint_y=None,
+            height=dp(56),
+            font_size="18sp",
+            padding=(
+                dp(12),
+                dp(12),
+            ),
+        )
+
+        barcode.bind(
+            text=
+            screen.on_barcode_change
+        )
+
+        name_holder = FloatLayout(
+            size_hint_y=None,
+            height=dp(56),
+        )
+
+        name = RoundedTextInput(
+            hint_text="Наименование товара",
+            multiline=False,
+            size_hint=(1, 1),
+            pos_hint={"x": 0, "y": 0},
+            font_size="18sp",
+            # Справа оставляем место под кнопку камеры.
+            padding=(dp(12), dp(12), dp(64), dp(12)),
+        )
+
+        name_camera_button = CameraIconButton(
+            size_hint=(None, None),
+            size=(dp(52), dp(52)),
+            pos_hint={"right": 0.995, "center_y": 0.5},
+        )
+        name_camera_button.bind(
+            on_release=lambda *_: screen.scan_name_from_camera()
+        )
+
+        name_holder.add_widget(name)
+        name_holder.add_widget(name_camera_button)
+
+        date_input = DateInput(
+            hint_text="ДД.ММ.ГГ (необязательно)",
+            multiline=False,
+            input_type="number",
+            size_hint_y=None,
+            height=dp(56),
+            font_size="18sp",
+            padding=(
+                dp(12),
+                dp(12),
+            ),
+        )
+
+        date_input.bind(
+            text=
+            screen.on_date_change
+        )
+
+        date_input.bind(
+            on_date_complete=lambda _instance, _value:
+            screen._try_auto_save()
+        )
+
+        root.add_widget(
+            barcode
+        )
+
+        root.add_widget(
+            name_holder
+        )
+
+        root.add_widget(
+            date_input
+        )
+
+        photo_title = Label(
+            text="Фото товара (необязательно)",
+            color=TEXT_SECONDARY,
+            font_size="12sp",
+            size_hint_y=None,
+            height=dp(25),
+            halign="left",
+            valign="middle",
+        )
+        photo_title.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+        root.add_widget(
+            photo_title
+        )
+
+        photo_row = BoxLayout(
+            size_hint_y=None,
+            height=dp(96),
+            spacing=dp(10),
+        )
+
+        preview_holder = BoxLayout(
+            size_hint_x=None,
+            width=dp(96),
+            padding=dp(5),
+        )
+
+        with preview_holder.canvas.before:
+
+            Color(
+                *THUMBNAIL_BG
+            )
+
+            preview_bg = RoundedRectangle(
+                pos=preview_holder.pos,
+                size=preview_holder.size,
+                radius=[dp(15)],
+            )
+
+        preview_holder.bind(
+            pos=lambda instance, value:
+            setattr(
+                preview_bg,
+                "pos",
+                value
+            ),
+            size=lambda instance, value:
+            setattr(
+                preview_bg,
+                "size",
+                value
+            ),
+        )
+
+        photo_preview = AsyncImage(
+            source="",
+            fit_mode="contain",
+            opacity=0,
+            nocache=False,
+        )
+
+        preview_holder.add_widget(
+            photo_preview
+        )
+
+        photo_controls = BoxLayout(
+            orientation="vertical",
+            spacing=dp(7),
+        )
+
+        camera_photo_button = RoundedButton(
+            text="Сделать фото",
+            font_size="13sp",
+        )
+
+        camera_photo_button.bind(
+            on_release=lambda *_:
+            screen.take_photo()
+        )
+
+        gallery_photo_button = RoundedButton(
+            text="Выбрать из галереи",
+            font_size="13sp",
+        )
+
+        gallery_photo_button.bind(
+            on_release=lambda *_:
+            screen.choose_photo()
+        )
+
+        photo_status = Label(
+            text="Фото не добавлено",
+            color=TEXT_SECONDARY,
+            font_size="11sp",
+            size_hint_y=None,
+            height=dp(20),
+            halign="left",
+            valign="middle",
+        )
+
+        photo_status.bind(
+            size=lambda instance, value:
+            setattr(
+                instance,
+                "text_size",
+                value
+            )
+        )
+
+        photo_controls.add_widget(
+            camera_photo_button
+        )
+
+        photo_controls.add_widget(
+            gallery_photo_button
+        )
+
+        photo_controls.add_widget(
+            photo_status
+        )
+
+        photo_row.add_widget(
+            preview_holder
+        )
+
+        photo_row.add_widget(
+            photo_controls
+        )
+
+        root.add_widget(
+            photo_row
+        )
+
+        image_url_button = RoundedButton(
+            text="Добавить URL картинки",
+            size_hint_y=None,
+            height=dp(46),
+            font_size="14sp",
+        )
+
+        image_url_button.bind(
+            on_release=lambda *_:
+            screen.add_image_url()
+        )
+
+        root.add_widget(
+            image_url_button
+        )
+
+        root.add_widget(
+            Widget()
+        )
+
+        save = RoundedButton(
+            text="Сохранить срок",
+            size_hint_y=None,
+            height=dp(60),
+            font_size="17sp",
+            normal_color=ACCENT_RED,
+            down_color=ACCENT_RED_DOWN,
+        )
+
+        save.bind(
+            on_release=lambda *_:
+            screen.save()
+        )
+
+        root.add_widget(
+            save
+        )
+
+        screen.barcode_input = (
+            barcode
+        )
+
+        screen.name_input = (
+            name
+        )
+
+        screen.date_input = (
+            date_input
+        )
+
+        screen.photo_preview = (
+            photo_preview
+        )
+
+        screen.photo_status = (
+            photo_status
+        )
+
+        screen.pending_photo_path = ""
+        screen.pending_photo_url = ""
+        screen.title_label = add_title
+        screen.save_button = save
+
+        screen.add_widget(
+            root
+        )
+
+        return screen
+
+
+    # =====================================================
+    # PRODUCT SCREEN
+    # =====================================================
+
+    def create_product_screen(self):
+
+        screen = ProductScreen(
+            name="product"
+        )
+
+        root = SafeAreaLayout(
+            orientation="vertical",
+            safe_horizontal=14,
+            safe_top=8,
+            safe_bottom=12,
+            spacing=dp(12),
+        )
+
+        top_actions = BoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=dp(50),
+            spacing=dp(10),
+        )
+
+        back = RoundedButton(
+            text="<",
+            size_hint_x=None,
+            width=dp(58),
+            font_size="22sp",
+        )
+        back.bind(
+            on_release=lambda *_: self.open_home()
+        )
+
+        edit_button = RoundedButton(
+            text="Редактировать",
+            font_size="15sp",
+        )
+        edit_button.bind(
+            on_release=lambda *_: self.open_edit_product(screen.barcode)
+        )
+
+        top_actions.add_widget(back)
+        top_actions.add_widget(edit_button)
+        root.add_widget(top_actions)
+
+        product_name = Label(
+            text="Товар",
+            color=TEXT,
+            font_size="26sp",
+            bold=True,
+            halign="center",
+            valign="middle",
+            size_hint_y=None,
+            height=dp(58),
+        )
+
+        def update_product_title_layout(
+            instance,
+            *_args
+        ):
+            instance.text_size = (
+                max(
+                    dp(40),
+                    instance.width - dp(18)
+                ),
+                None
+            )
+
+            instance.height = max(
+                dp(58),
+                instance.texture_size[1]
+                +
+                dp(18)
+            )
+
+        product_name.bind(
+            width=update_product_title_layout,
+            texture_size=update_product_title_layout,
+        )
+
+        image_holder = AnchorLayout(
+            size_hint_y=None,
+            height=dp(220),
+            anchor_x="center",
+            anchor_y="center",
+        )
+
+        with image_holder.canvas.before:
+            detail_bg_color = Color(
+                *THUMBNAIL_BG
+            )
+            detail_bg_rect = RoundedRectangle(
+                pos=image_holder.pos,
+                size=(dp(204), dp(204)),
+                radius=[dp(18)],
+            )
+
+        def update_detail_bg(
+            instance,
+            *_args
+        ):
+            detail_bg_rect.pos = (
+                instance.center_x - dp(102),
+                instance.center_y - dp(102),
+            )
+            detail_bg_rect.size = (
+                dp(204),
+                dp(204),
+            )
+
+        image_holder.bind(
+            pos=update_detail_bg,
+            size=update_detail_bg,
+        )
+
+        product_image = AsyncImage(
+            source="",
+            fit_mode="contain",
+            size_hint=(None, None),
+            size=(dp(204), dp(204)),
+            opacity=0,
+            nocache=False,
+        )
+
+        image_holder.add_widget(
+            product_image
+        )
+
+        product_barcode = Label(
+            text="Штрихкод: —",
+            color=TEXT_SECONDARY,
+            size_hint_y=None,
+            height=dp(32),
+        )
+
+        created_at_label = Label(
+            text="Добавлен: —",
+            color=TEXT_SECONDARY,
+            size_hint_y=None,
+            height=dp(28),
+            font_size="13sp",
+        )
+
+        nearest_date = Label(
+            text="Годен до: —",
+            color=TEXT,
+            font_size="20sp",
+            bold=True,
+            size_hint_y=None,
+            height=dp(44),
+        )
+
+        root.add_widget(
+            product_name
+        )
+
+        root.add_widget(
+            image_holder
+        )
+
+        root.add_widget(
+            product_barcode
+        )
+
+        root.add_widget(
+            created_at_label
+        )
+
+        root.add_widget(
+            nearest_date
+        )
+
+        root.add_widget(
+            Label(
+                text="История сроков",
+                color=TEXT_SECONDARY,
+                font_size="14sp",
+                size_hint_y=None,
+                height=dp(34),
+            )
+        )
+
+        history_scroll = ScrollView(
+            do_scroll_x=False,
+        )
+
+        history = Label(
+            text="История пока пустая.",
+            color=TEXT,
+            halign="left",
+            valign="top",
+            size_hint_y=None,
+        )
+
+        history.bind(
+            texture_size=lambda instance, value:
+            setattr(
+                instance,
+                "height",
+                max(
+                    dp(90),
+                    value[1]
+                )
+            )
+        )
+
+        history_scroll.add_widget(
+            history
+        )
+
+        root.add_widget(
+            history_scroll
+        )
+
+        move_category = RoundedButton(
+            text="Перенести товар в другую категорию",
+            size_hint_y=None,
+            height=dp(52),
+            font_size="14sp",
+        )
+        move_category.bind(
+            on_release=lambda *_: self.open_move_category_dialog(screen.barcode)
+        )
+        root.add_widget(move_category)
+
+        action_row = BoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=dp(60),
+            spacing=dp(10),
+        )
+
+        writeoff = RoundedButton(
+            text="Списано",
+            font_size="16sp",
+            normal_color=RED,
+            down_color=(
+                0.65,
+                0.08,
+                0.10,
+                1,
+            ),
+        )
+
+        delete_product = RoundedButton(
+            text="Удалить товар",
+            font_size="16sp",
+            normal_color=BUTTON_BG,
+            down_color=BUTTON_BG_DOWN,
+        )
+
+        writeoff.bind(
+            on_release=lambda *_:
+            screen.write_off()
+        )
+
+        delete_product.bind(
+            on_release=lambda *_:
+            screen.delete_product()
+        )
+
+        action_row.add_widget(
+            writeoff
+        )
+
+        action_row.add_widget(
+            delete_product
+        )
+
+        root.add_widget(
+            action_row
+        )
+
+        screen.product_name_label = (
+            product_name
+        )
+
+        screen.product_barcode_label = (
+            product_barcode
+        )
+
+        screen.created_at_label = created_at_label
+
+        screen.nearest_date_label = (
+            nearest_date
+        )
+
+        screen.history_label = (
+            history
+        )
+
+        screen.product_image = (
+            product_image
+        )
+        screen.product_image_bg_color = detail_bg_color
+
+        screen.writeoff_button = (
+            writeoff
+        )
+
+        screen.delete_product_button = (
+            delete_product
+        )
+
+        screen.move_category_button = move_category
+
+        screen.add_widget(
+            root
+        )
+
+        return screen
+
+
+    # =====================================================
+    # SETTINGS
+    # =====================================================
+
+    def create_settings_screen(self):
+
+        screen = SettingsScreen(
+            name="settings"
+        )
+
+        root = SafeAreaLayout(
+            orientation="vertical",
+            safe_horizontal=14,
+            safe_top=8,
+            safe_bottom=12,
+            spacing=dp(12),
+        )
+
+        back = RoundedButton(
+            text="Назад",
+            size_hint_y=None,
+            height=dp(50),
+        )
+        back.bind(
+            on_release=lambda *_:
+            self.open_home()
+        )
+        root.add_widget(back)
+
+        root.add_widget(
+            Label(
+                text="Настройки",
+                color=self.get_global_text_color(),
+                font_size="26sp",
+                bold=True,
+                size_hint_y=None,
+                height=dp(58),
+            )
+        )
+
+        scroll = ScrollView(
+            do_scroll_x=False,
+        )
+
+        content = BoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            spacing=dp(12),
+            padding=(0, dp(6), 0, dp(16)),
+        )
+        content.bind(
+            minimum_height=content.setter("height")
+        )
+
+        colors_button = RoundedButton(
+            text="Настройки цветов",
+            size_hint_y=None,
+            height=dp(60),
+            font_size="16sp",
+        )
+        colors_button.bind(
+            on_release=lambda *_:
+            self.open_color_settings()
+        )
+        content.add_widget(colors_button)
+
+        theme_button = ThemeToggleButton(
+            theme_name=self.theme_name,
+        )
+        theme_button.bind(
+            on_release=lambda *_:
+            self.toggle_theme()
+        )
+        content.add_widget(theme_button)
+
+        content.add_widget(
+            Widget(
+                size_hint_y=None,
+                height=dp(18),
+            )
+        )
+
+        content.add_widget(
+            Label(
+                text="База данных",
+                color=self.get_global_text_color(),
+                font_size="18sp",
+                bold=True,
+                size_hint_y=None,
+                height=dp(44),
+                halign="left",
+                valign="middle",
+            )
+        )
+
+        export_button = RoundedButton(
+            text="Экспортировать БД",
+            size_hint_y=None,
+            height=dp(58),
+        )
+        export_button.bind(
+            on_release=lambda *_:
+            self.export_database()
+        )
+        content.add_widget(export_button)
+
+        import_button = RoundedButton(
+            text="Импортировать БД",
+            size_hint_y=None,
+            height=dp(58),
+        )
+        import_button.bind(
+            on_release=lambda *_:
+            self.import_database()
+        )
+        content.add_widget(import_button)
+
+        clear_button = RoundedButton(
+            text="Очистить БД",
+            size_hint_y=None,
+            height=dp(58),
+            normal_color=RED,
+            down_color=(0.65, 0.08, 0.10, 1),
+        )
+        clear_button.bind(
+            on_release=lambda *_:
+            self.confirm_clear_database()
+        )
+        content.add_widget(clear_button)
+
+        scroll.add_widget(content)
+        root.add_widget(scroll)
+        screen.add_widget(root)
+
+        return screen
+
+    def create_color_settings_screen(self):
+
+        screen = BaseScreen(
+            name="color_settings"
+        )
+
+        root = SafeAreaLayout(
+            orientation="vertical",
+            safe_horizontal=14,
+            safe_top=8,
+            safe_bottom=12,
+            spacing=dp(12),
+        )
+
+        back = RoundedButton(
+            text="Назад",
+            size_hint_y=None,
+            height=dp(50),
+        )
+        back.bind(
+            on_release=lambda *_:
+            self.open_settings()
+        )
+        root.add_widget(back)
+
+        title = Label(
+            text="Настройки цветов",
+            color=self.get_global_text_color(),
+            bold=True,
+            font_size="24sp",
+            size_hint_y=None,
+            height=dp(70),
+        )
+        root.add_widget(title)
+
+        card_row = SettingsColorRow(
+            title="Цвет карточки",
+            preview_color=self.get_status_color("normal"),
+            show_preview=False,
+        )
+        card_row.set_text_color(self.get_global_text_color())
+        card_row.bind(
+            on_release=lambda *_:
+            self.open_card_colors()
+        )
+        root.add_widget(card_row)
+
+        text_row = SettingsColorRow(
+            title="Цвет текста",
+            preview_color=self.get_global_text_color(),
+        )
+        text_row.set_text_color(self.get_global_text_color())
+        text_row.bind(
+            on_release=lambda *_:
+            self.open_global_text_color_picker()
+        )
+        root.add_widget(text_row)
+
+        reset_button = RoundedButton(
+            text="Сбросить цвета",
+            size_hint_y=None,
+            height=dp(54),
+        )
+        reset_button.bind(
+            on_release=lambda *_:
+            self.reset_status_colors()
+        )
+        root.add_widget(reset_button)
+
+        root.add_widget(Widget())
+
+        screen.card_color_row = card_row
+        screen.text_color_row = text_row
+
+        # В v16 root создавался и наполнялся, но сам root не добавлялся
+        # на Screen. Из-за этого ScreenManager открывал пустой чёрный экран.
+        screen.add_widget(root)
+
+        return screen
+
+    def create_card_colors_screen(self):
+
+        screen = BaseScreen(
+            name="card_colors"
+        )
+
+        root = SafeAreaLayout(
+            orientation="vertical",
+            safe_horizontal=14,
+            safe_top=8,
+            safe_bottom=12,
+            spacing=dp(12),
+        )
+
+        back = RoundedButton(
+            text="Назад",
+            size_hint_y=None,
+            height=dp(50),
+        )
+        back.bind(
+            on_release=lambda *_:
+            self.open_color_settings()
+        )
+        root.add_widget(back)
+
+        title = Label(
+            text="Цвет карточки",
+            color=self.get_global_text_color(),
+            bold=True,
+            font_size="24sp",
+            size_hint_y=None,
+            height=dp(66),
+        )
+        root.add_widget(title)
+
+        help_label = Label(
+            text="Выбери категорию, для которой хочешь изменить цвет.",
+            color=self.get_global_text_color(),
+            font_size="13sp",
+            size_hint_y=None,
+            height=dp(54),
+            halign="left",
+            valign="middle",
+        )
+        help_label.bind(
+            size=lambda inst, value:
+            setattr(inst, "text_size", value)
+        )
+        root.add_widget(help_label)
+
+        scroll = ScrollView(
+            do_scroll_x=False,
+        )
+
+        content = BoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            spacing=dp(10),
+            padding=(0, 0, 0, dp(16)),
+        )
+        content.bind(
+            minimum_height=content.setter("height")
+        )
+
+        screen.status_rows = {}
+
+        for key in (
+            "expired",
+            "today",
+            "tomorrow",
+            "no_date",
+            "normal",
+        ):
+            row = SettingsColorRow(
+                title=STATUS_COLOR_LABELS[key],
+                preview_color=self.get_status_color(key),
+            )
+            row.set_text_color(self.get_global_text_color())
+            row.bind(
+                on_release=lambda _row, status=key:
+                self.open_status_color_picker(status)
+            )
+            screen.status_rows[key] = row
+            content.add_widget(row)
+
+        scroll.add_widget(content)
+        root.add_widget(scroll)
+
+        screen.add_widget(root)
+        return screen
+
+
+    # =====================================================
+    # SORT / FILTER
+    # =====================================================
+
+    def open_sort_popup(self):
+
+        overlay = ModalView(
+            size_hint=(1, 1),
+            background_color=(0, 0, 0, 0.62),
+            auto_dismiss=True,
+        )
+
+        card = BoxLayout(
+            orientation="vertical",
+            size_hint=(0.90, None),
+            height=dp(590),
+            padding=dp(14),
+            spacing=dp(8),
+        )
+
+        with card.canvas.before:
+            _card_color = Color(*CARD)
+            _card_rect = RoundedRectangle(
+                pos=card.pos,
+                size=card.size,
+                radius=[dp(24)],
+            )
+
+        def update_card(*_):
+            _card_rect.pos = card.pos
+            _card_rect.size = card.size
+
+        card.bind(
+            pos=update_card,
+            size=update_card,
+        )
+
+        title = Label(
+            text="[b]Сортировка и фильтр[/b]",
+            markup=True,
+            size_hint_y=None,
+            height=dp(38),
+            font_size="20sp",
+            halign="left",
+            valign="middle",
+            color=TEXT,
+        )
+        title.bind(
+            size=lambda instance, value:
+            setattr(instance, "text_size", value)
+        )
+        card.add_widget(title)
+
+        home = self.sm.get_screen("home")
+
+        filter_title = Label(
+            text="Показывать",
+            color=TEXT_SECONDARY,
+            bold=True,
+            font_size="13sp",
+            size_hint_y=None,
+            height=dp(26),
+            halign="left",
+            valign="middle",
+        )
+        filter_title.bind(
+            size=lambda instance, value:
+            setattr(instance, "text_size", value)
+        )
+        card.add_widget(filter_title)
+
+        filter_options = (
+            ("Все товары", "all", BUTTON_BG, BUTTON_BG_DOWN, TEXT),
+            ("Просроченный товар", "expired", ACCENT_RED, ACCENT_RED_DOWN, TEXT),
+            (
+                "Истекающий товар",
+                "expiring",
+                (1.0, 0.78, 0.12, 1),
+                (0.90, 0.66, 0.06, 1),
+                (0.08, 0.08, 0.08, 1),
+            ),
+            ("Без даты", "no_date", PURPLE, PURPLE_DOWN, TEXT),
+        )
+
+        for title_text, mode, normal, down, text_color in filter_options:
+            selected = home.filter_mode == mode
+
+            button = RoundedButton(
+                text=("• " if selected else "") + title_text,
+                size_hint_y=None,
+                height=dp(48),
+                font_size="14sp",
+                normal_color=normal,
+                down_color=down,
+                color=text_color,
+            )
+
+            def choose_filter(_button, selected_mode=mode):
+                home.set_filter(selected_mode)
+                overlay.dismiss()
+
+            button.bind(on_release=choose_filter)
+            card.add_widget(button)
+
+        sort_title = Label(
+            text="Порядок списка",
+            color=TEXT_SECONDARY,
+            bold=True,
+            font_size="13sp",
+            size_hint_y=None,
+            height=dp(28),
+            halign="left",
+            valign="middle",
+        )
+        sort_title.bind(
+            size=lambda instance, value:
+            setattr(instance, "text_size", value)
+        )
+        card.add_widget(sort_title)
+
+        sort_options = (
+            ("По порядку добавления", "added"),
+            ("По сроку годности", "expiry"),
+            ("По алфавиту А–Я", "alphabet"),
+        )
+
+        for title_text, mode in sort_options:
+            selected = home.sort_mode == mode
+
+            button = RoundedButton(
+                text=("• " if selected else "") + title_text,
+                size_hint_y=None,
+                height=dp(48),
+                font_size="14sp",
+                normal_color=(
+                    ACCENT_RED if selected else BUTTON_BG
+                ),
+                down_color=(
+                    ACCENT_RED_DOWN if selected else BUTTON_BG_DOWN
+                ),
+                color=TEXT,
+            )
+
+            def choose_sort(_button, selected_mode=mode):
+                home.set_sort(selected_mode)
+                overlay.dismiss()
+
+            button.bind(on_release=choose_sort)
+            card.add_widget(button)
+
+        wrapper = AnchorLayout(
+            anchor_x="center",
+            anchor_y="center",
+        )
+        wrapper.add_widget(card)
+        overlay.add_widget(wrapper)
+        overlay.open()
+
+
+    # =====================================================
+    # NAVIGATION
+    # =====================================================
+
+    def _show_loading_overlay(
+        self,
+        message,
+        attribute="_loading_overlay",
+    ):
+        existing = getattr(
+            self,
+            attribute,
+            None,
+        )
+        if existing is not None:
+            return existing
+
+        overlay = ModalView(
+            size_hint=(1, 1),
+            auto_dismiss=False,
+            background="",
+            background_color=(0, 0, 0, 0),
+            overlay_color=(0, 0, 0, 0.28),
+        )
+
+        card = RoundedPanel(
+            orientation="vertical",
+            size_hint=(None, None),
+            size=(dp(220), dp(118)),
+            padding=(dp(20), dp(15)),
+            spacing=dp(8),
+            bg_color=CARD,
+            radius=22,
+        )
+
+        spinner_row = AnchorLayout(
+            anchor_x="center",
+            anchor_y="center",
+            size_hint_y=0.58,
+        )
+        spinner = LoadingSpinner()
+        spinner_row.add_widget(spinner)
+        card.add_widget(spinner_row)
+
+        card.add_widget(
+            Label(
+                text=message,
+                color=TEXT,
+                font_size="14sp",
+                bold=True,
+                size_hint_y=0.42,
+            )
+        )
+
+        wrapper = AnchorLayout(
+            anchor_x="center",
+            anchor_y="center",
+        )
+        wrapper.add_widget(card)
+        overlay.add_widget(wrapper)
+
+        overlay._loading_spinner = spinner
+        setattr(self, attribute, overlay)
+        overlay.open(animation=False)
+        spinner.start()
+        return overlay
+
+    def _hide_loading_overlay(
+        self,
+        attribute="_loading_overlay",
+    ):
+        overlay = getattr(self, attribute, None)
+        setattr(self, attribute, None)
+
+        if overlay is None:
+            return
+
+        try:
+            overlay._loading_spinner.stop()
+        except Exception:
+            pass
+
+        try:
+            overlay.dismiss(animation=False)
+        except Exception:
+            pass
+
+    def _show_department_loading(self):
+        self._show_loading_overlay(
+            "Загрузка товаров…",
+            "_department_loading_overlay",
+        )
+
+    def _hide_department_loading(self, *_):
+        self._hide_loading_overlay(
+            "_department_loading_overlay"
+        )
+        self._department_load_in_progress = False
+
+    def open_departments(self):
+        self.sm.current = "departments"
+        self._refresh_global_text_color()
+
+    def open_search_result(self, product):
+
+        department = (
+            product["department"]
+            if product["department"]
+            else None
+        )
+
+        if department:
+            self.current_department = department
+
+        self.open_product(
+            product["barcode"]
+        )
+
+    def select_department(self, department):
+        if getattr(self, "_department_load_in_progress", False):
+            return
+
+        self._department_load_in_progress = True
+        self.current_department = department
+        self._show_department_loading()
+
+        def open_selected_department(*_):
+            try:
+                # on_pre_enter сам обновляет HomeScreen. Раньше refresh()
+                # вызывался ещё раз здесь, удваивая время открытия отдела.
+                self.sm.current = "home"
+                self._refresh_global_text_color()
+            except Exception as exc:
+                print("department loading error:", exc)
+                self._hide_department_loading()
+
+        # Следующий кадр успевает показать реакцию на нажатие до тяжёлой
+        # выборки из БД и создания карточек.
+        Clock.schedule_once(
+            open_selected_department,
+            0.06,
+        )
+
+    def open_home(self):
+
+        self.dismiss_keyboard()
+
+        if not self.current_department:
+            self.open_departments()
+            return
+
+        already_home = self.sm.current == "home"
+        self.sm.current = "home"
+
+        # При переходе с другого экрана on_pre_enter уже обновил список.
+        if already_home:
+            self.sm.get_screen("home").refresh()
+        self._refresh_global_text_color()
+
+    def dismiss_keyboard(self):
+        try:
+            for screen in getattr(self.sm, "screens", []):
+                for widget in screen.walk(restrict=True):
+                    if isinstance(widget, TextInput):
+                        widget.focus = False
+            Window.release_all_keyboards()
+        except Exception as exc:
+            print("keyboard dismiss error:", exc)
+
+    def open_add(
+        self,
+        barcode=""
+    ):
+
+        self.sm.current = (
+            "add"
+        )
+
+        screen = self.sm.get_screen(
+            "add"
+        )
+
+        screen.clear_form()
+
+        if barcode:
+
+            screen.load_barcode(
+                barcode
+            )
+
+        else:
+
+            Clock.schedule_once(
+                lambda *_:
+                setattr(
+                    screen.barcode_input,
+                    "focus",
+                    True
+                ),
+                0.1
+            )
+
+    def open_product(
+        self,
+        barcode
+    ):
+
+        self.sm.current = (
+            "product"
+        )
+
+        self.sm.get_screen(
+            "product"
+        ).load(
+            barcode
+        )
+
+    def open_edit_product(self, barcode):
+        screen = self.sm.get_screen("add")
+        if not screen.load_for_edit(barcode):
+            self.message("Товар не найден.")
+            return
+        self.sm.current = "add"
+
+    def open_settings(self):
+        self.sm.current = "settings"
+        self._apply_global_text_color_to_tree()
+
+    def open_color_settings(self):
+        self.refresh_color_settings_screens()
+        self.sm.current = "color_settings"
+        self._apply_global_text_color_to_tree()
+
+    def open_card_colors(self):
+        self.refresh_color_settings_screens()
+        self.sm.current = "card_colors"
+        self._apply_global_text_color_to_tree()
+
+
+    # =====================================================
+    # PRODUCT PHOTO
+    # =====================================================
+
+    def _product_photo_dir(
+        self
+    ):
+
+        folder = (
+            Path(
+                self.user_data_dir
+            )
+            /
+            "product_photos"
+        )
+
+        folder.mkdir(
+            parents=True,
+            exist_ok=True
+        )
+
+        return folder
+
+    def choose_product_photo(
+        self,
+        screen
+    ):
+
+        if not ANDROID:
+
+            self.message(
+                "Выбор фото из галереи доступен на Android."
+            )
+
+            return
+
+        if not PYJNIUS_AVAILABLE:
+
+            self.message(
+                "PyJNIus недоступен."
+            )
+
+            return
+
+        try:
+
+            self.pending_photo_screen = (
+                screen
+            )
+
+            PythonActivity = autoclass(
+                "org.kivy.android.PythonActivity"
+            )
+
+            Intent = autoclass(
+                "android.content.Intent"
+            )
+
+            current_activity = cast(
+                "android.app.Activity",
+                PythonActivity.mActivity
+            )
+
+            intent = Intent(
+                Intent.ACTION_OPEN_DOCUMENT
+            )
+
+            intent.addCategory(
+                Intent.CATEGORY_OPENABLE
+            )
+
+            intent.setType(
+                "image/*"
+            )
+
+            current_activity.startActivityForResult(
+                intent,
+                REQUEST_PICK_PRODUCT_PHOTO
+            )
+
+        except Exception as exc:
+
+            self.pending_photo_screen = None
+
+            self.message(
+                "Не удалось открыть галерею:\\n\\n"
+                +
+                str(exc)
+            )
+
+    def take_product_photo(
+        self,
+        screen
+    ):
+
+        if not ANDROID:
+
+            self.message(
+                "Камера для фото доступна на Android."
+            )
+
+            return
+
+        if not PYJNIUS_AVAILABLE:
+
+            self.message(
+                "PyJNIus недоступен."
+            )
+
+            return
+
+        try:
+
+            self.pending_photo_screen = (
+                screen
+            )
+
+            PythonActivity = autoclass(
+                "org.kivy.android.PythonActivity"
+            )
+
+            Intent = autoclass(
+                "android.content.Intent"
+            )
+
+            MediaStore = autoclass(
+                "android.provider.MediaStore"
+            )
+
+            current_activity = cast(
+                "android.app.Activity",
+                PythonActivity.mActivity
+            )
+
+            intent = Intent(
+                MediaStore.ACTION_IMAGE_CAPTURE
+            )
+
+            current_activity.startActivityForResult(
+                intent,
+                REQUEST_TAKE_PRODUCT_PHOTO
+            )
+
+        except Exception as exc:
+
+            self.pending_photo_screen = None
+
+            self.message(
+                "Не удалось открыть камеру:\\n\\n"
+                +
+                str(exc)
+            )
+
+    def _copy_content_uri_to_photo(
+        self,
+        uri
+    ):
+
+        PythonActivity = autoclass(
+            "org.kivy.android.PythonActivity"
+        )
+
+        current_activity = cast(
+            "android.app.Activity",
+            PythonActivity.mActivity
+        )
+
+        resolver = (
+            current_activity
+            .getContentResolver()
+        )
+
+        parcel_fd = (
+            resolver
+            .openFileDescriptor(
+                uri,
+                "r"
+            )
+        )
+
+        if parcel_fd is None:
+
+            raise RuntimeError(
+                "Не удалось открыть выбранное изображение."
+            )
+
+        target = (
+            self._product_photo_dir()
+            /
+            (
+                "product_"
+                +
+                datetime.now().strftime(
+                    "%Y%m%d_%H%M%S_%f"
+                )
+                +
+                ".jpg"
+            )
+        )
+
+        duplicated_fd = None
+
+        try:
+
+            duplicated_fd = os.dup(
+                parcel_fd.getFd()
+            )
+
+            with os.fdopen(
+                duplicated_fd,
+                "rb",
+                closefd=True
+            ) as source_file:
+
+                duplicated_fd = None
+
+                with target.open(
+                    "wb"
+                ) as target_file:
+
+                    shutil.copyfileobj(
+                        source_file,
+                        target_file,
+                        length=1024 * 1024
+                    )
+
+        finally:
+
+            if duplicated_fd is not None:
+
+                try:
+                    os.close(
+                        duplicated_fd
+                    )
+                except OSError:
+                    pass
+
+            parcel_fd.close()
+
+        return str(
+            target
+        )
+
+    def _save_camera_thumbnail(
+        self,
+        intent
+    ):
+
+        extras = (
+            intent.getExtras()
+            if intent is not None
+            else None
+        )
+
+        if extras is None:
+
+            raise RuntimeError(
+                "Камера не вернула изображение."
+            )
+
+        bitmap = (
+            extras.get(
+                "data"
+            )
+        )
+
+        if bitmap is None:
+
+            raise RuntimeError(
+                "Камера не вернула изображение."
+            )
+
+        target = (
+            self._product_photo_dir()
+            /
+            (
+                "product_"
+                +
+                datetime.now().strftime(
+                    "%Y%m%d_%H%M%S_%f"
+                )
+                +
+                ".jpg"
+            )
+        )
+
+        FileOutputStream = autoclass(
+            "java.io.FileOutputStream"
+        )
+
+        CompressFormat = autoclass(
+            "android.graphics.Bitmap$CompressFormat"
+        )
+
+        output_stream = FileOutputStream(
+            str(target)
+        )
+
+        try:
+
+            ok = bitmap.compress(
+                CompressFormat.JPEG,
+                92,
+                output_stream
+            )
+
+            output_stream.flush()
+
+            if not ok:
+
+                raise RuntimeError(
+                    "Не удалось сохранить фотографию."
+                )
+
+        finally:
+
+            output_stream.close()
+
+        return str(
+            target
+        )
+
+    @mainthread
+    def _apply_product_photo(
+        self,
+        path
+    ):
+
+        screen = (
+            self.pending_photo_screen
+        )
+
+        self.pending_photo_screen = None
+
+        if screen is None:
+            return
+
+        screen.set_photo(
+            path
+        )
+
+
+    # =====================================================
+    # PRODUCT NAME OCR
+    # =====================================================
+
+    def start_product_name_scanner(self, screen):
+        if not ANDROID:
+            self.message("Распознавание названия камерой доступно только на Android.")
+            return
+
+        if not PYJNIUS_AVAILABLE:
+            self.message("PyJNIus недоступен.")
+            return
+
+        try:
+            PythonActivity = autoclass("org.kivy.android.PythonActivity")
+            Intent = autoclass("android.content.Intent")
+            OcrActivity = autoclass(
+                "org.example.expiringgoods.TextRecognitionActivity"
+            )
+            current_activity = cast(
+                "android.app.Activity", PythonActivity.mActivity
+            )
+            self.pending_ocr_screen = screen
+            intent = Intent(current_activity, OcrActivity)
+            current_activity.startActivityForResult(
+                intent, REQUEST_SCAN_PRODUCT_NAME
+            )
+        except Exception as exc:
+            self.pending_ocr_screen = None
+            self.message(
+                "Не удалось открыть распознавание текста:\n\n" + str(exc)
+            )
+
+    # =====================================================
+    # SCANNER
+    # =====================================================
+
+    def start_barcode_scanner(self):
+
+        if not ANDROID:
+
+            self.message(
+                "Сканер доступен только на Android."
+            )
+
+            return
+
+        if not PYJNIUS_AVAILABLE:
+
+            self.message(
+                "PyJNIus не загрузился.\n\n"
+                +
+                PYJNIUS_ERROR
+            )
+
+            return
+
+        try:
+
+            PythonActivity = autoclass(
+                "org.kivy.android.PythonActivity"
+            )
+
+            Intent = autoclass(
+                "android.content.Intent"
+            )
+
+            ScannerActivity = autoclass(
+                "org.example.expiringgoods."
+                "BarcodeScannerActivity"
+            )
+
+            current_activity = cast(
+                "android.app.Activity",
+                PythonActivity.mActivity
+            )
+
+            intent = Intent(
+                current_activity,
+                ScannerActivity
+            )
+
+            current_activity.startActivityForResult(
+                intent,
+                REQUEST_SCAN_BARCODE
+            )
+
+        except Exception as exc:
+
+            self.message(
+                "Ошибка запуска сканера:\n\n"
+                +
+                type(exc).__name__
+                +
+                "\n\n"
+                +
+                str(exc)
+            )
+
+
+    # =====================================================
+    # ACTIVITY RESULT
+    # =====================================================
+
+    def _on_activity_result(
+        self,
+        request_code,
+        result_code,
+        intent
+    ):
+
+        if (
+            request_code
+            ==
+            REQUEST_SCAN_BARCODE
+        ):
+
+            self.handle_scanner_result(
+                result_code,
+                intent
+            )
+
+            return
+
+        if (
+            request_code
+            ==
+            REQUEST_SCAN_PRODUCT_NAME
+        ):
+            screen = self.pending_ocr_screen
+            self.pending_ocr_screen = None
+
+            if result_code == -1 and intent is not None and screen is not None:
+                try:
+                    recognized = intent.getStringExtra("recognized_text")
+                except Exception:
+                    recognized = None
+
+                recognized = str(recognized or "").strip()
+                if recognized:
+                    if isinstance(screen.name_input, RoundedTextInput):
+                        screen.name_input.set_visible_text(recognized)
+                    else:
+                        screen.name_input.text = recognized
+                    Clock.schedule_once(
+                        lambda *_: setattr(screen.name_input, "focus", True),
+                        0.08,
+                    )
+            return
+
+        if (
+            request_code
+            ==
+            REQUEST_IMPORT_DB
+        ):
+
+            self.handle_import_result(
+                result_code,
+                intent
+            )
+
+            return
+
+        if (
+            request_code
+            ==
+            REQUEST_PICK_PRODUCT_PHOTO
+        ):
+
+            if (
+                result_code == -1
+                and
+                intent is not None
+            ):
+
+                try:
+
+                    uri = intent.getData()
+
+                    if uri is not None:
+
+                        path = (
+                            self._copy_content_uri_to_photo(
+                                uri
+                            )
+                        )
+
+                        self._apply_product_photo(
+                            path
+                        )
+
+                except Exception as exc:
+
+                    self.pending_photo_screen = None
+
+                    self.message(
+                        "Ошибка выбора фото:\n\n"
+                        +
+                        str(exc)
+                    )
+
+            else:
+
+                self.pending_photo_screen = None
+
+            return
+
+        if (
+            request_code
+            ==
+            REQUEST_TAKE_PRODUCT_PHOTO
+        ):
+
+            if (
+                result_code == -1
+                and
+                intent is not None
+            ):
+
+                try:
+
+                    path = (
+                        self._save_camera_thumbnail(
+                            intent
+                        )
+                    )
+
+                    self._apply_product_photo(
+                        path
+                    )
+
+                except Exception as exc:
+
+                    self.pending_photo_screen = None
+
+                    self.message(
+                        "Ошибка сохранения фото:\n\n"
+                        +
+                        str(exc)
+                    )
+
+            else:
+
+                self.pending_photo_screen = None
+
+            return
+
+    @mainthread
+    def handle_scanner_result(
+        self,
+        result_code,
+        intent
+    ):
+
+        if result_code != -1:
+
+            self.open_home()
+
+            return
+
+        if intent is None:
+
+            self.open_home()
+
+            return
+
+        try:
+
+            manual = bool(
+                intent.getBooleanExtra(
+                    "manual",
+                    False
+                )
+            )
+
+        except Exception:
+
+            manual = False
+
+        if manual:
+
+            self.open_add(
+                ""
+            )
+
+            return
+
+        try:
+
+            barcode = (
+                intent.getStringExtra(
+                    "barcode"
+                )
+            )
+
+        except Exception:
+
+            barcode = None
+
+        if barcode:
+
+            self.open_add(
+                normalize_barcode(
+                    barcode
+                )
+            )
+
+        else:
+
+            self.open_home()
+
+    @mainthread
+    def handle_import_result(
+        self,
+        result_code,
+        intent
+    ):
+
+        if result_code != -1:
+
+            return
+
+        if intent is None:
+
+            return
+
+        try:
+
+            uri = (
+                intent.getData()
+            )
+
+            if uri is not None:
+                self._show_loading_overlay(
+                    "Импорт базы данных…",
+                    "_import_loading_overlay",
+                )
+                Clock.schedule_once(
+                    lambda *_: self._read_database_from_uri(uri),
+                    0.12,
+                )
+
+        except Exception as exc:
+
+            self.message(
+                "Ошибка импорта:\n"
+                +
+                str(exc)
+            )
+
+
+    # =====================================================
+    # EXPORT
+    # =====================================================
+
+    def export_database(self):
+
+        if not ANDROID:
+
+            self._desktop_export()
+
+            return
+
+        try:
+
+            temp_db = (
+                Path(
+                    self.user_data_dir
+                )
+                /
+                "inventory_export.db"
+            )
+
+            self.db.backup_to(
+                temp_db
+            )
+
+            filename = (
+                "pyton_date_detect_"
+                +
+                datetime.now().strftime(
+                    "%Y%m%d_%H%M%S"
+                )
+                +
+                ".db"
+            )
+
+            PythonActivity = autoclass(
+                "org.kivy.android.PythonActivity"
+            )
+
+            current_activity = cast(
+                "android.app.Activity",
+                PythonActivity.mActivity
+            )
+
+            DatabaseExportHelper = autoclass(
+                "org.example.expiringgoods."
+                "DatabaseExportHelper"
+            )
+
+            result = (
+                DatabaseExportHelper
+                .exportToDownloads(
+                    current_activity,
+                    str(temp_db),
+                    filename
+                )
+            )
+
+            try:
+
+                temp_db.unlink()
+
+            except OSError:
+
+                pass
+
+            self.message(
+                "База экспортирована.\n\n"
+                +
+                str(result)
+                +
+                "\n\n"
+                +
+                "Папка: Downloads"
+            )
+
+            self.current_department = None
+            self.open_departments()
+
+        except Exception as exc:
+
+            self.message(
+                "Не удалось экспортировать БД:\n\n"
+                +
+                type(exc).__name__
+                +
+                ": "
+                +
+                str(exc)
+            )
+
+
+    # =====================================================
+    # IMPORT
+    # =====================================================
+
+    def import_database(self):
+
+        if not ANDROID:
+
+            self.message(
+                "Импорт доступен на Android."
+            )
+
+            return
+
+        try:
+
+            PythonActivity = autoclass(
+                "org.kivy.android.PythonActivity"
+            )
+
+            current_activity = cast(
+                "android.app.Activity",
+                PythonActivity.mActivity
+            )
+
+            Intent = autoclass(
+                "android.content.Intent"
+            )
+
+            intent = Intent(
+                Intent.ACTION_OPEN_DOCUMENT
+            )
+
+            intent.addCategory(
+                Intent.CATEGORY_OPENABLE
+            )
+
+            intent.setType(
+                "*/*"
+            )
+
+            current_activity.startActivityForResult(
+                intent,
+                REQUEST_IMPORT_DB
+            )
+
+        except Exception as exc:
+
+            self.message(
+                "Ошибка открытия файла:\n\n"
+                +
+                str(exc)
+            )
+
+    def _read_database_from_uri(
+        self,
+        uri
+    ):
+
+        try:
+
+            PythonActivity = autoclass(
+                "org.kivy.android.PythonActivity"
+            )
+
+            current_activity = cast(
+                "android.app.Activity",
+                PythonActivity.mActivity
+            )
+
+            temp = (
+                Path(
+                    self.user_data_dir
+                )
+                /
+                "imported_inventory.db"
+            )
+
+            try:
+
+                if temp.exists():
+
+                    temp.unlink()
+
+            except OSError:
+
+                pass
+
+            DatabaseImportHelper = autoclass(
+                "org.example.expiringgoods."
+                "DatabaseImportHelper"
+            )
+            DatabaseImportHelper.copyUriToFile(
+                current_activity,
+                uri,
+                str(temp),
+            )
+
+            self._replace_database(
+                temp
+            )
+
+        except Exception as exc:
+            self._hide_loading_overlay(
+                "_import_loading_overlay"
+            )
+            self.message(
+                "Ошибка импорта:\n"
+                +
+                str(exc)
+            )
+
+    def _remove_sqlite_sidecars(
+        self,
+        db_path
+    ):
+
+        db_path = Path(
+            db_path
+        )
+
+        for suffix in (
+            "-wal",
+            "-shm",
+            "-journal",
+        ):
+
+            sidecar = Path(
+                str(db_path)
+                +
+                suffix
+            )
+
+            try:
+
+                if sidecar.exists():
+
+                    sidecar.unlink()
+
+            except OSError:
+
+                pass
+
+    def _replace_database(
+        self,
+        source
+    ):
+
+        source = Path(
+            source
+        )
+
+        if not source.exists():
+            self._hide_loading_overlay(
+                "_import_loading_overlay"
+            )
+            self.message(
+                "Файл БД не найден."
+            )
+
+            return
+
+        if not Database.validate(
+            source
+        ):
+            self._hide_loading_overlay(
+                "_import_loading_overlay"
+            )
+            self.message(
+                "Файл не является базой приложения."
+            )
+
+            return
+
+        destination = (
+            self.db_path
+        )
+
+        app_dir = (
+            destination.parent
+        )
+
+        backup = (
+            app_dir
+            /
+            "inventory_before_import.db"
+        )
+
+        replacement = (
+            app_dir
+            /
+            "inventory_replacement.db"
+        )
+
+        try:
+
+            self.db.backup_to(
+                backup
+            )
+
+            self.db.close()
+
+            self._remove_sqlite_sidecars(
+                destination
+            )
+
+            if replacement.exists():
+
+                replacement.unlink()
+
+            shutil.copyfile(
+                str(source),
+                str(replacement)
+            )
+
+            if not Database.validate(
+                replacement
+            ):
+
+                raise RuntimeError(
+                    "Импортированная база повреждена."
+                )
+
+            os.replace(
+                str(replacement),
+                str(destination)
+            )
+
+            self._remove_sqlite_sidecars(
+                destination
+            )
+
+            self.db = Database(
+                destination
+            )
+
+            try:
+
+                source.unlink()
+
+            except OSError:
+
+                pass
+
+            try:
+
+                backup.unlink()
+
+            except OSError:
+
+                pass
+
+            self._hide_loading_overlay(
+                "_import_loading_overlay"
+            )
+            self.message(
+                "База успешно импортирована."
+            )
+
+            self.current_department = None
+            self.open_departments()
+
+        except Exception as exc:
+
+            try:
+
+                if backup.exists():
+
+                    self._remove_sqlite_sidecars(
+                        destination
+                    )
+
+                    restore_temp = (
+                        app_dir
+                        /
+                        "inventory_restore.db"
+                    )
+
+                    try:
+
+                        if restore_temp.exists():
+
+                            restore_temp.unlink()
+
+                    except OSError:
+
+                        pass
+
+                    shutil.copyfile(
+                        str(backup),
+                        str(restore_temp)
+                    )
+
+                    os.replace(
+                        str(restore_temp),
+                        str(destination)
+                    )
+
+                self.db = Database(
+                    destination
+                )
+
+            except Exception:
+
+                pass
+
+            self._hide_loading_overlay(
+                "_import_loading_overlay"
+            )
+            self.message(
+                "Ошибка импорта:\n"
+                +
+                str(exc)
+            )
+
+
+    # =====================================================
+    # CLEAR
+    # =====================================================
+
+    def confirm_clear_database(self):
+        def do_clear():
+            self.db.clear_all()
+            self.current_department = None
+            self.message(
+                "База полностью очищена."
+            )
+            self.open_departments()
+
+        self._open_rounded_dialog(
+            message_text=(
+                "Будут удалены все товары и сроки.\n\n"
+                "Это действие нельзя отменить."
+            ),
+            title_text="Очистить базу?",
+            confirm_text="Удалить всё",
+            cancel_text="Отмена",
+            on_confirm=do_clear,
+        )
+
+
+    # =====================================================
+    # MESSAGE
+    # =====================================================
+
+    def _open_rounded_dialog(
+        self,
+        message_text,
+        title_text=APP_TITLE,
+        confirm_text="OK",
+        on_confirm=None,
+        cancel_text=None,
+    ):
+        overlay = ModalView(
+            size_hint=(1, 1),
+            background_color=(0, 0, 0, 0.68),
+            auto_dismiss=False,
+        )
+
+        card = RoundedPanel(
+            orientation="vertical",
+            size_hint=(0.88, None),
+            height=dp(245 if cancel_text else 220),
+            padding=dp(18),
+            spacing=dp(14),
+            bg_color=CARD,
+            radius=24,
+        )
+
+        title = Label(
+            text=f"[b]{title_text}[/b]",
+            markup=True,
+            color=TEXT,
+            font_size="18sp",
+            size_hint_y=None,
+            height=dp(36),
+            halign="left",
+            valign="middle",
+        )
+        title.bind(
+            size=lambda instance, value: setattr(instance, "text_size", value)
+        )
+
+        label = Label(
+            text=message_text,
+            color=TEXT,
+            font_size="15sp",
+            halign="left",
+            valign="middle",
+        )
+        label.bind(
+            size=lambda instance, value: setattr(instance, "text_size", (value[0], None))
+        )
+
+        buttons = BoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=dp(52),
+            spacing=dp(10),
+        )
+
+        if cancel_text:
+            cancel = RoundedButton(
+                text=cancel_text,
+                font_size="15sp",
+                normal_color=BUTTON_BG,
+                down_color=BUTTON_BG_DOWN,
+            )
+            cancel.bind(on_release=lambda *_: overlay.dismiss())
+            buttons.add_widget(cancel)
+
+        confirm = RoundedButton(
+            text=confirm_text,
+            font_size="15sp",
+            normal_color=ACCENT_RED if cancel_text else BUTTON_BG,
+            down_color=ACCENT_RED_DOWN if cancel_text else BUTTON_BG_DOWN,
+        )
+
+        def do_confirm(*_):
+            overlay.dismiss()
+            if on_confirm:
+                on_confirm()
+
+        confirm.bind(on_release=do_confirm)
+        buttons.add_widget(confirm)
+
+        card.add_widget(title)
+        card.add_widget(label)
+        card.add_widget(buttons)
+
+        wrapper = AnchorLayout(
+            anchor_x="center",
+            anchor_y="center",
+        )
+        wrapper.add_widget(card)
+        overlay.add_widget(wrapper)
+        overlay.open()
+
+    def message(
+        self,
+        text
+    ):
+        self._open_rounded_dialog(
+            message_text=text,
+            title_text=APP_TITLE,
+            confirm_text="OK",
+        )
+
+    def confirm_delete_product(self, barcode):
+        product = self.db.get_product(barcode)
+
+        if not product:
+            self.message("Товар не найден.")
+            return
+
+        name = product["name"] or barcode
+
+        def do_delete():
+            if self.db.delete_product_completely(barcode):
+                # Удаляем также локально кэшированное изображение, если оно было.
+                try:
+                    cached = Path(self.get_cached_photo_path(barcode))
+                    if cached.exists():
+                        cached.unlink()
+                except Exception:
+                    pass
+                self.open_home()
+            else:
+                self.message("Не удалось удалить товар.")
+
+        self._open_rounded_dialog(
+            message_text=(
+                f"Удалить товар «{name}»?\n\n"
+                "Будут удалены сам товар и все его сроки годности."
+            ),
+            title_text="Удалить товар",
+            confirm_text="Удалить",
+            cancel_text="Отмена",
+            on_confirm=do_delete,
+        )
+
+    def open_move_category_dialog(self, barcode):
+        product = self.db.get_product(barcode)
+        if not product:
+            self.message("Товар не найден.")
+            return
+
+        categories = list(self.db.list_categories())
+        if not categories:
+            self.message("Сначала добавьте хотя бы одну категорию.")
+            return
+
+        overlay = ModalView(
+            size_hint=(1, 1),
+            background_color=(0, 0, 0, 0.62),
+            auto_dismiss=True,
+        )
+        card = RoundedPanel(
+            orientation="vertical",
+            size_hint=(0.90, 0.72),
+            padding=dp(16),
+            spacing=dp(10),
+            bg_color=CARD,
+        )
+        title = Label(
+            text="Перенести в категорию",
+            color=TEXT,
+            bold=True,
+            font_size="20sp",
+            size_hint_y=None,
+            height=dp(50),
+        )
+        card.add_widget(title)
+
+        scroll = ScrollView(do_scroll_x=False)
+        choices = BoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            spacing=dp(8),
+        )
+        choices.bind(minimum_height=choices.setter("height"))
+
+        current = str(product["department"] or "")
+
+        def choose_category(_button, category_name):
+            if self.db.move_product_to_category(barcode, category_name):
+                self.current_department = category_name
+                overlay.dismiss()
+                self.sm.get_screen("product").load(barcode)
+            else:
+                overlay.dismiss()
+                self.message("Не удалось перенести товар.")
+
+        for row in categories:
+            category_name = row["name"]
+            selected = category_name.casefold() == current.casefold()
+            button = RoundedButton(
+                text=("• " if selected else "") + category_name,
+                size_hint_y=None,
+                height=dp(52),
+                font_size="14sp",
+                disabled=selected,
+            )
+            button.bind(
+                on_release=lambda btn, value=category_name:
+                choose_category(btn, value)
+            )
+            choices.add_widget(button)
+
+        scroll.add_widget(choices)
+        card.add_widget(scroll)
+
+        cancel = RoundedButton(
+            text="Отмена",
+            size_hint_y=None,
+            height=dp(50),
+            font_size="14sp",
+        )
+        cancel.bind(on_release=lambda *_: overlay.dismiss())
+        card.add_widget(cancel)
+
+        wrapper = AnchorLayout(anchor_x="center", anchor_y="center")
+        wrapper.add_widget(card)
+        overlay.add_widget(wrapper)
+        overlay.open()
+
+
+    # =====================================================
+    # DESKTOP
+    # =====================================================
+
+    def _desktop_export(self):
+
+        destination = (
+            Path.cwd()
+            /
+            (
+                "pyton_date_detect_"
+                +
+                datetime.now().strftime(
+                    "%Y%m%d_%H%M%S"
+                )
+                +
+                ".db"
+            )
+        )
+
+        try:
+
+            self.db.backup_to(
+                destination
+            )
+
+            self.message(
+                "База сохранена:\n"
+                +
+                str(
+                    destination
+                )
+            )
+
+            self.current_department = None
+            self.open_departments()
+
+        except Exception as exc:
+
+            self.message(
+                "Ошибка экспорта:\n"
+                +
+                str(exc)
+            )
+
+
+    # =====================================================
+    # STOP
+    # =====================================================
+
+    def on_stop(self):
+
+        if (
+            ANDROID
+            and
+            activity_helper is not None
+        ):
+
+            try:
+
+                activity_helper.unbind(
+                    on_activity_result=
+                    self._on_activity_result
+                )
+
+            except Exception:
+
+                pass
+
+        try:
+
+            Window.unbind(
+                on_keyboard=
+                self._on_keyboard
+            )
+
+            Window.unbind(
+                size=self._on_window_size_for_safe_area
+            )
+
+        except Exception:
+
+            pass
+
+        if hasattr(
+            self,
+            "db"
+        ):
+
+            self.db.close()
+
+        if getattr(self, "catalog_conn", None) is not None:
+            self.catalog_conn.close()
+
+
+# =========================================================
+# START
+# =========================================================
+
+if __name__ == "__main__":
+
+    print("PYTON DETECTOR UI BUILD: v20_inputs_catalog_categories")
+    MainApp().run()
