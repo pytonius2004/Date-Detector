@@ -76,7 +76,7 @@ android.add_src = android_src
 # BARCODE SCANNER ACTIVITY
 # =========================================================
 
-android.add_activities = org.example.expiringgoods.BarcodeScannerActivity
+android.add_activities = org.example.expiringgoods.BarcodeScannerActivity,org.example.expiringgoods.TextRecognitionActivity
 
 
 # =========================================================
@@ -91,7 +91,7 @@ android.add_activities = org.example.expiringgoods.BarcodeScannerActivity
 # kotlin-stdlib-jdk7/jdk8 1.6.21
 # =========================================================
 
-android.gradle_dependencies = androidx.activity:activity:1.8.2,androidx.camera:camera-core:1.3.4,androidx.camera:camera-camera2:1.3.4,androidx.camera:camera-lifecycle:1.3.4,androidx.camera:camera-view:1.3.4,com.google.mlkit:barcode-scanning:17.2.0,org.jetbrains.kotlin:kotlin-stdlib:1.8.22,org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22,org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22
+android.gradle_dependencies = androidx.activity:activity:1.8.2,androidx.camera:camera-core:1.3.4,androidx.camera:camera-camera2:1.3.4,androidx.camera:camera-lifecycle:1.3.4,androidx.camera:camera-view:1.3.4,com.google.mlkit:barcode-scanning:17.2.0,com.google.mlkit:text-recognition:16.0.1,androidx.exifinterface:exifinterface:1.3.7,org.jetbrains.kotlin:kotlin-stdlib:1.8.22,org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22,org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22
 
 
 # =========================================================
