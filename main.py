@@ -382,6 +382,8 @@ SPINNER_FILE = str(
     "loading_spinner.png"
 )
 
+ACTION_BUTTON_TEXT = (1, 1, 1, 1)
+
 DB_NAME = "inventory.db"
 CATALOG_DB_FILE = "selver_base.db"
 
@@ -420,6 +422,31 @@ def safe_padding(
         dp(horizontal),
         dp(bottom) + SAFE_BOTTOM,
     )
+
+
+class SafeAreaLayout(BoxLayout):
+    """Root layout whose padding follows the currently visible system bars."""
+
+    def __init__(
+        self,
+        safe_horizontal=12,
+        safe_top=12,
+        safe_bottom=12,
+        **kwargs
+    ):
+        self.safe_horizontal = safe_horizontal
+        self.safe_top = safe_top
+        self.safe_bottom = safe_bottom
+        kwargs.pop("padding", None)
+        super().__init__(**kwargs)
+        self.refresh_safe_padding()
+
+    def refresh_safe_padding(self):
+        self.padding = safe_padding(
+            horizontal=self.safe_horizontal,
+            top=self.safe_top,
+            bottom=self.safe_bottom,
+        )
 
 
 # =========================================================
@@ -595,6 +622,8 @@ class RoundedButton(Button):
         BUTTON_BG_DOWN
     )
 
+    force_white_text = BooleanProperty(False)
+
     radius = dp(14)
 
     def __init__(
@@ -607,6 +636,13 @@ class RoundedButton(Button):
         # every newly built screen uses the currently active theme.
         kwargs.setdefault("normal_color", BUTTON_BG)
         kwargs.setdefault("down_color", BUTTON_BG_DOWN)
+        requested_color = kwargs.get("color")
+        if "force_white_text" not in kwargs:
+            normal = tuple(kwargs["normal_color"])
+            kwargs["force_white_text"] = all(
+                abs(float(normal[index]) - float(ACCENT_RED[index])) < 0.025
+                for index in range(3)
+            )
 
         super().__init__(
             **kwargs
@@ -622,7 +658,10 @@ class RoundedButton(Button):
             0,
         )
 
-        self.color = TEXT
+        if self.force_white_text:
+            self.color = ACTION_BUTTON_TEXT
+        elif requested_color is None:
+            self.color = TEXT
 
         with self.canvas.before:
 
@@ -1403,6 +1442,17 @@ class RoundedImageButton(ButtonBehavior, BoxLayout):
             fit_mode="contain",
         )
         self.add_widget(self._icon)
+        self.apply_theme()
+
+    def apply_theme(self):
+        app = App.get_running_app()
+        theme = (
+            DARK_THEME
+            if getattr(app, "theme_name", "dark") == "dark"
+            else LIGHT_THEME
+        )
+        if hasattr(self, "_icon"):
+            self._icon.color = list(theme["TEXT"])
 
     def _update_bg(self, *_):
         self._bg_rect.pos = self.pos
@@ -5004,7 +5054,12 @@ class MainApp(App):
         def walk(widget):
             try:
                 # Label и Button имеют property "color".
-                if isinstance(widget, (Label, Button)):
+                if (
+                    isinstance(widget, RoundedButton)
+                    and widget.force_white_text
+                ):
+                    widget.color = list(ACTION_BUTTON_TEXT)
+                elif isinstance(widget, (Label, Button)):
                     widget.color = list(color)
             except Exception:
                 pass
@@ -5022,6 +5077,12 @@ class MainApp(App):
             try:
                 if isinstance(widget, SettingsColorRow):
                     widget.set_text_color(color)
+            except Exception:
+                pass
+
+            try:
+                if isinstance(widget, RoundedImageButton):
+                    widget.apply_theme()
             except Exception:
                 pass
 
@@ -5623,6 +5684,10 @@ class MainApp(App):
                 print("activity.bind error:", exc)
 
         Window.bind(on_keyboard=self._on_keyboard)
+        Window.bind(size=self._on_window_size_for_safe_area)
+        self._refresh_system_insets()
+        Clock.schedule_once(self._refresh_system_insets, 0.20)
+        Clock.schedule_once(self._refresh_system_insets, 0.80)
 
     def lookup_catalog_product(self, barcode):
         connection = getattr(self, "catalog_conn", None)
@@ -5638,6 +5703,64 @@ class MainApp(App):
                 return row
 
         return None
+
+    def _read_android_system_insets(self):
+        if not ANDROID or not PYJNIUS_AVAILABLE:
+            return (0, 0)
+
+        try:
+            PythonActivity = autoclass("org.kivy.android.PythonActivity")
+            activity = PythonActivity.mActivity
+            decor_view = activity.getWindow().getDecorView()
+            insets = decor_view.getRootWindowInsets()
+            if insets is None:
+                return None
+
+            BuildVersion = autoclass("android.os.Build$VERSION")
+            if int(BuildVersion.SDK_INT) >= 30:
+                InsetsType = autoclass("android.view.WindowInsets$Type")
+                status_type = InsetsType.statusBars()
+                navigation_type = InsetsType.navigationBars()
+
+                status = insets.getInsets(status_type)
+                navigation = insets.getInsets(navigation_type)
+                top = int(status.top) if insets.isVisible(status_type) else 0
+                bottom = (
+                    int(navigation.bottom)
+                    if insets.isVisible(navigation_type)
+                    else 0
+                )
+            else:
+                top = int(insets.getSystemWindowInsetTop())
+                bottom = int(insets.getSystemWindowInsetBottom())
+
+            return (max(0, top), max(0, bottom))
+        except Exception as exc:
+            print("system insets error:", exc)
+            return None
+
+    def _refresh_system_insets(self, *_):
+        global SAFE_TOP, SAFE_BOTTOM
+
+        measured = self._read_android_system_insets()
+        if measured is not None:
+            SAFE_TOP, SAFE_BOTTOM = measured
+
+        manager = getattr(self, "sm", None)
+        if manager is None:
+            return
+
+        for screen in getattr(manager, "screens", []):
+            for widget in screen.walk(restrict=True):
+                if isinstance(widget, SafeAreaLayout):
+                    widget.refresh_safe_padding()
+
+    def _on_window_size_for_safe_area(self, *_):
+        Clock.schedule_once(self._refresh_system_insets, 0.05)
+
+    def on_resume(self):
+        Clock.schedule_once(self._refresh_system_insets, 0.05)
+        Clock.schedule_once(self._refresh_system_insets, 0.35)
 
     def _run_startup_step(self, *_):
         if not self._startup_steps:
@@ -5781,9 +5904,11 @@ class MainApp(App):
 
         screen = DepartmentScreen(name="departments")
 
-        root = BoxLayout(
+        root = SafeAreaLayout(
             orientation="vertical",
-            padding=safe_padding(horizontal=14, top=7, bottom=12),
+            safe_horizontal=14,
+            safe_top=7,
+            safe_bottom=12,
             spacing=dp(10),
         )
 
@@ -6132,13 +6257,11 @@ class MainApp(App):
             name="home"
         )
 
-        root = BoxLayout(
+        root = SafeAreaLayout(
             orientation="vertical",
-            padding=safe_padding(
-                horizontal=14,
-                top=7,
-                bottom=12
-            ),
+            safe_horizontal=14,
+            safe_top=7,
+            safe_bottom=12,
             spacing=dp(14),
         )
 
@@ -6293,13 +6416,11 @@ class MainApp(App):
             name="add"
         )
 
-        root = BoxLayout(
+        root = SafeAreaLayout(
             orientation="vertical",
-            padding=safe_padding(
-                horizontal=14,
-                top=8,
-                bottom=12
-            ),
+            safe_horizontal=14,
+            safe_top=8,
+            safe_bottom=12,
             spacing=dp(12),
         )
 
@@ -6641,13 +6762,11 @@ class MainApp(App):
             name="product"
         )
 
-        root = BoxLayout(
+        root = SafeAreaLayout(
             orientation="vertical",
-            padding=safe_padding(
-                horizontal=14,
-                top=8,
-                bottom=12
-            ),
+            safe_horizontal=14,
+            safe_top=8,
+            safe_bottom=12,
             spacing=dp(12),
         )
 
@@ -6958,13 +7077,11 @@ class MainApp(App):
             name="settings"
         )
 
-        root = BoxLayout(
+        root = SafeAreaLayout(
             orientation="vertical",
-            padding=safe_padding(
-                horizontal=14,
-                top=8,
-                bottom=12
-            ),
+            safe_horizontal=14,
+            safe_top=8,
+            safe_bottom=12,
             spacing=dp(12),
         )
 
@@ -7092,13 +7209,11 @@ class MainApp(App):
             name="color_settings"
         )
 
-        root = BoxLayout(
+        root = SafeAreaLayout(
             orientation="vertical",
-            padding=safe_padding(
-                horizontal=14,
-                top=8,
-                bottom=12
-            ),
+            safe_horizontal=14,
+            safe_top=8,
+            safe_bottom=12,
             spacing=dp(12),
         )
 
@@ -7174,13 +7289,11 @@ class MainApp(App):
             name="card_colors"
         )
 
-        root = BoxLayout(
+        root = SafeAreaLayout(
             orientation="vertical",
-            padding=safe_padding(
-                horizontal=14,
-                top=8,
-                bottom=12
-            ),
+            safe_horizontal=14,
+            safe_top=8,
+            safe_bottom=12,
             spacing=dp(12),
         )
 
@@ -9028,6 +9141,10 @@ class MainApp(App):
             Window.unbind(
                 on_keyboard=
                 self._on_keyboard
+            )
+
+            Window.unbind(
+                size=self._on_window_size_for_safe_area
             )
 
         except Exception:
