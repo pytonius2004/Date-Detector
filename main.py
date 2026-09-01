@@ -57,6 +57,7 @@ from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.modalview import ModalView
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
+from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.button import Button
 from kivy.uix.image import Image, AsyncImage
 from kivy.uix.label import Label
@@ -394,6 +395,7 @@ REQUEST_SCAN_BARCODE = 7001
 REQUEST_IMPORT_DB = 4102
 REQUEST_PICK_PRODUCT_PHOTO = 7201
 REQUEST_TAKE_PRODUCT_PHOTO = 7202
+REQUEST_SCAN_PRODUCT_NAME = 7301
 
 # =========================================================
 # SAFE AREA
@@ -1193,6 +1195,18 @@ class RoundedTextInput(TextInput):
                 size=(0, 0),
             )
 
+            # На некоторых Android/SDL2 сборках стандартный glyph-renderer
+            # TextInput периодически не рисует введённый текст, хотя значение
+            # в self.text присутствует. Рисуем видимую копию текста поверх
+            # внутреннего canvas TextInput. Сам нативный текст на Android
+            # делаем прозрачным в apply_theme(), курсор остаётся отдельным.
+            self._value_canvas_color = Color(1, 1, 1, 0)
+            self._value_rect = Rectangle(
+                pos=self.pos,
+                size=(0, 0),
+            )
+            self._value_core = None
+
         self.bind(
             pos=self._update_search_visuals,
             size=self._update_search_visuals,
@@ -1226,7 +1240,12 @@ class RoundedTextInput(TextInput):
             else LIGHT_THEME
         )
         input_text = tuple(theme["TEXT"])
-        self.foreground_color = input_text
+        # Android: текст отображаем собственным canvas-слоем ниже. Это
+        # обходит баг, при котором TextInput хранит строку, но не рисует её.
+        self.foreground_color = (
+            input_text[0], input_text[1], input_text[2],
+            0 if ANDROID else input_text[3]
+        )
         self.cursor_color = input_text
         self.selection_color = list(theme["BUTTON_BG_DOWN"])
         self._placeholder_color = tuple(theme["TEXT_SECONDARY"])
@@ -1287,6 +1306,52 @@ class RoundedTextInput(TextInput):
             if self.focus
             else tuple(theme["INPUT_BG"])
         )
+
+        # Надёжное отображение фактического значения поля на Android.
+        # Это отдельная текстура, поэтому возврат из Camera/Activity или
+        # системная клавиатура не могут сделать введённый текст невидимым.
+        if ANDROID and self.text:
+            try:
+                pad = self.padding
+                pad_x = float(pad[0]) if isinstance(pad, (tuple, list)) else float(pad or dp(12))
+                pad_right = (
+                    float(pad[2])
+                    if isinstance(pad, (tuple, list)) and len(pad) >= 3
+                    else pad_x
+                )
+                input_text = tuple(theme["TEXT"])
+                available_width = max(dp(10), self.width - pad_x - pad_right)
+                self._value_core = CoreLabel(
+                    text=str(self.text),
+                    font_size=self.font_size,
+                    color=input_text,
+                )
+                self._value_core.refresh()
+                texture = self._value_core.texture
+                if texture is not None:
+                    tex_w, tex_h = texture.size
+                    # Для длинных однострочных значений показываем правую
+                    # часть, где обычно находится курсор.
+                    shown_w = min(tex_w, available_width)
+                    self._value_canvas_color.rgba = input_text
+                    self._value_rect.texture = texture
+                    self._value_rect.pos = (
+                        self.x + pad_x - max(0, tex_w - available_width),
+                        self.y + max(0, (self.height - tex_h) / 2),
+                    )
+                    self._value_rect.size = (tex_w, tex_h)
+                else:
+                    self._value_canvas_color.rgba = (1, 1, 1, 0)
+                    self._value_rect.texture = None
+                    self._value_rect.size = (0, 0)
+            except Exception:
+                self._value_canvas_color.rgba = (1, 1, 1, 0)
+                self._value_rect.texture = None
+                self._value_rect.size = (0, 0)
+        else:
+            self._value_canvas_color.rgba = (1, 1, 1, 0)
+            self._value_rect.texture = None
+            self._value_rect.size = (0, 0)
 
         # Как в обычных приложениях:
         # placeholder виден только когда поле ПУСТОЕ и НЕ в фокусе.
@@ -1419,6 +1484,56 @@ class RoundedTextInput(TextInput):
         )
 
         self._update_search_visuals()
+
+
+class CameraIconButton(ButtonBehavior, Widget):
+    """Компактная кнопка камеры, полностью нарисованная Kivy canvas."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        with self.canvas.before:
+            self._camera_bg_color = Color(*INPUT_BG)
+            self._camera_bg = RoundedRectangle(
+                pos=self.pos, size=self.size, radius=[dp(18)]
+            )
+        with self.canvas.after:
+            self._camera_icon_color = Color(*TEXT)
+            self._camera_body = Line(
+                rounded_rectangle=(0, 0, 1, 1, dp(4)),
+                width=dp(1.8),
+            )
+            self._camera_lens = Line(circle=(0, 0, 1), width=dp(1.8))
+            self._camera_top = Line(points=[], width=dp(1.8), cap="round")
+        self.bind(
+            pos=self._update_camera_icon,
+            size=self._update_camera_icon,
+            state=self._update_camera_icon,
+        )
+        self._update_camera_icon()
+
+    def _update_camera_icon(self, *_):
+        app = App.get_running_app()
+        theme = DARK_THEME if getattr(app, "theme_name", "dark") == "dark" else LIGHT_THEME
+        self._camera_bg.pos = self.pos
+        self._camera_bg.size = self.size
+        self._camera_bg_color.rgba = (
+            tuple(theme["INPUT_BG_FOCUS"]) if self.state == "down" else tuple(theme["INPUT_BG"])
+        )
+        self._camera_icon_color.rgba = tuple(theme["TEXT"])
+
+        w = min(self.width, self.height)
+        body_w = w * 0.46
+        body_h = w * 0.32
+        bx = self.center_x - body_w / 2
+        by = self.center_y - body_h / 2
+        self._camera_body.rounded_rectangle = (bx, by, body_w, body_h, dp(4))
+        self._camera_lens.circle = (self.center_x, self.center_y, w * 0.095)
+        self._camera_top.points = [
+            self.center_x - w * 0.11, by + body_h,
+            self.center_x - w * 0.055, by + body_h + w * 0.075,
+            self.center_x + w * 0.055, by + body_h + w * 0.075,
+            self.center_x + w * 0.11, by + body_h,
+        ]
 
 
 class RoundedPanel(BoxLayout):
@@ -4493,6 +4608,11 @@ class AddProductScreen(BaseScreen):
             0.15
         )
 
+    def scan_name_from_camera(
+        self
+    ):
+        self.app.start_product_name_scanner(self)
+
     def choose_photo(
         self
     ):
@@ -5590,6 +5710,7 @@ class MainApp(App):
 
         self.current_department = None
         self.pending_photo_screen = None
+        self.pending_ocr_screen = None
 
         self.theme_path = (
             Path(self.user_data_dir)
@@ -6535,17 +6656,32 @@ class MainApp(App):
             screen.on_barcode_change
         )
 
+        name_holder = FloatLayout(
+            size_hint_y=None,
+            height=dp(56),
+        )
+
         name = RoundedTextInput(
             hint_text="Наименование товара",
             multiline=False,
-            size_hint_y=None,
-            height=dp(56),
+            size_hint=(1, 1),
+            pos_hint={"x": 0, "y": 0},
             font_size="18sp",
-            padding=(
-                dp(12),
-                dp(12),
-            ),
+            # Справа оставляем место под кнопку камеры.
+            padding=(dp(12), dp(12), dp(64), dp(12)),
         )
+
+        name_camera_button = CameraIconButton(
+            size_hint=(None, None),
+            size=(dp(52), dp(52)),
+            pos_hint={"right": 0.995, "center_y": 0.5},
+        )
+        name_camera_button.bind(
+            on_release=lambda *_: screen.scan_name_from_camera()
+        )
+
+        name_holder.add_widget(name)
+        name_holder.add_widget(name_camera_button)
 
         date_input = DateInput(
             hint_text="ДД.ММ.ГГ (необязательно)",
@@ -6575,7 +6711,7 @@ class MainApp(App):
         )
 
         root.add_widget(
-            name
+            name_holder
         )
 
         root.add_widget(
@@ -8155,6 +8291,39 @@ class MainApp(App):
 
 
     # =====================================================
+    # PRODUCT NAME OCR
+    # =====================================================
+
+    def start_product_name_scanner(self, screen):
+        if not ANDROID:
+            self.message("Распознавание названия камерой доступно только на Android.")
+            return
+
+        if not PYJNIUS_AVAILABLE:
+            self.message("PyJNIus недоступен.")
+            return
+
+        try:
+            PythonActivity = autoclass("org.kivy.android.PythonActivity")
+            Intent = autoclass("android.content.Intent")
+            OcrActivity = autoclass(
+                "org.example.expiringgoods.TextRecognitionActivity"
+            )
+            current_activity = cast(
+                "android.app.Activity", PythonActivity.mActivity
+            )
+            self.pending_ocr_screen = screen
+            intent = Intent(current_activity, OcrActivity)
+            current_activity.startActivityForResult(
+                intent, REQUEST_SCAN_PRODUCT_NAME
+            )
+        except Exception as exc:
+            self.pending_ocr_screen = None
+            self.message(
+                "Не удалось открыть распознавание текста:\n\n" + str(exc)
+            )
+
+    # =====================================================
     # SCANNER
     # =====================================================
 
@@ -8243,6 +8412,32 @@ class MainApp(App):
                 intent
             )
 
+            return
+
+        if (
+            request_code
+            ==
+            REQUEST_SCAN_PRODUCT_NAME
+        ):
+            screen = self.pending_ocr_screen
+            self.pending_ocr_screen = None
+
+            if result_code == -1 and intent is not None and screen is not None:
+                try:
+                    recognized = intent.getStringExtra("recognized_text")
+                except Exception:
+                    recognized = None
+
+                recognized = str(recognized or "").strip()
+                if recognized:
+                    if isinstance(screen.name_input, RoundedTextInput):
+                        screen.name_input.set_visible_text(recognized)
+                    else:
+                        screen.name_input.text = recognized
+                    Clock.schedule_once(
+                        lambda *_: setattr(screen.name_input, "focus", True),
+                        0.08,
+                    )
             return
 
         if (
