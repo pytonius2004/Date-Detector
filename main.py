@@ -126,6 +126,9 @@ BUTTON_BG_DOWN = (
     1,
 )
 
+INPUT_BG = (0.925, 0.935, 0.955, 1)
+INPUT_BG_FOCUS = (0.89, 0.905, 0.935, 1)
+
 LIGHT_THEME = {
     "BG": (0.965, 0.968, 0.975, 1),
     "CARD": (1.0, 1.0, 1.0, 1),
@@ -134,6 +137,8 @@ LIGHT_THEME = {
     "TEXT_SECONDARY": (0.39, 0.41, 0.46, 1),
     "BUTTON_BG": (0.91, 0.92, 0.94, 1),
     "BUTTON_BG_DOWN": (0.83, 0.85, 0.88, 1),
+    "INPUT_BG": (0.925, 0.935, 0.955, 1),
+    "INPUT_BG_FOCUS": (0.89, 0.905, 0.935, 1),
     "THUMBNAIL_BG": (0.90, 0.91, 0.93, 1),
 }
 
@@ -145,6 +150,8 @@ DARK_THEME = {
     "TEXT_SECONDARY": (0.67, 0.68, 0.72, 1),
     "BUTTON_BG": (0.20, 0.21, 0.24, 1),
     "BUTTON_BG_DOWN": (0.27, 0.28, 0.32, 1),
+    "INPUT_BG": (0.135, 0.14, 0.165, 1),
+    "INPUT_BG_FOCUS": (0.18, 0.19, 0.22, 1),
     "THUMBNAIL_BG": (0.28, 0.29, 0.32, 1),
 }
 
@@ -291,6 +298,7 @@ def apply_theme_globals(theme_name):
     global BG, CARD, CARD_DISABLED
     global TEXT, TEXT_SECONDARY
     global BUTTON_BG, BUTTON_BG_DOWN
+    global INPUT_BG, INPUT_BG_FOCUS
     global THUMBNAIL_BG
     global RED_TEXT, YELLOW_TEXT
 
@@ -303,6 +311,8 @@ def apply_theme_globals(theme_name):
     TEXT_SECONDARY = tuple(theme["TEXT_SECONDARY"])
     BUTTON_BG = tuple(theme["BUTTON_BG"])
     BUTTON_BG_DOWN = tuple(theme["BUTTON_BG_DOWN"])
+    INPUT_BG = tuple(theme["INPUT_BG"])
+    INPUT_BG_FOCUS = tuple(theme["INPUT_BG_FOCUS"])
     THUMBNAIL_BG = tuple(theme["THUMBNAIL_BG"])
 
     RED_TEXT = TEXT
@@ -361,7 +371,7 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки Годности"
-BUILD_MARKER = "v19_theme_controls_smooth"
+BUILD_MARKER = "v20_inputs_catalog_categories"
 
 HEADER_TITLE = "Pyton Detector"
 
@@ -373,6 +383,7 @@ SPINNER_FILE = str(
 )
 
 DB_NAME = "inventory.db"
+CATALOG_DB_FILE = "selver_base.db"
 
 DATE_DB_FORMAT = "%Y-%m-%d"
 DATE_USER_FORMAT = "%d.%m.%y"
@@ -1082,7 +1093,7 @@ class RoundedTextInput(TextInput):
             ""
         )
 
-        requested_hint_color = kwargs.pop(
+        kwargs.pop(
             "hint_text_color",
             TEXT
         )
@@ -1098,8 +1109,6 @@ class RoundedTextInput(TextInput):
             0,
         )
 
-        self.foreground_color = TEXT
-        self.cursor_color = TEXT
         self.write_tab = False
 
         # Не используем стандартный hint_text Kivy.
@@ -1111,16 +1120,14 @@ class RoundedTextInput(TextInput):
             requested_hint or ""
         )
 
-        self._placeholder_color = tuple(
-            requested_hint_color
-        )
+        self._placeholder_color = tuple(TEXT_SECONDARY)
 
         self._placeholder_core = None
 
         with self.canvas.before:
 
             self._search_bg_color = Color(
-                *CARD
+                *INPUT_BG
             )
 
             self._search_bg = RoundedRectangle(
@@ -1161,6 +1168,30 @@ class RoundedTextInput(TextInput):
             0,
         )
 
+        self.apply_theme()
+
+    def apply_theme(self):
+        """Use theme contrast in fields, independent of the user text accent."""
+        app = App.get_running_app()
+        theme = (
+            DARK_THEME
+            if getattr(app, "theme_name", "dark") == "dark"
+            else LIGHT_THEME
+        )
+        input_text = tuple(theme["TEXT"])
+        self.foreground_color = input_text
+        self.cursor_color = input_text
+        self.selection_color = list(theme["BUTTON_BG_DOWN"])
+        self._placeholder_color = tuple(theme["TEXT_SECONDARY"])
+        if hasattr(self, "_search_bg_color"):
+            self._search_bg_color.rgba = (
+                tuple(theme["INPUT_BG_FOCUS"])
+                if self.focus
+                else tuple(theme["INPUT_BG"])
+            )
+        if hasattr(self, "_search_bg"):
+            self._update_search_visuals()
+
     def _update_search_visuals(
         self,
         *_
@@ -1168,6 +1199,17 @@ class RoundedTextInput(TextInput):
 
         self._search_bg.pos = self.pos
         self._search_bg.size = self.size
+        app = App.get_running_app()
+        theme = (
+            DARK_THEME
+            if getattr(app, "theme_name", "dark") == "dark"
+            else LIGHT_THEME
+        )
+        self._search_bg_color.rgba = (
+            tuple(theme["INPUT_BG_FOCUS"])
+            if self.focus
+            else tuple(theme["INPUT_BG"])
+        )
 
         # Как в обычных приложениях:
         # placeholder виден только когда поле ПУСТОЕ и НЕ в фокусе.
@@ -1706,7 +1748,7 @@ class ProductCard(
 # DATE INPUT
 # =========================================================
 
-class DateInput(TextInput):
+class DateInput(RoundedTextInput):
 
     __events__ = ("on_date_complete",)
 
@@ -2199,6 +2241,18 @@ class Database:
                 "ADD COLUMN hidden_from_list INTEGER NOT NULL DEFAULT 0"
             )
 
+        if "created_at" not in product_columns:
+            self.conn.execute(
+                "ALTER TABLE products "
+                "ADD COLUMN created_at TEXT NOT NULL DEFAULT ''"
+            )
+
+        self.conn.execute(
+            "UPDATE products SET created_at = ? "
+            "WHERE TRIM(COALESCE(created_at, '')) = ''",
+            (datetime.now().isoformat(timespec="microseconds"),),
+        )
+
 
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS "
@@ -2210,6 +2264,12 @@ class Database:
             "CREATE INDEX IF NOT EXISTS "
             "idx_products_name "
             "ON products(name COLLATE NOCASE)"
+        )
+
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS "
+            "idx_products_created_at "
+            "ON products(created_at DESC)"
         )
 
         # Старые базы не имели отдельного справочника категорий. Сохраняем
@@ -2330,6 +2390,36 @@ class Database:
             raise ValueError("Такая категория уже существует.") from exc
 
         return name
+
+    def ensure_category(self, name):
+        name = " ".join(str(name or "").strip().split())
+        if not name:
+            return ""
+
+        row = self.conn.execute(
+            "SELECT name FROM categories WHERE name = ? COLLATE NOCASE",
+            (name,),
+        ).fetchone()
+        if row:
+            return row["name"]
+
+        return self.add_category(name)
+
+    def move_product_to_category(self, barcode, category):
+        product = self.get_product(barcode)
+        if not product:
+            return False
+
+        category = self.ensure_category(category)
+        if not category:
+            return False
+
+        self.conn.execute(
+            "UPDATE products SET department = ? WHERE barcode = ?",
+            (category, product["barcode"]),
+        )
+        self.conn.commit()
+        return True
 
     def delete_category(self, category_id):
         row = self.conn.execute(
@@ -2492,9 +2582,7 @@ class Database:
                     department or "",
                     photo_path or "",
                     photo_url or "",
-                    datetime.now().isoformat(
-                        timespec="seconds"
-                    ),
+                    datetime.now().isoformat(timespec="microseconds"),
                 ),
             )
 
@@ -2854,7 +2942,7 @@ class Database:
                         (
                             new_barcode, name, final_department, final_photo_path,
                             final_photo_url, product_url, manual_no_date, hidden,
-                            datetime.now().isoformat(timespec="seconds"),
+                            old_product["created_at"],
                         ),
                     )
                     self.conn.execute(
@@ -3018,11 +3106,12 @@ class Database:
             where_filter = "a.next_exp IS NULL"
 
         if sort_mode == "added":
-            # Точный внутренний created_at хранится в БД, пользователю его
-            # показывать не нужно. Ранние добавленные товары идут первыми.
+            # Товары без срока не образуют отдельную группу: важен только
+            # точный момент добавления товара.
             order_sql = (
-                "p.created_at ASC, "
-                "p.rowid ASC"
+                "datetime(p.created_at) DESC, "
+                "p.created_at DESC, "
+                "p.rowid DESC"
             )
         elif sort_mode == "alphabet":
             order_sql = (
@@ -3786,6 +3875,7 @@ class AddProductScreen(BaseScreen):
         self._auto_save_signature = None
         self._save_in_progress = False
         self.pending_photo_url = ""
+        self.suggested_department = ""
         self.editing_barcode = ""
         self.editing_original_date = ""
 
@@ -3887,12 +3977,19 @@ class AddProductScreen(BaseScreen):
         if hasattr(self, "save_button"):
             self.save_button.text = "Сохранить срок"
 
-        self.barcode_input.text = ""
-        self.name_input.text = ""
-        self.date_input.text = ""
+        for field in (
+            self.barcode_input,
+            self.name_input,
+            self.date_input,
+        ):
+            field.focus = False
+            field.text = ""
+            if isinstance(field, RoundedTextInput):
+                field.apply_theme()
 
         self.pending_photo_path = ""
         self.pending_photo_url = ""
+        self.suggested_department = ""
 
         if hasattr(
             self,
@@ -3953,15 +4050,19 @@ class AddProductScreen(BaseScreen):
 
             return
 
-        product = (
-            self.app.db.get_product(
-                barcode
-            )
-        )
+        stored_product = self.app.db.get_product(barcode)
+        catalog_product = self.app.lookup_catalog_product(barcode)
+        product = stored_product or catalog_product
 
         if not product:
 
             return
+
+        self.suggested_department = (
+            str(catalog_product["department"] or "")
+            if catalog_product is not None and stored_product is None
+            else ""
+        )
 
         name = (
             product[
@@ -3977,15 +4078,16 @@ class AddProductScreen(BaseScreen):
                 name
             )
 
+        product_keys = product.keys()
         photo_path = (
             product["photo_path"]
-            or
-            ""
-        )
+            if "photo_path" in product_keys
+            else ""
+        ) or ""
 
         photo_url = (
             product["photo_url"]
-            if "photo_url" in product.keys()
+            if "photo_url" in product_keys
             else ""
         ) or ""
 
@@ -4409,6 +4511,7 @@ class AddProductScreen(BaseScreen):
 
             self.editing_barcode = result
             self.app.message("Изменения сохранены.")
+            self.app.dismiss_keyboard()
             self.app.open_product(result)
             return
 
@@ -4418,12 +4521,26 @@ class AddProductScreen(BaseScreen):
             )
         )
 
+        target_department = self.app.current_department
+        if existing_product:
+            target_department = (
+                existing_product["department"]
+                or target_department
+            )
+        elif self.suggested_department:
+            target_department = self.app.db.ensure_category(
+                self.suggested_department
+            )
+
+        if target_department:
+            self.app.current_department = target_department
+
         self._save_in_progress = True
 
         self.app.db.save_product(
             barcode=barcode,
             name=name,
-            department=self.app.current_department,
+            department=target_department,
             photo_path=getattr(
                 self,
                 "pending_photo_path",
@@ -4478,6 +4595,7 @@ class AddProductScreen(BaseScreen):
                 )
 
         self._save_in_progress = False
+        self.app.dismiss_keyboard()
         self.app.open_home()
 
 
@@ -4520,6 +4638,16 @@ class ProductScreen(BaseScreen):
             +
             self.barcode
         )
+
+        created_at = str(product["created_at"] or "").strip()
+        try:
+            created_value = datetime.fromisoformat(created_at)
+            created_text = created_value.strftime("%d.%m.%Y в %H:%M:%S")
+        except Exception:
+            created_text = created_at or "—"
+
+        if hasattr(self, "created_at_label"):
+            self.created_at_label.text = "Добавлен: " + created_text
 
         keys = product.keys()
 
@@ -4883,8 +5011,11 @@ class MainApp(App):
 
             try:
                 if isinstance(widget, TextInput):
-                    widget.foreground_color = list(color)
-                    widget.cursor_color = list(color)
+                    if isinstance(widget, RoundedTextInput):
+                        widget.apply_theme()
+                    else:
+                        widget.foreground_color = list(color)
+                        widget.cursor_color = list(color)
             except Exception:
                 pass
 
@@ -5465,6 +5596,23 @@ class MainApp(App):
 
     def _initialize_runtime(self):
         self.db = Database(self.db_path)
+        self.catalog_conn = None
+        catalog_path = Path(__file__).resolve().parent / CATALOG_DB_FILE
+        try:
+            self.catalog_conn = sqlite3.connect(
+                catalog_path.resolve().as_uri() + "?mode=ro",
+                uri=True,
+                check_same_thread=False,
+            )
+            self.catalog_conn.row_factory = sqlite3.Row
+            self.catalog_conn.execute(
+                "SELECT 1 FROM catalog_products LIMIT 1"
+            ).fetchone()
+        except Exception as exc:
+            print("catalog startup error:", exc)
+            if self.catalog_conn is not None:
+                self.catalog_conn.close()
+            self.catalog_conn = None
 
         if ANDROID and activity_helper is not None:
             try:
@@ -5475,6 +5623,21 @@ class MainApp(App):
                 print("activity.bind error:", exc)
 
         Window.bind(on_keyboard=self._on_keyboard)
+
+    def lookup_catalog_product(self, barcode):
+        connection = getattr(self, "catalog_conn", None)
+        if connection is None:
+            return None
+
+        for candidate in barcode_variants(barcode):
+            row = connection.execute(
+                "SELECT * FROM catalog_products WHERE barcode = ?",
+                (candidate,),
+            ).fetchone()
+            if row:
+                return row
+
+        return None
 
     def _run_startup_step(self, *_):
         if not self._startup_steps:
@@ -6195,7 +6358,7 @@ class MainApp(App):
             info
         )
 
-        barcode = TextInput(
+        barcode = RoundedTextInput(
             hint_text="Штрихкод",
             multiline=False,
             size_hint_y=None,
@@ -6212,7 +6375,7 @@ class MainApp(App):
             screen.on_barcode_change
         )
 
-        name = TextInput(
+        name = RoundedTextInput(
             hint_text="Наименование товара",
             multiline=False,
             size_hint_y=None,
@@ -6607,6 +6770,14 @@ class MainApp(App):
             height=dp(32),
         )
 
+        created_at_label = Label(
+            text="Добавлен: —",
+            color=TEXT_SECONDARY,
+            size_hint_y=None,
+            height=dp(28),
+            font_size="13sp",
+        )
+
         nearest_date = Label(
             text="Годен до: —",
             color=TEXT,
@@ -6626,6 +6797,10 @@ class MainApp(App):
 
         root.add_widget(
             product_barcode
+        )
+
+        root.add_widget(
+            created_at_label
         )
 
         root.add_widget(
@@ -6673,6 +6848,17 @@ class MainApp(App):
         root.add_widget(
             history_scroll
         )
+
+        move_category = RoundedButton(
+            text="Перенести товар в другую категорию",
+            size_hint_y=None,
+            height=dp(52),
+            font_size="14sp",
+        )
+        move_category.bind(
+            on_release=lambda *_: self.open_move_category_dialog(screen.barcode)
+        )
+        root.add_widget(move_category)
 
         action_row = BoxLayout(
             orientation="horizontal",
@@ -6730,6 +6916,8 @@ class MainApp(App):
             product_barcode
         )
 
+        screen.created_at_label = created_at_label
+
         screen.nearest_date_label = (
             nearest_date
         )
@@ -6750,6 +6938,8 @@ class MainApp(App):
         screen.delete_product_button = (
             delete_product
         )
+
+        screen.move_category_button = move_category
 
         screen.add_widget(
             root
@@ -7376,6 +7566,8 @@ class MainApp(App):
 
     def open_home(self):
 
+        self.dismiss_keyboard()
+
         if not self.current_department:
             self.open_departments()
             return
@@ -7387,6 +7579,16 @@ class MainApp(App):
         if already_home:
             self.sm.get_screen("home").refresh()
         self._refresh_global_text_color()
+
+    def dismiss_keyboard(self):
+        try:
+            for screen in getattr(self.sm, "screens", []):
+                for widget in screen.walk(restrict=True):
+                    if isinstance(widget, TextInput):
+                        widget.focus = False
+            Window.release_all_keyboards()
+        except Exception as exc:
+            print("keyboard dismiss error:", exc)
 
     def open_add(
         self,
@@ -8666,6 +8868,91 @@ class MainApp(App):
             on_confirm=do_delete,
         )
 
+    def open_move_category_dialog(self, barcode):
+        product = self.db.get_product(barcode)
+        if not product:
+            self.message("Товар не найден.")
+            return
+
+        categories = list(self.db.list_categories())
+        if not categories:
+            self.message("Сначала добавьте хотя бы одну категорию.")
+            return
+
+        overlay = ModalView(
+            size_hint=(1, 1),
+            background_color=(0, 0, 0, 0.62),
+            auto_dismiss=True,
+        )
+        card = RoundedPanel(
+            orientation="vertical",
+            size_hint=(0.90, 0.72),
+            padding=dp(16),
+            spacing=dp(10),
+            bg_color=CARD,
+        )
+        title = Label(
+            text="Перенести в категорию",
+            color=TEXT,
+            bold=True,
+            font_size="20sp",
+            size_hint_y=None,
+            height=dp(50),
+        )
+        card.add_widget(title)
+
+        scroll = ScrollView(do_scroll_x=False)
+        choices = BoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            spacing=dp(8),
+        )
+        choices.bind(minimum_height=choices.setter("height"))
+
+        current = str(product["department"] or "")
+
+        def choose_category(_button, category_name):
+            if self.db.move_product_to_category(barcode, category_name):
+                self.current_department = category_name
+                overlay.dismiss()
+                self.sm.get_screen("product").load(barcode)
+            else:
+                overlay.dismiss()
+                self.message("Не удалось перенести товар.")
+
+        for row in categories:
+            category_name = row["name"]
+            selected = category_name.casefold() == current.casefold()
+            button = RoundedButton(
+                text=("• " if selected else "") + category_name,
+                size_hint_y=None,
+                height=dp(52),
+                font_size="14sp",
+                disabled=selected,
+            )
+            button.bind(
+                on_release=lambda btn, value=category_name:
+                choose_category(btn, value)
+            )
+            choices.add_widget(button)
+
+        scroll.add_widget(choices)
+        card.add_widget(scroll)
+
+        cancel = RoundedButton(
+            text="Отмена",
+            size_hint_y=None,
+            height=dp(50),
+            font_size="14sp",
+        )
+        cancel.bind(on_release=lambda *_: overlay.dismiss())
+        card.add_widget(cancel)
+
+        wrapper = AnchorLayout(anchor_x="center", anchor_y="center")
+        wrapper.add_widget(card)
+        overlay.add_widget(wrapper)
+        overlay.open()
+
 
     # =====================================================
     # DESKTOP
@@ -8754,6 +9041,9 @@ class MainApp(App):
 
             self.db.close()
 
+        if getattr(self, "catalog_conn", None) is not None:
+            self.catalog_conn.close()
+
 
 # =========================================================
 # START
@@ -8761,5 +9051,5 @@ class MainApp(App):
 
 if __name__ == "__main__":
 
-    print("PYTON DETECTOR UI BUILD: v15.1_actual_sort_colors")
+    print("PYTON DETECTOR UI BUILD: v20_inputs_catalog_categories")
     MainApp().run()
