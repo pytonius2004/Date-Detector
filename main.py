@@ -1549,6 +1549,42 @@ class CameraIconButton(ButtonBehavior, Widget):
         ]
 
 
+class NameInputLayout(FloatLayout):
+    """Keeps the OCR camera button embedded in the name field."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.name_input = None
+        self.camera_button = None
+        self.bind(
+            pos=self._update_content_geometry,
+            size=self._update_content_geometry,
+        )
+
+    def set_content(self, name_input, camera_button):
+        self.name_input = name_input
+        self.camera_button = camera_button
+        self.add_widget(name_input)
+        self.add_widget(camera_button)
+        self._update_content_geometry()
+        Clock.schedule_once(self._update_content_geometry, 0)
+
+    def _update_content_geometry(self, *_):
+        if self.name_input is None or self.camera_button is None:
+            return
+
+        self.name_input.pos = self.pos
+        self.name_input.size = self.size
+
+        side = min(dp(52), max(0, self.height))
+        self.camera_button.size = (side, side)
+        self.camera_button.pos = (
+            self.right - side - dp(2),
+            self.y + (self.height - side) / 2,
+        )
+        self.camera_button._update_camera_icon()
+
+
 class RoundedPanel(BoxLayout):
 
     def __init__(
@@ -6687,7 +6723,7 @@ class MainApp(App):
             screen.on_barcode_change
         )
 
-        name_holder = FloatLayout(
+        name_holder = NameInputLayout(
             size_hint_y=None,
             height=dp(56),
         )
@@ -6695,8 +6731,7 @@ class MainApp(App):
         name = RoundedTextInput(
             hint_text="Наименование товара",
             multiline=False,
-            size_hint=(1, 1),
-            pos_hint={"x": 0, "y": 0},
+            size_hint=(None, None),
             font_size="18sp",
             # Справа оставляем место под кнопку камеры.
             padding=(dp(12), dp(12), dp(64), dp(12)),
@@ -6705,14 +6740,12 @@ class MainApp(App):
         name_camera_button = CameraIconButton(
             size_hint=(None, None),
             size=(dp(52), dp(52)),
-            pos_hint={"right": 0.995, "center_y": 0.5},
         )
         name_camera_button.bind(
             on_release=lambda *_: screen.scan_name_from_camera()
         )
 
-        name_holder.add_widget(name)
-        name_holder.add_widget(name_camera_button)
+        name_holder.set_content(name, name_camera_button)
 
         date_input = DateInput(
             hint_text="ДД.ММ.ГГ (необязательно)",
