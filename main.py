@@ -69,6 +69,7 @@ from kivy.uix.screenmanager import (
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.textinput import TextInput
 from kivy.uix.widget import Widget
+from kivy.uix.relativelayout import RelativeLayout
 
 from kivy.utils import platform
 
@@ -371,7 +372,7 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки Годности"
-BUILD_MARKER = "v20_inputs_catalog_categories"
+BUILD_MARKER = "v21_nested_categories_fixed_camera"
 
 HEADER_TITLE = "Pyton Detector"
 
@@ -1499,49 +1500,31 @@ class RoundedTextInput(TextInput):
 
 
 class ProductNameTextInput(RoundedTextInput):
-    """Name field with an OCR camera action drawn in its own coordinates."""
+    """Separate input: its scroll transform must never move the OCR icon."""
 
-    def __init__(self, on_camera=None, **kwargs):
-        self._on_camera = on_camera
+
+class CameraIconButton(ButtonBehavior, Widget):
+    """Camera drawn in a sibling canvas, outside TextInput's scroll matrix."""
+
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
-        with self.canvas.after:
+        with self.canvas:
             self._camera_icon_color = Color(*TEXT)
             self._camera_body = Line(
                 rounded_rectangle=(0, 0, 1, 1, dp(4)),
                 width=dp(1.8),
             )
-            self._camera_lens = Line(
-                circle=(0, 0, 1),
-                width=dp(1.8),
-            )
+            self._camera_lens = Line(circle=(0, 0, 1), width=dp(1.8))
             self._camera_top = Line(
-                points=[],
-                width=dp(1.8),
-                cap="round",
+                points=[], width=dp(1.8), cap="round", joint="round"
             )
-
-        self.bind(
-            pos=self._update_camera_icon,
-            size=self._update_camera_icon,
-        )
-        self._update_camera_icon()
+        self.bind(pos=self._update_icon, size=self._update_icon)
+        self._update_icon()
 
     def apply_theme(self):
-        super().apply_theme()
-        if hasattr(self, "_camera_icon_color"):
-            app = App.get_running_app()
-            theme = (
-                DARK_THEME
-                if getattr(app, "theme_name", "dark") == "dark"
-                else LIGHT_THEME
-            )
-            self._camera_icon_color.rgba = tuple(theme["TEXT"])
+        self._update_icon()
 
-    def _update_camera_icon(self, *_):
-        if not hasattr(self, "_camera_body"):
-            return
-
+    def _update_icon(self, *_):
         app = App.get_running_app()
         theme = (
             DARK_THEME
@@ -1549,41 +1532,59 @@ class ProductNameTextInput(RoundedTextInput):
             else LIGHT_THEME
         )
         self._camera_icon_color.rgba = tuple(theme["TEXT"])
-
-        icon_size = min(dp(42), self.height * 0.72)
-        center_x = self.right - dp(34)
-        center_y = self.center_y
-        body_w = icon_size * 0.58
-        body_h = icon_size * 0.42
+        icon_size = min(dp(38), self.width * 0.72, self.height * 0.72)
+        center_x, center_y = self.center
+        body_w = icon_size * 0.62
+        body_h = icon_size * 0.44
         bx = center_x - body_w / 2
         by = center_y - body_h / 2
         self._camera_body.rounded_rectangle = (
             bx, by, body_w, body_h, dp(4)
         )
         self._camera_lens.circle = (
-            center_x, center_y, icon_size * 0.12
+            center_x, center_y, icon_size * 0.13
         )
         self._camera_top.points = [
-            center_x - icon_size * 0.14,
-            by + body_h,
-            center_x - icon_size * 0.07,
-            by + body_h + icon_size * 0.10,
-            center_x + icon_size * 0.07,
-            by + body_h + icon_size * 0.10,
-            center_x + icon_size * 0.14,
-            by + body_h,
+            center_x - icon_size * 0.15, by + body_h,
+            center_x - icon_size * 0.08, by + body_h + icon_size * 0.10,
+            center_x + icon_size * 0.08, by + body_h + icon_size * 0.10,
+            center_x + icon_size * 0.15, by + body_h,
         ]
 
-    def on_touch_down(self, touch):
-        if (
-            self.collide_point(*touch.pos)
-            and touch.x >= self.right - dp(68)
-        ):
-            self.focus = False
-            if callable(self._on_camera):
-                self._on_camera()
-            return True
-        return super().on_touch_down(touch)
+
+class ProductNameField(RelativeLayout):
+    """One visual field with a fixed, clickable camera on the right."""
+
+    def __init__(self, on_camera=None, **input_kwargs):
+        field_height = input_kwargs.pop("height", dp(56))
+        size_hint_y = input_kwargs.pop("size_hint_y", None)
+        super().__init__(size_hint_y=size_hint_y, height=field_height)
+
+        input_kwargs["size_hint"] = (1, 1)
+        input_kwargs["pos_hint"] = {"x": 0, "y": 0}
+        self.text_input = ProductNameTextInput(**input_kwargs)
+        self.add_widget(self.text_input)
+
+        self.camera_button = CameraIconButton(
+            size_hint=(None, None),
+            size=(dp(58), field_height),
+        )
+        if callable(on_camera):
+            def open_camera(*_):
+                self.text_input.focus = False
+                on_camera()
+            self.camera_button.bind(on_release=open_camera)
+        self.add_widget(self.camera_button)
+
+        self.bind(size=self._layout_camera)
+        self._layout_camera()
+
+    def _layout_camera(self, *_):
+        side_width = min(dp(58), self.width)
+        self.camera_button.size = (side_width, self.height)
+        # RelativeLayout uses local child coordinates.  The icon therefore
+        # stays on the right regardless of TextInput.scroll_x on Android.
+        self.camera_button.pos = (self.width - side_width, 0)
 
 
 class RoundedPanel(BoxLayout):
@@ -2410,9 +2411,13 @@ class Database:
 
             CREATE TABLE IF NOT EXISTS categories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                parent_id INTEGER DEFAULT NULL,
                 name TEXT NOT NULL COLLATE NOCASE UNIQUE,
                 sort_order INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (parent_id)
+                    REFERENCES categories(id)
+                    ON DELETE RESTRICT
             );
 
             CREATE INDEX IF NOT EXISTS
@@ -2500,6 +2505,19 @@ class Database:
                 "ADD COLUMN created_at TEXT NOT NULL DEFAULT ''"
             )
 
+        category_columns = {
+            row["name"]
+            for row in self.conn.execute(
+                "PRAGMA table_info(categories)"
+            ).fetchall()
+        }
+        if "parent_id" not in category_columns:
+            # SQLite supports this migration without rebuilding old user DBs.
+            # Existing categories naturally remain at the top level.
+            self.conn.execute(
+                "ALTER TABLE categories ADD COLUMN parent_id INTEGER DEFAULT NULL"
+            )
+
         self.conn.execute(
             "UPDATE products SET created_at = ? "
             "WHERE TRIM(COALESCE(created_at, '')) = ''",
@@ -2523,6 +2541,12 @@ class Database:
             "CREATE INDEX IF NOT EXISTS "
             "idx_products_created_at "
             "ON products(created_at DESC)"
+        )
+
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS "
+            "idx_categories_parent_order "
+            "ON categories(parent_id, sort_order, id)"
         )
 
         # Старые базы не имели отдельного справочника категорий. Сохраняем
@@ -2582,35 +2606,94 @@ class Database:
             "DELETE FROM products"
         )
 
+        # A full reset intentionally removes the whole tree.  Detach children
+        # first so the self-referencing RESTRICT key still protects ordinary
+        # single-category deletion without blocking this explicit operation.
+        self.conn.execute(
+            "UPDATE categories SET parent_id = NULL"
+        )
+
         self.conn.execute(
             "DELETE FROM categories"
         )
 
         self.conn.commit()
 
-    def list_categories(self):
+    def list_categories(self, parent_id=None):
+        where_parent = (
+            "c.parent_id IS NULL"
+            if parent_id is None
+            else "c.parent_id = ?"
+        )
+        params = () if parent_id is None else (int(parent_id),)
         return self.conn.execute(
-            """
+            f"""
             SELECT
                 c.id,
+                c.parent_id,
                 c.name,
                 c.sort_order,
-                COUNT(p.barcode) AS product_count
+                COUNT(DISTINCT p.barcode) AS product_count,
+                COUNT(DISTINCT child.id) AS child_count
             FROM categories c
             LEFT JOIN products p
               ON p.department = c.name COLLATE NOCASE
-            GROUP BY c.id, c.name, c.sort_order
+            LEFT JOIN categories child
+              ON child.parent_id = c.id
+            WHERE {where_parent}
+            GROUP BY c.id, c.parent_id, c.name, c.sort_order
             ORDER BY c.sort_order ASC, c.id ASC
+            """
+            , params
+        ).fetchall()
+
+    def list_all_categories(self):
+        """Return every category with its readable hierarchy path."""
+        return self.conn.execute(
+            """
+            WITH RECURSIVE tree(id, parent_id, name, sort_order, path, depth) AS (
+                SELECT id, parent_id, name, sort_order, name, 0
+                FROM categories
+                WHERE parent_id IS NULL
+                UNION ALL
+                SELECT c.id, c.parent_id, c.name, c.sort_order,
+                       tree.path || '  ›  ' || c.name, tree.depth + 1
+                FROM categories c
+                JOIN tree ON c.parent_id = tree.id
+            )
+            SELECT id, parent_id, name, sort_order, path, depth
+            FROM tree
+            ORDER BY path COLLATE NOCASE
             """
         ).fetchall()
 
-    def add_category(self, name):
+    def get_category(self, category_id):
+        if category_id is None:
+            return None
+        return self.conn.execute(
+            "SELECT id, parent_id, name, sort_order FROM categories WHERE id = ?",
+            (int(category_id),),
+        ).fetchone()
+
+    def get_category_by_name(self, name):
+        return self.conn.execute(
+            "SELECT id, parent_id, name, sort_order "
+            "FROM categories WHERE name = ? COLLATE NOCASE",
+            (str(name or "").strip(),),
+        ).fetchone()
+
+    def add_category(self, name, parent_id=None):
         name = " ".join(str(name or "").strip().split())
         if not name:
             raise ValueError("Введите название категории.")
 
         if len(name) > 80:
             raise ValueError("Название категории слишком длинное.")
+
+        if parent_id is not None:
+            parent_id = int(parent_id)
+            if self.get_category(parent_id) is None:
+                raise ValueError("Родительская категория не найдена.")
 
         normalized_name = name.casefold()
         existing_names = self.conn.execute(
@@ -2623,16 +2706,19 @@ class Database:
             raise ValueError("Такая категория уже существует.")
 
         next_order = self.conn.execute(
-            "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM categories"
+            "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM categories "
+            "WHERE parent_id IS ?",
+            (parent_id,),
         ).fetchone()[0]
 
         try:
             self.conn.execute(
                 """
-                INSERT INTO categories(name, sort_order, created_at)
-                VALUES (?, ?, ?)
+                INSERT INTO categories(parent_id, name, sort_order, created_at)
+                VALUES (?, ?, ?, ?)
                 """,
                 (
+                    parent_id,
                     name,
                     next_order,
                     datetime.now().isoformat(timespec="seconds"),
@@ -2689,6 +2775,15 @@ class Database:
         if product_count:
             raise ValueError(
                 "В этой категории есть товары. Сначала перенесите или удалите их."
+            )
+
+        child_count = self.conn.execute(
+            "SELECT COUNT(*) FROM categories WHERE parent_id = ?",
+            (int(category_id),),
+        ).fetchone()[0]
+        if child_count:
+            raise ValueError(
+                "В этой категории есть вложенные категории. Сначала удалите их."
             )
 
         self.conn.execute(
@@ -3851,7 +3946,9 @@ class HomeScreen(BaseScreen):
             self.product_list.clear_widgets()
             self.current_page = 0
             self._update_pagination_controls()
-            self._show_empty()
+            child_count = self._add_subcategory_cards()
+            if child_count == 0:
+                self._show_empty()
             if on_complete is not None:
                 Clock.schedule_once(on_complete, 0)
             return
@@ -3876,6 +3973,8 @@ class HomeScreen(BaseScreen):
         page = max(0, min(int(page), total_pages - 1))
         self.current_page = page
         self.product_list.clear_widgets()
+        if page == 0:
+            self._add_subcategory_cards()
         self._update_pagination_controls()
         self.product_scroll.scroll_y = 1
 
@@ -3974,6 +4073,74 @@ class HomeScreen(BaseScreen):
             add_next_batch,
             0,
         )
+
+    def _add_subcategory_cards(self):
+        """Put direct child categories before the current category's goods."""
+        parent_id = getattr(self.app, "current_category_id", None)
+        if parent_id is None:
+            return 0
+
+        categories = list(self.app.db.list_categories(parent_id))
+        if not categories:
+            return 0
+
+        title = Label(
+            text="[b]Вложенные категории[/b]",
+            markup=True,
+            color=TEXT,
+            font_size="15sp",
+            size_hint_y=None,
+            height=dp(34),
+            halign="left",
+            valign="middle",
+        )
+        title.bind(
+            size=lambda instance, value: setattr(instance, "text_size", value)
+        )
+        self.product_list.add_widget(title)
+
+        for category in categories:
+            row = BoxLayout(
+                orientation="horizontal",
+                size_hint_y=None,
+                height=dp(56),
+                spacing=dp(8),
+            )
+            open_button = RoundedButton(
+                text="›  " + category["name"],
+                font_size="14sp",
+                halign="left",
+                valign="middle",
+                padding=(dp(18), dp(9)),
+                normal_color=CARD,
+                down_color=BUTTON_BG_DOWN,
+                size_hint_x=0.84,
+            )
+            open_button.bind(
+                size=lambda instance, value: setattr(
+                    instance, "text_size", (value[0] - dp(36), value[1])
+                )
+            )
+            open_button.bind(
+                on_release=lambda _button, row=category:
+                self.app.select_department(row["name"], row["id"])
+            )
+            delete_button = RoundedButton(
+                text="×",
+                font_size="22sp",
+                normal_color=BUTTON_BG,
+                down_color=ACCENT_RED_DOWN,
+                size_hint_x=0.16,
+            )
+            delete_button.bind(
+                on_release=lambda _button, row=category:
+                self.app.confirm_delete_category(row)
+            )
+            row.add_widget(open_button)
+            row.add_widget(delete_button)
+            self.product_list.add_widget(row)
+
+        return len(categories)
 
     def change_page(self, delta):
         target = self.current_page + int(delta)
@@ -4803,6 +4970,12 @@ class AddProductScreen(BaseScreen):
 
         if target_department:
             self.app.current_department = target_department
+            target_category = self.app.db.get_category_by_name(
+                target_department
+            )
+            self.app.current_category_id = (
+                target_category["id"] if target_category else None
+            )
 
         self._save_in_progress = True
 
@@ -5708,6 +5881,7 @@ class MainApp(App):
         current_department = (
             self.current_department
         )
+        current_category_id = getattr(self, "current_category_id", None)
 
         Window.clearcolor = BG
 
@@ -5741,6 +5915,7 @@ class MainApp(App):
         self.current_department = (
             current_department
         )
+        self.current_category_id = current_category_id
 
         if target_screen not in {
             "departments",
@@ -5769,6 +5944,7 @@ class MainApp(App):
         )
 
         self.current_department = None
+        self.current_category_id = None
         self.pending_photo_screen = None
         self.pending_ocr_screen = None
 
@@ -6041,7 +6217,7 @@ class MainApp(App):
             return False
 
         if self.sm.current == "home":
-            self.open_departments()
+            self.open_parent_category()
             return True
 
         if self.sm.current == "settings":
@@ -6337,7 +6513,7 @@ class MainApp(App):
             row.add_widget(delete_button)
             container.add_widget(row)
 
-    def open_add_category_dialog(self):
+    def open_add_category_dialog(self, parent_id=None, on_added=None):
         overlay = ModalView(
             size_hint=(1, 1),
             background="",
@@ -6356,9 +6532,15 @@ class MainApp(App):
             radius=24,
         )
 
+        parent = self.db.get_category(parent_id)
+        title_text = (
+            f"Новая категория в «{parent['name']}»"
+            if parent is not None
+            else "Новая категория"
+        )
         title = Label(
-            text="[b]Новая категория[/b]",
-            markup=True,
+            text=title_text,
+            bold=True,
             color=TEXT,
             font_size="19sp",
             size_hint_y=None,
@@ -6414,13 +6596,18 @@ class MainApp(App):
 
         def add_category(*_):
             try:
-                self.db.add_category(category_input.text)
+                self.db.add_category(category_input.text, parent_id=parent_id)
             except ValueError as exc:
                 error_label.text = str(exc)
                 return
 
             overlay.dismiss()
-            self.populate_categories()
+            if callable(on_added):
+                on_added()
+            elif parent_id is None:
+                self.populate_categories()
+            else:
+                self.sm.get_screen("home").refresh(page=0)
 
         cancel.bind(on_release=lambda *_: overlay.dismiss())
         save.bind(on_release=add_category)
@@ -6445,11 +6632,19 @@ class MainApp(App):
     def confirm_delete_category(self, category):
         category_name = category["name"]
         product_count = int(category["product_count"] or 0)
+        child_count = int(category["child_count"] or 0)
 
         if product_count:
             self.message(
                 f"В категории «{category_name}» есть товары: {product_count}.\n\n"
                 "Сначала перенесите или удалите их."
+            )
+            return
+
+        if child_count:
+            self.message(
+                f"В категории «{category_name}» есть вложенные категории: "
+                f"{child_count}.\n\nСначала удалите их."
             )
             return
 
@@ -6462,7 +6657,10 @@ class MainApp(App):
 
             if self.current_department == category_name:
                 self.current_department = None
+                self.current_category_id = None
             self.populate_categories()
+            if self.sm.current == "home":
+                self.sm.get_screen("home").refresh(page=0)
 
         self._open_rounded_dialog(
             message_text=(
@@ -6522,14 +6720,28 @@ class MainApp(App):
 
         add_button = RoundedButton(
             text="+  Добавить срок",
-            font_size="16sp",
+            font_size="14sp",
             normal_color=ACCENT_RED,
             down_color=ACCENT_RED_DOWN,
-            size_hint_x=0.82,
+            size_hint_x=0.45,
         )
         add_button.bind(
             on_release=lambda *_:
             self.start_barcode_scanner()
+        )
+
+        add_category_button = RoundedButton(
+            text="Добавить категорию",
+            font_size="11sp",
+            normal_color=ACCENT_RED,
+            down_color=ACCENT_RED_DOWN,
+            size_hint_x=0.37,
+        )
+        add_category_button.bind(
+            on_release=lambda *_: self.open_add_category_dialog(
+                parent_id=getattr(self, "current_category_id", None),
+                on_added=lambda: screen.refresh(page=0),
+            )
         )
 
         sort_button = RoundedImageButton(
@@ -6542,6 +6754,7 @@ class MainApp(App):
         )
 
         actions.add_widget(add_button)
+        actions.add_widget(add_category_button)
         actions.add_widget(sort_button)
 
         root.add_widget(actions)
@@ -6724,7 +6937,7 @@ class MainApp(App):
             screen.on_barcode_change
         )
 
-        name = ProductNameTextInput(
+        name_field = ProductNameField(
             on_camera=screen.scan_name_from_camera,
             hint_text="Наименование товара",
             multiline=False,
@@ -6762,9 +6975,7 @@ class MainApp(App):
             barcode
         )
 
-        root.add_widget(
-            name
-        )
+        root.add_widget(name_field)
 
         root.add_widget(
             date_input
@@ -6951,9 +7162,7 @@ class MainApp(App):
             barcode
         )
 
-        screen.name_input = (
-            name
-        )
+        screen.name_input = name_field.text_input
 
         screen.date_input = (
             date_input
@@ -7873,24 +8082,37 @@ class MainApp(App):
 
         if department:
             self.current_department = department
+            category = self.db.get_category_by_name(department)
+            self.current_category_id = category["id"] if category else None
 
         self.open_product(
             product["barcode"]
         )
 
-    def select_department(self, department):
+    def select_department(self, department, category_id=None):
         if getattr(self, "_department_load_in_progress", False):
             return
 
         self._department_load_in_progress = True
         self.current_department = department
+        if category_id is None:
+            category = self.db.get_category_by_name(department)
+            category_id = category["id"] if category else None
+        self.current_category_id = category_id
         self._show_department_loading()
 
         def open_selected_department(*_):
             try:
                 # on_pre_enter сам обновляет HomeScreen. Раньше refresh()
                 # вызывался ещё раз здесь, удваивая время открытия отдела.
+                already_home = self.sm.current == "home"
                 self.sm.current = "home"
+                if already_home:
+                    self.sm.get_screen("home").refresh(
+                        page=0,
+                        incremental=True,
+                        on_complete=self._hide_department_loading,
+                    )
                 self._refresh_global_text_color()
             except Exception as exc:
                 print("department loading error:", exc)
@@ -7902,6 +8124,19 @@ class MainApp(App):
             open_selected_department,
             0.06,
         )
+
+    def open_parent_category(self):
+        current = self.db.get_category(
+            getattr(self, "current_category_id", None)
+        )
+        if current is not None and current["parent_id"] is not None:
+            parent = self.db.get_category(current["parent_id"])
+            if parent is not None:
+                self.select_department(parent["name"], parent["id"])
+                return
+        self.current_department = None
+        self.current_category_id = None
+        self.open_departments()
 
     def open_home(self):
 
@@ -8808,6 +9043,7 @@ class MainApp(App):
             )
 
             self.current_department = None
+            self.current_category_id = None
             self.open_departments()
 
         except Exception as exc:
@@ -9083,6 +9319,7 @@ class MainApp(App):
             )
 
             self.current_department = None
+            self.current_category_id = None
             self.open_departments()
 
         except Exception as exc:
@@ -9147,6 +9384,7 @@ class MainApp(App):
         def do_clear():
             self.db.clear_all()
             self.current_department = None
+            self.current_category_id = None
             self.message(
                 "База полностью очищена."
             )
@@ -9310,7 +9548,7 @@ class MainApp(App):
             self.message("Товар не найден.")
             return
 
-        categories = list(self.db.list_categories())
+        categories = list(self.db.list_all_categories())
         if not categories:
             self.message("Сначала добавьте хотя бы одну категорию.")
             return
@@ -9347,9 +9585,10 @@ class MainApp(App):
 
         current = str(product["department"] or "")
 
-        def choose_category(_button, category_name):
+        def choose_category(_button, category_name, category_id):
             if self.db.move_product_to_category(barcode, category_name):
                 self.current_department = category_name
+                self.current_category_id = category_id
                 overlay.dismiss()
                 self.sm.get_screen("product").load(barcode)
             else:
@@ -9360,15 +9599,15 @@ class MainApp(App):
             category_name = row["name"]
             selected = category_name.casefold() == current.casefold()
             button = RoundedButton(
-                text=("• " if selected else "") + category_name,
+                text=("• " if selected else "") + row["path"],
                 size_hint_y=None,
                 height=dp(52),
                 font_size="14sp",
                 disabled=selected,
             )
             button.bind(
-                on_release=lambda btn, value=category_name:
-                choose_category(btn, value)
+                on_release=lambda btn, value=category_name, cid=row["id"]:
+                choose_category(btn, value, cid)
             )
             choices.add_widget(button)
 
@@ -9425,6 +9664,7 @@ class MainApp(App):
             )
 
             self.current_department = None
+            self.current_category_id = None
             self.open_departments()
 
         except Exception as exc:
@@ -9491,5 +9731,5 @@ class MainApp(App):
 
 if __name__ == "__main__":
 
-    print("PYTON DETECTOR UI BUILD: v20_inputs_catalog_categories")
+    print("PYTON DETECTOR UI BUILD: v21_nested_categories_fixed_camera")
     MainApp().run()
