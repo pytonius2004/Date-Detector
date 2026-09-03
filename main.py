@@ -57,7 +57,6 @@ from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.modalview import ModalView
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
-from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.button import Button
 from kivy.uix.image import Image, AsyncImage
 from kivy.uix.label import Label
@@ -1348,10 +1347,10 @@ class RoundedTextInput(TextInput):
                     )
                     self._value_rect.size = (shown_w, tex_h)
                     self._value_rect.tex_coords = (
-                        left_u, 0,
-                        1, 0,
-                        1, 1,
                         left_u, 1,
+                        1, 1,
+                        1, 0,
+                        left_u, 0,
                     )
                 else:
                     self._value_canvas_color.rgba = (1, 1, 1, 0)
@@ -1499,90 +1498,92 @@ class RoundedTextInput(TextInput):
         self._update_search_visuals()
 
 
-class CameraIconButton(ButtonBehavior, Widget):
-    """Компактная кнопка камеры, полностью нарисованная Kivy canvas."""
+class ProductNameTextInput(RoundedTextInput):
+    """Name field with an OCR camera action drawn in its own coordinates."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, on_camera=None, **kwargs):
+        self._on_camera = on_camera
         super().__init__(**kwargs)
-        with self.canvas.before:
-            self._camera_bg_color = Color(*INPUT_BG)
-            self._camera_bg = RoundedRectangle(
-                pos=self.pos, size=self.size, radius=[dp(18)]
-            )
+
         with self.canvas.after:
             self._camera_icon_color = Color(*TEXT)
             self._camera_body = Line(
                 rounded_rectangle=(0, 0, 1, 1, dp(4)),
                 width=dp(1.8),
             )
-            self._camera_lens = Line(circle=(0, 0, 1), width=dp(1.8))
-            self._camera_top = Line(points=[], width=dp(1.8), cap="round")
+            self._camera_lens = Line(
+                circle=(0, 0, 1),
+                width=dp(1.8),
+            )
+            self._camera_top = Line(
+                points=[],
+                width=dp(1.8),
+                cap="round",
+            )
+
         self.bind(
             pos=self._update_camera_icon,
             size=self._update_camera_icon,
-            state=self._update_camera_icon,
         )
         self._update_camera_icon()
 
+    def apply_theme(self):
+        super().apply_theme()
+        if hasattr(self, "_camera_icon_color"):
+            app = App.get_running_app()
+            theme = (
+                DARK_THEME
+                if getattr(app, "theme_name", "dark") == "dark"
+                else LIGHT_THEME
+            )
+            self._camera_icon_color.rgba = tuple(theme["TEXT"])
+
     def _update_camera_icon(self, *_):
+        if not hasattr(self, "_camera_body"):
+            return
+
         app = App.get_running_app()
-        theme = DARK_THEME if getattr(app, "theme_name", "dark") == "dark" else LIGHT_THEME
-        self._camera_bg.pos = self.pos
-        self._camera_bg.size = self.size
-        self._camera_bg_color.rgba = (
-            tuple(theme["INPUT_BG_FOCUS"]) if self.state == "down" else tuple(theme["INPUT_BG"])
+        theme = (
+            DARK_THEME
+            if getattr(app, "theme_name", "dark") == "dark"
+            else LIGHT_THEME
         )
         self._camera_icon_color.rgba = tuple(theme["TEXT"])
 
-        w = min(self.width, self.height)
-        body_w = w * 0.46
-        body_h = w * 0.32
-        bx = self.center_x - body_w / 2
-        by = self.center_y - body_h / 2
-        self._camera_body.rounded_rectangle = (bx, by, body_w, body_h, dp(4))
-        self._camera_lens.circle = (self.center_x, self.center_y, w * 0.095)
+        icon_size = min(dp(42), self.height * 0.72)
+        center_x = self.right - dp(34)
+        center_y = self.center_y
+        body_w = icon_size * 0.58
+        body_h = icon_size * 0.42
+        bx = center_x - body_w / 2
+        by = center_y - body_h / 2
+        self._camera_body.rounded_rectangle = (
+            bx, by, body_w, body_h, dp(4)
+        )
+        self._camera_lens.circle = (
+            center_x, center_y, icon_size * 0.12
+        )
         self._camera_top.points = [
-            self.center_x - w * 0.11, by + body_h,
-            self.center_x - w * 0.055, by + body_h + w * 0.075,
-            self.center_x + w * 0.055, by + body_h + w * 0.075,
-            self.center_x + w * 0.11, by + body_h,
+            center_x - icon_size * 0.14,
+            by + body_h,
+            center_x - icon_size * 0.07,
+            by + body_h + icon_size * 0.10,
+            center_x + icon_size * 0.07,
+            by + body_h + icon_size * 0.10,
+            center_x + icon_size * 0.14,
+            by + body_h,
         ]
 
-
-class NameInputLayout(FloatLayout):
-    """Keeps the OCR camera button embedded in the name field."""
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.name_input = None
-        self.camera_button = None
-        self.bind(
-            pos=self._update_content_geometry,
-            size=self._update_content_geometry,
-        )
-
-    def set_content(self, name_input, camera_button):
-        self.name_input = name_input
-        self.camera_button = camera_button
-        self.add_widget(name_input)
-        self.add_widget(camera_button)
-        self._update_content_geometry()
-        Clock.schedule_once(self._update_content_geometry, 0)
-
-    def _update_content_geometry(self, *_):
-        if self.name_input is None or self.camera_button is None:
-            return
-
-        self.name_input.pos = self.pos
-        self.name_input.size = self.size
-
-        side = min(dp(52), max(0, self.height))
-        self.camera_button.size = (side, side)
-        self.camera_button.pos = (
-            self.right - side - dp(2),
-            self.y + (self.height - side) / 2,
-        )
-        self.camera_button._update_camera_icon()
+    def on_touch_down(self, touch):
+        if (
+            self.collide_point(*touch.pos)
+            and touch.x >= self.right - dp(68)
+        ):
+            self.focus = False
+            if callable(self._on_camera):
+                self._on_camera()
+            return True
+        return super().on_touch_down(touch)
 
 
 class RoundedPanel(BoxLayout):
@@ -6723,29 +6724,16 @@ class MainApp(App):
             screen.on_barcode_change
         )
 
-        name_holder = NameInputLayout(
-            size_hint_y=None,
-            height=dp(56),
-        )
-
-        name = RoundedTextInput(
+        name = ProductNameTextInput(
+            on_camera=screen.scan_name_from_camera,
             hint_text="Наименование товара",
             multiline=False,
-            size_hint=(None, None),
+            size_hint_y=None,
+            height=dp(56),
             font_size="18sp",
             # Справа оставляем место под кнопку камеры.
             padding=(dp(12), dp(12), dp(64), dp(12)),
         )
-
-        name_camera_button = CameraIconButton(
-            size_hint=(None, None),
-            size=(dp(52), dp(52)),
-        )
-        name_camera_button.bind(
-            on_release=lambda *_: screen.scan_name_from_camera()
-        )
-
-        name_holder.set_content(name, name_camera_button)
 
         date_input = DateInput(
             hint_text="ДД.ММ.ГГ (необязательно)",
@@ -6775,7 +6763,7 @@ class MainApp(App):
         )
 
         root.add_widget(
-            name_holder
+            name
         )
 
         root.add_widget(
