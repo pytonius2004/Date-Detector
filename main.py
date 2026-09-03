@@ -377,7 +377,7 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки Годности"
-BUILD_MARKER = "v23_selver_subcategories_action_row"
+BUILD_MARKER = "v24_full_bleed_launcher_icon"
 
 HEADER_TITLE = "Pyton Detector"
 
@@ -9741,5 +9741,5 @@ class MainApp(App):
 
 if __name__ == "__main__":
 
-    print("PYTON DETECTOR UI BUILD: v23_selver_subcategories_action_row")
+    print("PYTON DETECTOR UI BUILD: v24_full_bleed_launcher_icon")
     MainApp().run()
