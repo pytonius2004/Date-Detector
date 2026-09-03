@@ -172,6 +172,26 @@ jobs:
           buildozer android debug
 
 
+      - name: Verify packaged application
+        run: |
+
+          APK_PATH="$(find bin -maxdepth 1 -name '*.apk' -print -quit)"
+
+          test -n "$APK_PATH"
+
+          VERIFY_DIR="$(mktemp -d)"
+
+          unzip -p "$APK_PATH" assets/private.tar > "$VERIFY_DIR/private.tar"
+
+          tar -xf "$VERIFY_DIR/private.tar" -C "$VERIFY_DIR" main.pyc
+
+          grep -aFq "v22_nested_categories_fixed_camera" "$VERIFY_DIR/main.pyc"
+
+          grep -aFq "ProductNameField" "$VERIFY_DIR/main.pyc"
+
+          echo "Verified v22 application code inside APK."
+
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
 

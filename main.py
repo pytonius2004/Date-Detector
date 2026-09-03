@@ -372,7 +372,7 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки Годности"
-BUILD_MARKER = "v21_nested_categories_fixed_camera"
+BUILD_MARKER = "v22_nested_categories_fixed_camera"
 
 HEADER_TITLE = "Pyton Detector"
 
@@ -9731,5 +9731,5 @@ class MainApp(App):
 
 if __name__ == "__main__":
 
-    print("PYTON DETECTOR UI BUILD: v21_nested_categories_fixed_camera")
+    print("PYTON DETECTOR UI BUILD: v22_nested_categories_fixed_camera")
     MainApp().run()
