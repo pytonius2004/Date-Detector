@@ -185,7 +185,7 @@ jobs:
 
           tar -xf "$VERIFY_DIR/private.tar" -C "$VERIFY_DIR" main.pyc
 
-          grep -aFq "v22_nested_categories_fixed_camera" "$VERIFY_DIR/main.pyc"
+          grep -aFq "v23_selver_subcategories_action_row" "$VERIFY_DIR/main.pyc"
 
           grep -aFq "ProductNameField" "$VERIFY_DIR/main.pyc"
 

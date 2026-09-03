@@ -52,6 +52,172 @@ TOP_LEVEL_MAP = {
     "hulgipakkumised": "Большие упаковки",
     "suurpakendid": "Большие упаковки",
     "selver gurmee": "Готовые продукты",
+    "juustud": "Сыры",
+    "kinkekaardid": "Товары для досуга",
+}
+
+# Selver publishes the hierarchy in ``klevu_category``.  Keep the same
+# grouping in the offline database, but show the leaf names in Russian.
+# Names are intentionally unique because older application databases used a
+# global UNIQUE constraint for categories.
+SUBCATEGORY_MAP = {
+    "puu- ja köögiviljad": {
+        "köögiviljad, juurviljad": "Овощи и корнеплоды",
+        "maitsetaimed, värsked salatid, piprad, idud": "Зелень, салаты, перцы и проростки",
+        "marjad": "Ягоды",
+        "seened": "Грибы",
+        "smuutid, värsked mahlad": "Смузи и свежие соки",
+        "troopilised, eksootilised viljad": "Тропические и экзотические фрукты",
+        "õunad, pirnid": "Яблоки и груши",
+    },
+    "liha- ja kalatooted": {
+        "grillvorstid, verivorstid": "Колбаски для гриля и кровяные колбасы",
+        "gurmee lihatooted": "Мясные деликатесы",
+        "hakkliha": "Фарш",
+        "keedu- ja suitsuvorstid, viinerid": "Варёные и копчёные колбасы, сосиски",
+        "linnuliha": "Мясо птицы",
+        "muud kalatooted": "Другие рыбные продукты",
+        "muud lihatooted": "Другие мясные продукты",
+        "sealiha": "Свинина",
+        "singid, rulaadid": "Ветчина и рулеты",
+        "soolatud ja suitsutatud kalatooted": "Солёная и копчёная рыба",
+        "töödeldud mereannid": "Обработанные морепродукты",
+        "veise-, lamba- ja ulukiliha": "Говядина, баранина и дичь",
+        "värske kala, mereannid": "Свежая рыба и морепродукты",
+    },
+    "piimatooted, munad, võid": {
+        "jogurtid, jogurtijoogid": "Йогурты и йогуртные напитки",
+        "kohukesed": "Творожные сырки",
+        "kohupiimad, kodujuustud": "Творог и зернёный творог",
+        "munad": "Яйца",
+        "muud magustoidud": "Молочные десерты",
+        "piimad, koored": "Молоко и сливки",
+        "võid, margariinid": "Сливочное масло и маргарин",
+    },
+    "juustud": {
+        "juustud": "Классические сыры",
+        "määrdejuustud": "Сыры, которые можно намазывать",
+        "delikatessjuustud": "Деликатесные сыры",
+    },
+    "leivad, saiad, kondiitritooted": {
+        "koogid, rullbiskviidid, tainad": "Пироги, рулеты и тесто",
+        "leivad": "Хлеб",
+        "näkileivad": "Хлебцы",
+        "saiad": "Белый хлеб и батоны",
+        "saiakesed, stritslid, kringlid": "Булочки, плетёнки и крендели",
+        "selveri pagarid": "Выпечка Selver",
+        "sepikud, kuklid, lavašid": "Зерновой хлеб, булочки и лаваш",
+        "tordid": "Торты",
+    },
+    "valmistoidud": {
+        "jahutatud valmistoidud": "Охлаждённые готовые блюда",
+        "magustoidud": "Готовые десерты",
+        "salatid": "Готовые салаты",
+        "sushi": "Суши",
+    },
+    "selver gurmee": {
+        "hoidised": "Консервы Selver Gurmee",
+        "kuivained": "Бакалея Selver Gurmee",
+        "lihatooted": "Мясо Selver Gurmee",
+    },
+    "kuivained, hommikusöögid, hoidised": {
+        "hoidised": "Консервы",
+        "kuivained, hommikusöögid": "Бакалея и завтраки",
+    },
+    "maailma köök, maitseained, puljongid": {
+        "maailma köök": "Продукты мировой кухни",
+        "maitseained": "Приправы",
+        "puljongid": "Бульоны",
+    },
+    "kastmed, õlid": {
+        "ketšupid, tomatipastad, kastmed": "Кетчупы, томатные пасты и соусы",
+        "majoneesid, sinepid": "Майонезы и горчица",
+        "õlid, äädikad": "Растительные масла и уксусы",
+    },
+    "maiustused, küpsised, näksid": {
+        "kommikarbid": "Коробки конфет",
+        "kommipakid": "Пакеты конфет",
+        "küpsised": "Печенье",
+        "muud maiustused": "Другие сладости",
+        "näkileivad": "Сладкие хлебцы",
+        "nätsud, pastillid": "Жевательная резинка и пастилки",
+        "pähklid ja kuivatatud puuviljad": "Орехи и сухофрукты",
+        "sipsid": "Чипсы и снеки",
+        "šokolaadid": "Шоколад",
+    },
+    "külmutatud toidukaubad": {
+        "jäätised": "Мороженое",
+        "külmutatud köögiviljad, marjad, puuviljad": "Замороженные овощи, ягоды и фрукты",
+        "külmutatud liha- ja kalatooted": "Замороженное мясо и рыба",
+        "külmutatud tainad ja kondiitritooted": "Замороженное тесто и выпечка",
+        "külmutatud valmistooted": "Замороженные готовые продукты",
+    },
+    "joogid": {
+        "kange alkohol": "Крепкий алкоголь",
+        "karastus- ja energiajoogid, toonikud": "Газированные, энергетические напитки и тоники",
+        "kohv, tee, kakao": "Кофе, чай и какао",
+        "lahja alkohol": "Слабоалкогольные напитки",
+        "spordijoogid, pulbrid, batoonid": "Спортивные напитки, смеси и батончики",
+        "veed, mahlad, siirupid, smuutid": "Вода, соки, сиропы и смузи",
+        "välgumihklid ja tikud": "Зажигалки и спички",
+    },
+    "lastekaubad": {
+        "beebi hooldusvahendid": "Уход за младенцами",
+        "laste sokid, sukad, pesu": "Детские носки, колготки и бельё",
+        "lastetoidud": "Детское питание",
+        "mähkmed": "Подгузники",
+        "tarvikud": "Детские принадлежности",
+    },
+    "lemmikloomakaubad": {
+        "kala- ja linnutoidud": "Корм для рыб и птиц",
+        "kassitoidud": "Корм для кошек",
+        "koeratoidud": "Корм для собак",
+        "lemmikloomatarbed": "Принадлежности для питомцев",
+        "väikeloomatoidud": "Корм для мелких животных",
+    },
+    "enesehooldustarbed": {
+        "dekoratiivkosmeetika tooted": "Декоративная косметика",
+        "juuksehooldus": "Уход за волосами",
+        "kehahooldus": "Уход за телом",
+        "näohooldus": "Уход за лицом",
+        "suuhooldus": "Уход за полостью рта",
+        "tervisekaubad": "Товары для здоровья",
+    },
+    "majapidamis- ja kodukaubad": {
+        "aiakaubad": "Товары для сада",
+        "kodutehnika": "Бытовая техника",
+        "köögitarbed": "Кухонные принадлежности",
+        "muud majapidamise kaubad": "Другие хозяйственные товары",
+        "paberitooted": "Бумажные товары",
+        "puhastus-ja koristusvahendid": "Средства для уборки",
+        "rõivaste ja jalatsite hooldus": "Уход за одеждой и обувью",
+        "sisustuskaubad": "Предметы интерьера",
+        "tekid, padjad, tekstiil": "Одеяла, подушки и текстиль",
+        "vannitoa- ja saunatarvikud": "Принадлежности для ванной и сауны",
+    },
+    "vabaajakaubad": {
+        "autokaubad": "Автотовары",
+        "garderoobikaubad": "Одежда и аксессуары",
+        "kontori- ja koolitarbed": "Офисные и школьные принадлежности",
+        "meedia": "Медиа",
+        "mänguasjad": "Игрушки",
+        "raamatud, ajalehed, ajakirjad, kinkekaardid ja kõnekaardid": "Книги, пресса и подарочные карты",
+        "reisi- ja matkatarbed": "Товары для путешествий и туризма",
+        "sportimisevahendid": "Спортивные товары",
+    },
+    "pühade- ja tähtpäevakaubad": {
+        "jõulukaubad": "Новогодние товары",
+        "kingiideed": "Идеи для подарков",
+    },
+    "selveri köögi peolaud": {
+        "eelroad": "Праздничные закуски",
+        "kondiitritooted": "Праздничные кондитерские изделия",
+        "pagaritooted": "Праздничная выпечка",
+        "põhiroad": "Праздничные основные блюда",
+        "suupisted": "Закуски для праздника",
+        "valikud": "Праздничные наборы",
+    },
+    "suurpakendid": {"lihatooted": "Мясные продукты большими упаковками"},
 }
 
 CATEGORY_ORDER = [
@@ -126,13 +292,9 @@ def category_parts(record: dict) -> tuple[str, str]:
     return "", str(record.get("category") or "").split(";;", 1)[0].strip()
 
 
-def russian_category(record: dict) -> tuple[str, str]:
+def russian_category(record: dict) -> tuple[str, str, str]:
     top, sub = category_parts(record)
-    combined = f"{top} {sub}".casefold()
     name = str(record.get("name") or "").casefold()
-    if "juust" in combined:
-        return "Сыры", f"{top} / {sub}".strip(" /")
-
     mapped = TOP_LEVEL_MAP.get(top.casefold())
     if not mapped:
         if any(word in name for word in ("salvrät", "vatipad", "vatitik")):
@@ -143,7 +305,11 @@ def russian_category(record: dict) -> tuple[str, str]:
             mapped = "Хлеб, булка, кондитерские изделия"
         else:
             mapped = "Товары для досуга"
-    return mapped, f"{top} / {sub}".strip(" /")
+
+    leaf = SUBCATEGORY_MAP.get(top.casefold(), {}).get(sub.casefold())
+    if not leaf:
+        leaf = f"Прочее — {mapped}"
+    return mapped, leaf, f"{top} / {sub}".strip(" /")
 
 
 def download_all() -> tuple[list[dict], int]:
@@ -165,13 +331,15 @@ def download_all() -> tuple[list[dict], int]:
 
 def write_database(path: Path, records: list[dict], expected_total: int) -> None:
     rows: dict[str, tuple[str, str, str, str, str, str]] = {}
+    hierarchy: dict[str, str] = {}
     missing = 0
     for record in records:
         barcode = extract_barcode(record)
         if not barcode:
             missing += 1
             continue
-        department, source_category = russian_category(record)
+        parent_category, department, source_category = russian_category(record)
+        hierarchy[department] = parent_category
         rows[barcode] = (
             barcode,
             str(record.get("name") or "").strip(),
@@ -225,14 +393,17 @@ def write_database(path: Path, records: list[dict], expected_total: int) -> None
             );
             CREATE TABLE categories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                parent_id INTEGER DEFAULT NULL,
                 name TEXT NOT NULL COLLATE NOCASE UNIQUE,
                 sort_order INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE RESTRICT
             );
             CREATE INDEX idx_products_department ON products(department);
             CREATE INDEX idx_products_name ON products(name COLLATE NOCASE);
             CREATE INDEX idx_products_created_at ON products(created_at DESC);
             CREATE INDEX idx_categories_sort_order ON categories(sort_order, id);
+            CREATE INDEX idx_categories_parent ON categories(parent_id, sort_order, id);
             CREATE UNIQUE INDEX idx_barcode_expiration ON expirations(barcode, exp_date);
             CREATE INDEX idx_active_expirations ON expirations(barcode, written_off, exp_date);
             """
@@ -271,25 +442,30 @@ def write_database(path: Path, records: list[dict], expected_total: int) -> None
             inventory_rows,
         )
 
-        available_categories = {row[2] for row in rows.values()}
-        ordered_categories = [
-            category for category in CATEGORY_ORDER
-            if category in available_categories
-        ]
-        ordered_categories.extend(
-            sorted(available_categories - set(ordered_categories), key=str.casefold)
-        )
-        connection.executemany(
-            "INSERT INTO categories(name, sort_order, created_at) VALUES (?, ?, ?)",
-            [
-                (
-                    category,
-                    index,
-                    generated_at.isoformat(timespec="microseconds"),
-                )
-                for index, category in enumerate(ordered_categories)
-            ],
-        )
+        available_parents = set(hierarchy.values())
+        ordered_parents = [c for c in CATEGORY_ORDER if c in available_parents]
+        ordered_parents.extend(sorted(available_parents - set(ordered_parents), key=str.casefold))
+        parent_ids: dict[str, int] = {}
+        timestamp = generated_at.isoformat(timespec="microseconds")
+        for index, category in enumerate(ordered_parents):
+            cursor = connection.execute(
+                "INSERT INTO categories(parent_id, name, sort_order, created_at) VALUES (NULL, ?, ?, ?)",
+                (category, index, timestamp),
+            )
+            parent_ids[category] = int(cursor.lastrowid)
+
+        for parent in ordered_parents:
+            children = sorted(
+                (leaf for leaf, owner in hierarchy.items() if owner == parent),
+                key=str.casefold,
+            )
+            connection.executemany(
+                "INSERT INTO categories(parent_id, name, sort_order, created_at) VALUES (?, ?, ?, ?)",
+                [
+                    (parent_ids[parent], child, index, timestamp)
+                    for index, child in enumerate(children)
+                ],
+            )
         connection.executemany(
             "INSERT INTO catalog_meta(key, value) VALUES (?, ?)",
             [
@@ -298,6 +474,7 @@ def write_database(path: Path, records: list[dict], expected_total: int) -> None
                 ("source_total", str(expected_total)),
                 ("catalog_rows", str(len(rows))),
                 ("missing_barcode", str(missing)),
+                ("category_levels", "2"),
             ],
         )
         connection.commit()

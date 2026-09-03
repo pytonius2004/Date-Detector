@@ -11,7 +11,7 @@ source.include_exts = py,png,jpg,jpeg,webp,kv,atlas,json,db,ttf
 
 source.exclude_dirs = .git,.github,.buildozer,bin,venv,__pycache__
 
-version = 0.0.8
+version = 0.0.9
 
 
 # =========================================================

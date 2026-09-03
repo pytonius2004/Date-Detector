@@ -292,6 +292,11 @@ ACCENT_RED_DOWN = (
     1,
 )
 
+# Второй акцент для разделов. Он достаточно контрастный и в светлой, и в
+# тёмной теме, а белая подпись не зависит от пользовательского цвета текста.
+SECTION_TEAL = (0.04, 0.43, 0.46, 1)
+SECTION_TEAL_DOWN = (0.025, 0.33, 0.35, 1)
+
 Window.clearcolor = BG
 
 
@@ -372,7 +377,7 @@ if ANDROID:
 # =========================================================
 
 APP_TITLE = "Сроки Годности"
-BUILD_MARKER = "v22_nested_categories_fixed_camera"
+BUILD_MARKER = "v23_selver_subcategories_action_row"
 
 HEADER_TITLE = "Pyton Detector"
 
@@ -6534,7 +6539,7 @@ class MainApp(App):
 
         parent = self.db.get_category(parent_id)
         title_text = (
-            f"Новая категория в «{parent['name']}»"
+            f"Новый раздел в «{parent['name']}»"
             if parent is not None
             else "Новая категория"
         )
@@ -6553,7 +6558,11 @@ class MainApp(App):
         )
 
         category_input = RoundedTextInput(
-            hint_text="Название категории",
+            hint_text=(
+                "Название раздела"
+                if parent is not None
+                else "Название категории"
+            ),
             hint_text_color=TEXT_SECONDARY,
             multiline=False,
             size_hint_y=None,
@@ -6720,10 +6729,10 @@ class MainApp(App):
 
         add_button = RoundedButton(
             text="+  Добавить срок",
-            font_size="14sp",
+            font_size="13sp",
             normal_color=ACCENT_RED,
             down_color=ACCENT_RED_DOWN,
-            size_hint_x=0.45,
+            size_hint_x=0.39,
         )
         add_button.bind(
             on_release=lambda *_:
@@ -6731,11 +6740,12 @@ class MainApp(App):
         )
 
         add_category_button = RoundedButton(
-            text="Добавить категорию",
-            font_size="11sp",
-            normal_color=ACCENT_RED,
-            down_color=ACCENT_RED_DOWN,
-            size_hint_x=0.37,
+            text="+  Добавить раздел",
+            font_size="12sp",
+            normal_color=SECTION_TEAL,
+            down_color=SECTION_TEAL_DOWN,
+            force_white_text=True,
+            size_hint_x=0.43,
         )
         add_category_button.bind(
             on_release=lambda *_: self.open_add_category_dialog(
@@ -9731,5 +9741,5 @@ class MainApp(App):
 
 if __name__ == "__main__":
 
-    print("PYTON DETECTOR UI BUILD: v22_nested_categories_fixed_camera")
+    print("PYTON DETECTOR UI BUILD: v23_selver_subcategories_action_row")
     MainApp().run()
